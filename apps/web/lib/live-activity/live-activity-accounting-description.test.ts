@@ -26,6 +26,39 @@ test("Beleg im Heute-Feed ist Klartext ohne IDs", () => {
   assert.equal(item.description?.includes("{"), false);
 });
 
+test("Beleg nennt die Person, die ihn hochgeladen hat", () => {
+  const item = liveActivityFromNotificationEvent({
+    module: "accounting_voucher",
+    payload: {
+      voucherNumber: "152305083",
+      contactName: "Büroshop24 GmbH",
+      amountLabel: "672.65 EUR",
+      createdByProfileId: "11111111-1111-1111-1111-111111111111",
+      uploaderName: "Lukas Dreyer",
+    },
+  });
+
+  assert.equal(item.title, "Lukas Dreyer · Beleg");
+  assert.equal(
+    money(item.description),
+    "Nr. 152305083 · 672,65 € · Büroshop24 GmbH",
+  );
+});
+
+test("Rechnung ohne bekannten Uploader bleibt ohne Namen", () => {
+  const invoice = liveActivityFromNotificationEvent({
+    module: "accounting_invoice",
+    payload: {
+      title: "Neue Rechnung",
+      voucherNumber: "RE-12",
+      recipientLabel: "Bäckerei Sonnenschein",
+      amountLabel: "12.50 EUR",
+      uploaderName: "11111111-1111-1111-1111-111111111111",
+    },
+  });
+  assert.equal(invoice.title, "Rechnung");
+});
+
 test("Rechnung und Angebot nennen Nummer, Betrag und Empfänger", () => {
   const invoice = liveActivityFromNotificationEvent({
     module: "accounting_invoice",

@@ -14,6 +14,8 @@ import {
   mergeLiveActivityItems,
   subscribeLiveActivity,
 } from "@/lib/live-activity/live-activity-store";
+import { liveFeedModuleVisibleWithPermissions } from "@/lib/live-activity/live-activity-feed-access";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 export function useLiveActivityFeed(): {
@@ -26,6 +28,7 @@ export function useLiveActivityFeed(): {
   restaurantId: string | null;
 } {
   const { restaurantId } = useWorkspaceRestaurantUuid();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextOffset, setNextOffset] = useState(0);
@@ -48,11 +51,16 @@ export function useLiveActivityFeed(): {
     [],
   );
 
-  const items = useSyncExternalStore(
+  const storedItems = useSyncExternalStore(
     subscribe,
     getLiveActivityItems,
     () => [] as LiveActivityItem[],
   );
+  const items = permissionsLoading
+    ? storedItems
+    : storedItems.filter((item) =>
+        liveFeedModuleVisibleWithPermissions(item.module, has),
+      );
 
   const hasUnseenSnapshot = useCallback(() => {
     if (!restaurantId) return false;

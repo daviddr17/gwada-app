@@ -15,6 +15,7 @@ import {
   staffNotificationCopy,
 } from "@/lib/notifications/staff-notification-copy";
 import { formatNotificationPayloadSummary } from "@/lib/superadmin/superadmin-notification-log";
+import { usableUploaderName } from "@/lib/live-activity/live-activity-accounting-uploader";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
 import { STAFF_WORK_ENTRY_LABELS, type StaffWorkEntryType } from "@/lib/types/staff";
@@ -713,14 +714,7 @@ function feedDescriptionForModule(
 function accountingUploaderName(
   payload: Record<string, unknown> | undefined,
 ): string | null {
-  const name = pickString(payload?.uploaderName);
-  if (!name) return null;
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(name)
-  ) {
-    return null;
-  }
-  return name;
+  return usableUploaderName(payload?.uploaderName);
 }
 
 /** Wie „Lukas Dreyer · abgemeldet“: Name in der Titelzeile, Belegdaten darunter. */

@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { drawerFormHeaderClassName, drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
+import { drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { RefreshCw } from "lucide-react";
+import { Filter, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { SuperadminDataTable } from "@/components/superadmin/superadmin-data-table";
 import type { SuperadminColumn } from "@/components/superadmin/superadmin-data-table";
-import { SuperadminSearchToolbar } from "@/components/superadmin/superadmin-search-toolbar";
+import {
+  SuperadminNotificationLogFilterDrawer,
+  countSuperadminNotificationLogActiveFilters,
+} from "@/components/superadmin/superadmin-notification-log-filter-drawer";
 import { superadminDateCellClass } from "@/components/superadmin/superadmin-table-cells";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,15 +22,15 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
 import { SuperadminTableFullscreenSurround } from "@/components/superadmin/superadmin-table-fullscreen-surround";
 import { formatListPageSummary } from "@/lib/ui/list-range-count";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  moduleSearchFilterActiveBadgeClassName,
+  moduleSearchFilterButtonClassName,
+  moduleSearchFilterButtonWrapClassName,
+  moduleSearchFilterRowClassName,
+} from "@/lib/ui/module-search-filter-toolbar";
 import { NOTIFICATION_MODULE_IDS } from "@/lib/notifications/notification-modules";
 import {
   fetchSuperadminNotificationLog,
@@ -42,7 +45,6 @@ import {
   type SuperadminNotificationLogRow,
 } from "@/lib/superadmin/superadmin-notification-log";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
@@ -129,6 +131,7 @@ export function SuperadminNotificationLogPanel() {
   const [channelFilter, setChannelFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [selected, setSelected] = useState<SuperadminNotificationLogRow | null>(
     null,
   );
@@ -207,6 +210,27 @@ export function SuperadminNotificationLogPanel() {
     ],
     [],
   );
+
+  const activeFilterCount = countSuperadminNotificationLogActiveFilters({
+    moduleFilter,
+    channelFilter,
+    statusFilter,
+  });
+
+  const setModuleFilterAndResetPage = (value: string) => {
+    setModuleFilter(value);
+    setPage(1);
+  };
+
+  const setChannelFilterAndResetPage = (value: string) => {
+    setChannelFilter(value);
+    setPage(1);
+  };
+
+  const setStatusFilterAndResetPage = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
 
   const notificationLogColumns = useMemo(
     (): SuperadminColumn<SuperadminNotificationLogRow>[] => [
@@ -337,68 +361,38 @@ export function SuperadminNotificationLogPanel() {
         Bewertungsdatum).
       </p>
 
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <SuperadminSearchToolbar
-          search={searchInput}
-          onSearchChange={setSearchInput}
-          searchPlaceholder="E-Mail, Referenz, Restaurant, User-ID…"
-          filterLabel="Zweck"
-          filterValue={moduleFilter}
-          filterOptions={moduleOptions}
-          onFilterChange={(value) => {
-            setModuleFilter(value);
-            setPage(1);
-          }}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={channelFilter}
-            onValueChange={(value) => {
-              setChannelFilter(String(value));
-              setPage(1);
-            }}
-          >
-            <SelectTrigger
-              className={appSelectTriggerAccentCn("h-9 min-w-[9rem]")}
-              aria-label="Kanal filtern"
+      <div className={moduleSearchFilterRowClassName}>
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="E-Mail, Referenz, Restaurant, User-ID…"
+            className="h-9 pl-9"
+            aria-label="Suche"
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <div className={moduleSearchFilterButtonWrapClassName}>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-lg"
+              className={moduleSearchFilterButtonClassName}
+              onClick={() => setFilterOpen(true)}
+              aria-label="Filter"
             >
-              <SelectValue>
-                {channelOptions.find((o) => o.value === channelFilter)?.label ??
-                  "Kanal"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {channelOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => {
-              setStatusFilter(String(value));
-              setPage(1);
-            }}
-          >
-            <SelectTrigger
-              className={appSelectTriggerAccentCn("h-9 min-w-[9rem]")}
-              aria-label="Status filtern"
-            >
-              <SelectValue>
-                {statusOptions.find((o) => o.value === statusFilter)?.label ??
-                  "Status"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <Filter className="size-4" />
+            </Button>
+            {activeFilterCount > 0 ? (
+              <Badge
+                variant="secondary"
+                className={moduleSearchFilterActiveBadgeClassName}
+              >
+                {activeFilterCount}
+              </Badge>
+            ) : null}
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -463,6 +457,20 @@ export function SuperadminNotificationLogPanel() {
         columns={notificationLogColumns}
       />
       </SuperadminTableFullscreenSurround>
+
+      <SuperadminNotificationLogFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        moduleFilter={moduleFilter}
+        onModuleFilterChange={setModuleFilterAndResetPage}
+        moduleOptions={moduleOptions}
+        channelFilter={channelFilter}
+        onChannelFilterChange={setChannelFilterAndResetPage}
+        channelOptions={channelOptions}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilterAndResetPage}
+        statusOptions={statusOptions}
+      />
 
       <Drawer
         open={selected != null}

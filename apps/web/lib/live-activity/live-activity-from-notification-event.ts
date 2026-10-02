@@ -20,6 +20,10 @@ import {
   lexofficeReceiptTitle,
   usableUploaderName,
 } from "@/lib/live-activity/live-activity-accounting-uploader";
+import {
+  formatPurchaseOrderCompletionSubtitle,
+  purchaseOrderCompletionFromPayload,
+} from "@/lib/live-activity/purchase-order-completion-feed";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
 import { STAFF_WORK_ENTRY_LABELS, type StaffWorkEntryType } from "@/lib/types/staff";
@@ -59,6 +63,13 @@ function poActivityDescription(
   const supplier = pickString(payload.supplierName);
 
   switch (kind) {
+    case "order_completed":
+      return formatPurchaseOrderCompletionSubtitle({
+        orderedCount: pickNumber(payload.orderedCount) ?? 0,
+        deliveredCount: pickNumber(payload.deliveredCount) ?? 0,
+        shortCount: pickNumber(payload.shortCount) ?? 0,
+        missingCount: pickNumber(payload.missingCount) ?? 0,
+      });
     case "add_to_order": {
       const qty = pickNumber(payload.quantity);
       if (name && qty != null) {
@@ -300,6 +311,7 @@ function poActivityTitle(
   staff: string | null,
 ): string {
   const kind = pickString(payload.kind);
+  if (kind === "order_completed") return "Bestellung abgeschlossen";
   const prefix = staff ? `${staff} · ` : "";
   switch (kind) {
     case "add_to_order":
@@ -867,6 +879,11 @@ export function liveActivityFromNotificationEvent(params: {
           ? `evt:${params.eventId}`
           : undefined;
 
+  const purchaseOrderCompletion =
+    params.module === "inventory_po_activity"
+      ? purchaseOrderCompletionFromPayload(params.payload)
+      : null;
+
   return {
     id: stableId,
     kind: "notification",
@@ -880,5 +897,6 @@ export function liveActivityFromNotificationEvent(params: {
       params.referenceId,
     ),
     at: params.createdAt ?? undefined,
+    ...(purchaseOrderCompletion ? { purchaseOrderCompletion } : {}),
   };
 }

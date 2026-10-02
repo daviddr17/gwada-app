@@ -1045,7 +1045,7 @@ export async function applyPurchaseOrderLineDeliveryStockRelational(
     deliveryStatus?: PurchaseOrderLineDeliveryStatus | null;
     deliveredQuantity?: number | null;
     deliveryNote?: string | null;
-    poLog: PurchaseOrderLogEntry;
+    poLog: PurchaseOrderLogEntry & { suppressLiveActivity?: boolean };
     stockLog: Record<string, unknown>;
     applyStock?: boolean;
   },

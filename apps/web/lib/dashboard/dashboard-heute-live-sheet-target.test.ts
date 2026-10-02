@@ -72,6 +72,27 @@ test("Pause beendet öffnet Anwesenheits-Sheet in Arbeit", () => {
   );
   assert.deepEqual(target, { type: "presence", mode: "working" });
 });
+test("Abgeschlossene Bestellung öffnet das Ausnahme-Sheet", () => {
+  const row = item({
+    id: "po",
+    title: "Bestellung abgeschlossen",
+    at: "2026-09-06T10:00:00.000Z",
+    module: "inventory_po_activity",
+    purchaseOrderCompletion: {
+      orderId: "order-1",
+      orderedCount: 2,
+      deliveredCount: 1,
+      shortCount: 1,
+      missingCount: 0,
+      exceptions: [],
+    },
+  });
+  assert.deepEqual(resolveHeuteLiveSheetTarget(row), {
+    type: "purchase_order_completion",
+    item: row,
+  });
+});
+
 test("Unbekannte Module fallen auf Event-Detail zurück", () => {
   const row = item({
     id: "4",

@@ -9,12 +9,17 @@ export type HeuteLiveSheetTarget =
   | { type: "presence"; mode: StaffLivePresenceSheetMode }
   | { type: "work_hours" }
   | { type: "checklists" }
+  | { type: "purchase_order_completion"; item: LiveActivityItem }
   | { type: "event"; item: LiveActivityItem };
 
 /** Mappt Live-Feed-Module auf bestehende Heute-Sheets (sonst Event-Detail). */
 export function resolveHeuteLiveSheetTarget(
   item: LiveActivityItem,
 ): HeuteLiveSheetTarget {
+  if (item.purchaseOrderCompletion) {
+    return { type: "purchase_order_completion", item };
+  }
+
   const mod = item.module?.trim() ?? "";
   if (!mod) return { type: "event", item };
 

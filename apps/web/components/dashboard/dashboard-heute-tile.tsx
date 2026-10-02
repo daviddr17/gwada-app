@@ -18,6 +18,7 @@ import { DashboardHeuteBirthdaysSheet } from "@/components/dashboard/dashboard-h
 import { DashboardHeuteAllClear } from "@/components/dashboard/dashboard-heute-all-clear";
 import { DashboardHeuteChecklistsSheet } from "@/components/dashboard/dashboard-heute-checklists-sheet";
 import { DashboardHeuteLiveEventSheet } from "@/components/dashboard/dashboard-heute-live-event-sheet";
+import { PurchaseOrderCompletionLiveSheet } from "@/components/dashboard/purchase-order-completion-live-sheet";
 import { DashboardHeuteWorkHoursSheet } from "@/components/dashboard/dashboard-heute-work-hours-sheet";
 import { DashboardInventoryAlertsSheet } from "@/components/dashboard/dashboard-inventory-alerts-sheet";
 import { DashboardMessagesListSheet } from "@/components/dashboard/dashboard-messages-list-sheet";
@@ -230,6 +231,9 @@ export function DashboardHeuteTile() {
   const [birthdaysSheetOpen, setBirthdaysSheetOpen] = useState(false);
   const [checklistsSheetOpen, setChecklistsSheetOpen] = useState(false);
   const [liveEventItem, setLiveEventItem] = useState<LiveActivityItem | null>(null);
+  const [completionItem, setCompletionItem] = useState<LiveActivityItem | null>(
+    null,
+  );
 
   const accessOptions = {
     permissionsLoading,
@@ -608,6 +612,9 @@ export function DashboardHeuteTile() {
           if (can.checklists) setChecklistsSheetOpen(true);
           else setLiveEventItem(item);
           break;
+        case "purchase_order_completion":
+          setCompletionItem(target.item);
+          break;
         case "event":
           setLiveEventItem(target.item);
           break;
@@ -810,6 +817,14 @@ export function DashboardHeuteTile() {
           todos={checklists.summary.todos ?? []}
         />
       ) : null}
+
+      <PurchaseOrderCompletionLiveSheet
+        open={completionItem != null}
+        onOpenChange={(open) => {
+          if (!open) setCompletionItem(null);
+        }}
+        item={completionItem}
+      />
 
       <DashboardHeuteLiveEventSheet
         open={liveEventItem != null}

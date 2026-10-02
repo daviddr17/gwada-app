@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Activity, X } from "lucide-react";
+import { PurchaseOrderCompletionLiveSheet } from "@/components/dashboard/purchase-order-completion-live-sheet";
 import { AppMobileChromeScreen } from "@/components/layout/app-mobile-chrome-screen";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
@@ -64,12 +65,14 @@ function ActivityRow({
   timeZone,
   nowMs,
   onNavigate,
+  onOpenCompletion,
   wrapTitle,
 }: {
   item: LiveActivityItem;
   timeZone: string;
   nowMs: number;
   onNavigate: () => void;
+  onOpenCompletion?: (item: LiveActivityItem) => void;
   /** Vollbild auf dem Handy: Name umbrechen, nicht auf „Beleg“ kürzen. */
   wrapTitle: boolean;
 }) {
@@ -104,13 +107,32 @@ function ActivityRow({
           </time>
         </div>
         {item.description ? (
-          <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+          <p
+            className={cn(
+              "mt-0.5 text-xs leading-snug text-muted-foreground",
+              item.purchaseOrderCompletion ? "text-pretty" : "line-clamp-2",
+            )}
+          >
             {item.description}
           </p>
         ) : null}
       </div>
     </div>
   );
+
+  if (item.purchaseOrderCompletion && onOpenCompletion) {
+    return (
+      <li>
+        <button
+          type="button"
+          className="block w-full text-left transition-colors hover:bg-muted/50 active:bg-muted/70"
+          onClick={() => onOpenCompletion(item)}
+        >
+          {row}
+        </button>
+      </li>
+    );
+  }
 
   if (!href) return <li>{row}</li>;
 
@@ -135,6 +157,7 @@ function LiveActivityPanel({
   hasMore,
   loadingMore,
   onNavigate,
+  onOpenCompletion,
   onLoadMore,
 }: {
   items: LiveActivityItem[];
@@ -144,6 +167,7 @@ function LiveActivityPanel({
   hasMore: boolean;
   loadingMore: boolean;
   onNavigate: () => void;
+  onOpenCompletion: (item: LiveActivityItem) => void;
   onLoadMore: () => void;
 }) {
   return (
@@ -190,6 +214,7 @@ function LiveActivityPanel({
                 timeZone={timeZone}
                 nowMs={nowMs}
                 onNavigate={onNavigate}
+                onOpenCompletion={onOpenCompletion}
                 wrapTitle={layout === "screen"}
               />
             ))}
@@ -233,6 +258,8 @@ export function AppChromeActivityFeed({
   onBeforeOpen,
 }: AppChromeActivityFeedProps = {}) {
   const [open, setOpen] = React.useState(false);
+  const [completionItem, setCompletionItem] =
+    React.useState<LiveActivityItem | null>(null);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   const pathname = usePathname();
   const isMobile = useIsMobile();
@@ -271,7 +298,18 @@ export function AppChromeActivityFeed({
       hasMore={hasMore}
       loadingMore={loadingMore}
       onNavigate={() => setOpen(false)}
+      onOpenCompletion={setCompletionItem}
       onLoadMore={() => void loadMore()}
+    />
+  );
+
+  const completionSheet = (
+    <PurchaseOrderCompletionLiveSheet
+      open={completionItem != null}
+      onOpenChange={(next) => {
+        if (!next) setCompletionItem(null);
+      }}
+      item={completionItem}
     />
   );
 
@@ -328,6 +366,7 @@ export function AppChromeActivityFeed({
         >
           {panel}
         </AppMobileChromeScreen>
+        {completionSheet}
       </>
     );
   }
@@ -389,11 +428,13 @@ export function AppChromeActivityFeed({
         >
           {panel}
         </AppMobileChromeScreen>
+        {completionSheet}
       </>
     );
   }
 
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
@@ -431,5 +472,7 @@ export function AppChromeActivityFeed({
         </PopoverPositioner>
       </PopoverPortal>
     </Popover>
+    {completionSheet}
+    </>
   );
 }

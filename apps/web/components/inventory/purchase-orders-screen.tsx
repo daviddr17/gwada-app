@@ -4,6 +4,7 @@ import { ClipboardList, Filter } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
 import {
   PurchaseOrderCloseDeliveryDrawer,
@@ -214,6 +215,11 @@ export function PurchaseOrdersScreen() {
   } | null>(null);
   const closeInFlightUiRef = useRef(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const focusOrderId = searchParams.get("order");
+  const focusedOrderRef = useRef<string | null>(null);
   const [lineSortKey, setLineSortKey] =
     useState<PurchaseOrderLineSortKey>("categoryId");
   const [lineSortDir, setLineSortDir] = useState<PurchaseOrderLineSortDir>("asc");
@@ -330,6 +336,26 @@ export function PurchaseOrdersScreen() {
     }
     return counts;
   }, [orders]);
+
+  useEffect(() => {
+    if (!focusOrderId || !isHydrated) return;
+    const order = orders.find((o) => o.id === focusOrderId);
+    if (!order || focusedOrderRef.current === focusOrderId) return;
+    focusedOrderRef.current = focusOrderId;
+    setStatusFilter(order.status);
+    setSupplierFilterId("all");
+    setProductionFilterId("all");
+    setExpanded((prev) => ({ ...prev, [order.id]: true }));
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("order");
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    window.setTimeout(() => {
+      document.getElementById(`purchase-order-${order.id}`)?.scrollIntoView({
+        block: "start",
+      });
+    }, 0);
+  }, [focusOrderId, isHydrated, orders, pathname, router, searchParams]);
 
   const filtered = useMemo(() => {
     return orders
@@ -771,6 +797,7 @@ export function PurchaseOrdersScreen() {
             return (
               <section
                 key={order.id}
+                id={`purchase-order-${order.id}`}
                 className={cn(
                   "rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm",
                   // Zugeklappt: Ecken clippen. Aufgeklappt: overflow sichtbar,

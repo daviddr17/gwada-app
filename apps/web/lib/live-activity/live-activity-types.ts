@@ -1,3 +1,5 @@
+import type { PurchaseOrderCompletionFeed } from "@/lib/live-activity/purchase-order-completion-feed";
+
 export type LiveActivityKind =
   | "reservation"
   | "message"
@@ -13,4 +15,6 @@ export type LiveActivityItem = {
   description?: string | null;
   href?: string | null;
   at: string;
+  /** Eine abgeschlossene Bestellung — Tap öffnet nur Fehlmenge und nicht geliefert. */
+  purchaseOrderCompletion?: PurchaseOrderCompletionFeed;
 };

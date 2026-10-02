@@ -140,14 +140,26 @@ export function resolveIngredientStockLogUserLabel(
   return "—";
 }
 
+/** Bestellungen haben keinen Nummernkreis; der Klarname ist der Lieferant. */
+function purchaseOrderOriginPhrase(supplierName: string): string | null {
+  const name = supplierName.trim();
+  if (!name) return null;
+  return `aus Bestellung ${name}`;
+}
+
+function withPurchaseOrderOrigin(action: string, supplierName: string): string {
+  const phrase = purchaseOrderOriginPhrase(supplierName);
+  return phrase ? `${action} · ${phrase}` : action;
+}
+
 export function ingredientStockActionColumn(e: IngredientStockLogEntry): string {
   switch (e.kind) {
     case "manual_stock":
       return "Menge geändert";
     case "stock_from_delivery":
-      return "Geliefert markiert";
+      return withPurchaseOrderOrigin("Geliefert markiert", e.supplierName);
     case "stock_delivery_reverted":
-      return "Geliefert rückgängig";
+      return withPurchaseOrderOrigin("Geliefert rückgängig", e.supplierName);
     case "stock_from_invoice":
       return "Rechnung";
     case "stock_from_invoice_correction":

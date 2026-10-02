@@ -26,12 +26,10 @@ import { Input } from "@/components/ui/input";
 import { SuperadminTableFullscreenSurround } from "@/components/superadmin/superadmin-table-fullscreen-surround";
 import { formatListPageSummary } from "@/lib/ui/list-range-count";
 import {
-  moduleSearchFieldWrapClassName,
   moduleSearchFilterActiveBadgeClassName,
   moduleSearchFilterButtonClassName,
   moduleSearchFilterButtonWrapClassName,
   moduleSearchFilterRowClassName,
-  moduleSearchInputClassName,
 } from "@/lib/ui/module-search-filter-toolbar";
 import { NOTIFICATION_MODULE_IDS } from "@/lib/notifications/notification-modules";
 import {
@@ -364,13 +362,13 @@ export function SuperadminNotificationLogPanel() {
       </p>
 
       <div className={moduleSearchFilterRowClassName}>
-        <div className={moduleSearchFieldWrapClassName}>
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="E-Mail, Referenz, Restaurant, User-ID…"
-            className={moduleSearchInputClassName}
+            className="h-9 pl-9"
             aria-label="Suche"
           />
         </div>

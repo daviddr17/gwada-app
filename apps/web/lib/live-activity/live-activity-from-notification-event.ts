@@ -15,7 +15,11 @@ import {
   staffNotificationCopy,
 } from "@/lib/notifications/staff-notification-copy";
 import { formatNotificationPayloadSummary } from "@/lib/superadmin/superadmin-notification-log";
-import { usableUploaderName } from "@/lib/live-activity/live-activity-accounting-uploader";
+import {
+  isLexofficeDocumentSource,
+  lexofficeReceiptTitle,
+  usableUploaderName,
+} from "@/lib/live-activity/live-activity-accounting-uploader";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
 import { STAFF_WORK_ENTRY_LABELS, type StaffWorkEntryType } from "@/lib/types/staff";
@@ -724,6 +728,12 @@ function accountingDocumentTitle(
   locale: string,
 ): string {
   const label = moduleNoticeLabel(module, locale, "one");
+  if (
+    module === "accounting_voucher" &&
+    isLexofficeDocumentSource(payload?.source)
+  ) {
+    return lexofficeReceiptTitle(label);
+  }
   const uploader = accountingUploaderName(payload);
   return uploader ? `${uploader} · ${label}` : label;
 }

@@ -10,6 +10,7 @@ import {
   accountingProfileIdFromPayload,
   asUuid,
   firstNamedProfileId,
+  isLexofficeDocumentSource,
   personNameFromParts,
   resolveAccountingUploaderName,
 } from "@/lib/live-activity/live-activity-accounting-uploader";
@@ -209,7 +210,11 @@ async function loadUploaderNames(
   return names;
 }
 
-type DocumentActors = { createdBy: string | null; updatedBy: string | null };
+type DocumentActors = {
+  createdBy: string | null;
+  updatedBy: string | null;
+  source: string | null;
+};
 
 async function loadDocumentActors(
   admin: SupabaseClient,
@@ -236,7 +241,7 @@ async function loadDocumentActors(
     [...idsByTable.entries()].map(async ([table, ids]) => {
       const { data, error } = await admin
         .from(table)
-        .select("id, created_by, updated_by")
+        .select("id, created_by, updated_by, source")
         .eq("restaurant_id", restaurantId)
         .in("id", [...new Set(ids)]);
       if (error) {
@@ -248,12 +253,14 @@ async function loadDocumentActors(
           id?: unknown;
           created_by?: unknown;
           updated_by?: unknown;
+          source?: unknown;
         };
         const documentId = asUuid(row.id);
         if (!documentId) continue;
         byDocumentId.set(documentId, {
           createdBy: asUuid(row.created_by),
           updatedBy: asUuid(row.updated_by),
+          source: typeof row.source === "string" ? row.source : null,
         });
       }
     }),
@@ -345,6 +352,8 @@ type AccountingUploaderIndex = {
   profileIdByEvent: Map<string, string>;
   logNameByEvent: Map<string, string>;
   names: Map<string, string>;
+  /** Beleg-Zeilen, deren Dokument source = lexoffice hat. */
+  lexofficeEventIds: Set<string>;
 };
 
 async function buildAccountingUploaderIndex(
@@ -356,6 +365,7 @@ async function buildAccountingUploaderIndex(
     ACCOUNTING_FEED_MODULES.has(row.module),
   );
   const profileIdByEvent = new Map<string, string>();
+  const lexofficeEventIds = new Set<string>();
   const actors = await loadDocumentActors(admin, restaurantId, accountingRows);
   const candidatesByEvent = new Map<string, Array<string | null>>();
 
@@ -367,6 +377,12 @@ async function buildAccountingUploaderIndex(
       doc?.createdBy ?? null,
       doc?.updatedBy ?? null,
     ]);
+    if (
+      row.module === "accounting_voucher" &&
+      isLexofficeDocumentSource(doc?.source)
+    ) {
+      lexofficeEventIds.add(row.id);
+    }
   }
 
   const names = await loadUploaderNames(admin, restaurantId, [
@@ -403,7 +419,7 @@ async function buildAccountingUploaderIndex(
     for (const [id, name] of more) names.set(id, name);
   }
 
-  return { profileIdByEvent, logNameByEvent, names };
+  return { profileIdByEvent, logNameByEvent, names, lexofficeEventIds };
 }
 
 function mapFeedRow(
@@ -420,6 +436,11 @@ function mapFeedRow(
       logName: uploaders.logNameByEvent.get(row.id) ?? null,
     });
     if (uploaderName) payload.uploaderName = uploaderName;
+    if (row.module === "accounting_voucher") {
+      payload.source = uploaders.lexofficeEventIds.has(row.id)
+        ? "lexoffice"
+        : "gwada";
+    }
   }
   const mapped = liveActivityFromNotificationEvent({
     eventId: row.id,

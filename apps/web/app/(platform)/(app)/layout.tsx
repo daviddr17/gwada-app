@@ -15,6 +15,7 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { PersonalOnboardingProvider } from "@/components/onboarding/personal-onboarding-provider";
 import { RestaurantSetupWizardProvider } from "@/components/onboarding/restaurant-setup-wizard-provider";
 import { ProfileLocaleSyncMount } from "@/components/providers/profile-locale-sync-mount";
+import { ProductUsageBeacon } from "@/components/analytics/product-usage-beacon";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
 import { ProfileUiDensitySyncMount } from "@/components/providers/profile-ui-density-sync-mount";
 import { WorkspaceShellProviders } from "@/components/providers/workspace-shell-providers";
@@ -96,6 +97,7 @@ export default function AppLayout({
                             <UnifiedInboxBackgroundSyncMount />
                             <AppDashboardLivePatchMount />
                             <ProfilePresenceHeartbeat />
+                            <ProductUsageBeacon />
                             <ProfileLocaleSyncMount />
                             <ProfileUiDensitySyncMount />
                             <AppModuleLiveProviders />

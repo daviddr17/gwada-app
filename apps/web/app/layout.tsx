@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { cookies } from "next/headers";
+import { WebsiteAnalyticsBeacon } from "@/components/analytics/website-analytics-beacon";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { isRtlLocale } from "@/i18n/config";
@@ -89,6 +90,7 @@ export default async function RootLayout({
         ) : null}
       </head>
       <body className="min-h-dvh font-sans">
+        <WebsiteAnalyticsBeacon />
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>
     </html>

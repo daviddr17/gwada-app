@@ -49,6 +49,7 @@ import {
   loginErrorBannerText,
 } from "@/lib/auth/login-error-messages";
 import { signInWithPasskeyClient } from "@/lib/auth/passkey-auth";
+import { reportPlatformLogin } from "@/lib/analytics/report-platform-login";
 import { usePasskeyLoginAvailability } from "@/lib/hooks/use-passkey-login-availability";
 
 const backNavLinkClass =
@@ -216,6 +217,7 @@ export function LoginForm() {
         return;
       }
       clearLoginError();
+      await reportPlatformLogin("passkey");
       enterApp(() => {
         window.location.assign(authEnterHref(searchParams.get("next")));
       });
@@ -278,6 +280,7 @@ export function LoginForm() {
         return;
       }
       clearLoginError();
+      await reportPlatformLogin("password");
       enterApp(() => {
         window.location.assign(authEnterHref(searchParams.get("next")));
       });

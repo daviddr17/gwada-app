@@ -102,6 +102,7 @@ export async function proxy(request: NextRequest) {
 
   if (
     isAuthEntryPath(pathname) ||
+    pathname === "/api/analytics/collect" ||
     pathname.startsWith("/api/auth/") ||
     pathname === "/docs" ||
     pathname.startsWith("/docs/") ||

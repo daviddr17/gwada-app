@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
+import { reportPlatformLogin } from "@/lib/analytics/report-platform-login";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   isRegisteredUserLimitError,
@@ -395,6 +396,7 @@ export default function StaffInvitePage() {
       toast.error(error.message);
       return;
     }
+    await reportPlatformLogin("password");
     const userId = data.user?.id;
     if (!userId) {
       setBusy(false);

@@ -93,6 +93,7 @@ function DashboardSpaInset() {
     <SidebarInset className="min-w-0">
       <header
         data-app-chrome-header
+        data-ios-top-bar=""
         className={cn(
           "z-30 flex box-border h-[var(--app-chrome-header-h)] max-h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] min-w-0 shrink-0 overflow-hidden border-b border-border/50",
           appChromeFixedZoneBgClassName,
@@ -105,9 +106,12 @@ function DashboardSpaInset() {
             className="!h-7 shrink-0 self-center bg-border/50 data-vertical:!self-center"
           />
         </div>
-        <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          data-app-chrome-title-scroll
+          className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <div className={cn("flex h-full w-max min-w-full items-center gap-2 sm:gap-3", appChromeSafeStartClassName)}>
-            <div className="flex shrink-0 items-center gap-2">
+            <div data-app-chrome-title className="flex shrink-0 items-center gap-2">
               {chrome.title ? (
                 <h1 className="whitespace-nowrap text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
                   {chrome.title}
@@ -157,10 +161,19 @@ function DashboardSpaInset() {
             <ModeToggle size="icon-sm" />
           </div>
           <div className="flex shrink-0 items-center gap-1.5 md:hidden">
-            <ModeToggle size="icon-sm" />
+            {/* Kein backdrop-filter: auf iOS schmiert das die ganze Kopfzeile. */}
+            <ModeToggle
+              size="icon-sm"
+              className="bg-card shadow-none backdrop-blur-none"
+            />
           </div>
         </div>
       </header>
+      {/* Platzhalter: die mobile Kopfzeile ist fixed (siehe app-mobile-chrome.css). */}
+      <div
+        aria-hidden
+        className="hidden h-[calc(var(--app-chrome-header-h)+env(safe-area-inset-top,0px))] shrink-0 max-md:block"
+      />
 
       {showChipStrip ? (
         <div data-module-chip-sticky className="z-20 w-full shrink-0">

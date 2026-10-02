@@ -184,10 +184,21 @@ export function recordLiveActivity(
     description: item.description ?? null,
     href: item.href ?? null,
     at: item.at ?? new Date().toISOString(),
+    ...(item.purchaseOrderCompletion
+      ? { purchaseOrderCompletion: item.purchaseOrderCompletion }
+      : {}),
   };
 
   const dup = state.items.find((row) => {
     if (canonicalLiveActivityId(row.id) === next.id) return true;
+    if (
+      row.purchaseOrderCompletion?.orderId &&
+      next.purchaseOrderCompletion?.orderId &&
+      row.purchaseOrderCompletion.orderId !==
+        next.purchaseOrderCompletion.orderId
+    ) {
+      return false;
+    }
     const dt = Math.abs(
       new Date(row.at).getTime() - new Date(next.at).getTime(),
     );

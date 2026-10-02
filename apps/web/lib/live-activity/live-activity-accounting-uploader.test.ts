@@ -4,9 +4,13 @@ import { test } from "node:test";
 import { liveActivityFromNotificationEvent } from "@/lib/live-activity/live-activity-from-notification-event";
 import {
   accountingProfileIdFromPayload,
+  applyStoredVoucherSource,
   firstNamedProfileId,
+  isLexofficeDocumentSource,
   preferAccountingFeedTitle,
   resolveAccountingUploaderName,
+  voucherNoticeHeadline,
+  voucherUploadedAtLexofficeLine,
 } from "@/lib/live-activity/live-activity-accounting-uploader";
 
 const PROFILE = "11111111-1111-1111-1111-111111111111";
@@ -87,6 +91,47 @@ test("Personenname ersetzt „Beleg“ und wird nicht wieder gelöscht", () => {
     "Lukas Dreyer · Beleg",
   );
   assert.equal(preferAccountingFeedTitle("Beleg", "Beleg"), "Beleg");
+});
+
+test("Lexoffice nur bei gespeicherter Quelle lexoffice", () => {
+  assert.equal(isLexofficeDocumentSource("lexoffice"), true);
+  assert.equal(isLexofficeDocumentSource(" Lexoffice "), true);
+  assert.equal(isLexofficeDocumentSource("gwada"), false);
+  assert.equal(isLexofficeDocumentSource("lexware"), false);
+  assert.equal(isLexofficeDocumentSource(null), false);
+  assert.equal(isLexofficeDocumentSource("ext-123"), false);
+});
+
+test("Push übernimmt die Beleg-Quelle und verwirft eine erfundene", () => {
+  const forged = { source: "lexoffice", voucherNumber: "1" };
+  assert.deepEqual(applyStoredVoucherSource(forged, "gwada"), {
+    source: "gwada",
+    voucherNumber: "1",
+  });
+  assert.deepEqual(applyStoredVoucherSource(forged, "lexoffice"), {
+    source: "lexoffice",
+    voucherNumber: "1",
+  });
+  assert.deepEqual(applyStoredVoucherSource(forged, null), {
+    voucherNumber: "1",
+  });
+});
+
+test("Benachrichtigung nennt Lexoffice nur beim Lexoffice-Beleg", () => {
+  assert.equal(
+    voucherNoticeHeadline("lexoffice", "Beleg", "Neuer Beleg"),
+    "Lexoffice · Beleg",
+  );
+  assert.equal(
+    voucherNoticeHeadline("gwada", "Beleg", "Neuer Beleg"),
+    "Neuer Beleg",
+  );
+  assert.equal(
+    voucherUploadedAtLexofficeLine("lexoffice", "de"),
+    "bei Lexoffice hochgeladen",
+  );
+  assert.equal(voucherUploadedAtLexofficeLine("gwada", "de"), null);
+  assert.equal(voucherUploadedAtLexofficeLine("lexoffice", "en"), null);
 });
 
 test("Uploader: created_by vor updated_by, sonst der nächste Name", () => {

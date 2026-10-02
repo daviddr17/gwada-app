@@ -1,6 +1,11 @@
 import "server-only";
 
 import {
+  isLexofficeDocumentSource,
+  voucherNoticeHeadline,
+  voucherUploadedAtLexofficeLine,
+} from "@/lib/live-activity/live-activity-accounting-uploader";
+import {
   isSelfOriginatedNotification,
 } from "@/lib/notifications/notification-self-origin";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
@@ -168,7 +173,6 @@ async function loadVoucherItems(
       "id, voucher_number, contact_name, total_gross_amount, currency, created_at, created_by, source",
     )
     .eq("restaurant_id", params.restaurantId)
-    .eq("source", "gwada")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(Math.min(Math.max(params.limit, 5), 100));
@@ -187,12 +191,16 @@ async function loadVoucherItems(
       currency: string;
       created_at: string;
       created_by: string | null;
+      source: string | null;
     })
     .filter((r) => !params.dismissed.has(r.id))
-    .filter((r) => Boolean(r.created_by))
-    .filter(
-      (r) => !isSelfOriginatedNotification(params.userId, r.created_by),
-    );
+    .filter((r) => {
+      if (isLexofficeDocumentSource(r.source)) return true;
+      return (
+        Boolean(r.created_by) &&
+        !isSelfOriginatedNotification(params.userId, r.created_by)
+      );
+    });
 }
 
 function mapQuotationToBellItem(row: {
@@ -258,18 +266,20 @@ function mapVoucherToBellItem(row: {
   total_gross_amount: number;
   currency: string;
   created_at: string;
+  source?: string | null;
 }) {
   const contact = row.contact_name?.trim() || "Beleg";
   const number = row.voucher_number?.trim();
   const amount = formatAmount(row.total_gross_amount, row.currency);
   const subtitleParts = [
+    voucherUploadedAtLexofficeLine(row.source, "de"),
     number ? `Nr. ${number}` : null,
     amount,
     contact !== "Beleg" ? contact : null,
   ].filter(Boolean);
   return {
     id: row.id,
-    title: "Neuer Beleg",
+    title: voucherNoticeHeadline(row.source, "Beleg", "Neuer Beleg"),
     subtitle: subtitleParts.join(" · ") || contact,
     href: "/dashboard/accounting/vouchers",
     at: row.created_at,

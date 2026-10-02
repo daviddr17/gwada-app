@@ -39,6 +39,7 @@ import {
   releaseStaleNotificationEventLocks,
   type ClaimedNotificationDelivery,
 } from "@/lib/notifications/notification-deliver-claim";
+import { applyStoredVoucherSource } from "@/lib/live-activity/live-activity-accounting-uploader";
 import { buildNotificationPushText } from "@/lib/notifications/notification-push-message";
 import { staffNotificationCopy } from "@/lib/notifications/staff-notification-copy";
 import { resolveInventoryNotificationLocale } from "@/lib/inventory/inventory-unit-label-for-locale";
@@ -508,6 +509,41 @@ async function fetchRestaurantDefaultLocale(
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function voucherDocumentId(event: NotificationEventRow): string | null {
+  const fromPayload = event.payload?.documentId;
+  if (typeof fromPayload === "string" && fromPayload.trim()) {
+    return fromPayload.trim();
+  }
+  const ref = event.reference_id?.trim();
+  return ref || null;
+}
+
+/** Quelle kommt von accounting_vouchers.source, nicht aus dem Event-Payload. */
+async function payloadWithStoredVoucherSource(
+  admin: SupabaseClient,
+  event: NotificationEventRow,
+): Promise<Record<string, unknown>> {
+  const payload = { ...(event.payload ?? {}) };
+  if (event.module !== "accounting_voucher") return payload;
+
+  const documentId = voucherDocumentId(event);
+  if (!documentId) return applyStoredVoucherSource(payload, null);
+
+  let query = admin
+    .from("accounting_vouchers")
+    .select("source")
+    .eq("id", documentId);
+  if (event.restaurant_id) {
+    query = query.eq("restaurant_id", event.restaurant_id);
+  }
+  const { data, error } = await query.maybeSingle();
+  if (error || !data) return applyStoredVoucherSource(payload, null);
+  return applyStoredVoucherSource(
+    payload,
+    (data as { source?: unknown }).source,
+  );
+}
+
 async function deliverOne(
   admin: SupabaseClient,
   delivery: DeliveryRow,
@@ -532,11 +568,12 @@ async function deliverOne(
     contact.locale,
     restaurantLocales.get(delivery.context_restaurant_id) ?? null,
   );
+  const payload = await payloadWithStoredVoucherSource(admin, event);
   const { text, subject, emailDetails, emailBodyHtml, href, platformCode } =
     buildNotificationPushText(
     {
       module: event.module,
-      payload: event.payload ?? {},
+      payload,
     },
     restaurantName,
     timeZone,

@@ -20,6 +20,62 @@ const GENERIC_ACCOUNTING_TITLES = new Set([
   "neues angebot",
 ]);
 
+/** Nur das gespeicherte Quellen-Flag, kein Rückschluss aus der Nummer. */
+export function isLexofficeDocumentSource(value: unknown): boolean {
+  return typeof value === "string" && value.trim().toLowerCase() === "lexoffice";
+}
+
+/** Titelzeile wie „Lukas Dreyer · Beleg“, Quelle statt erfundener Person. */
+export function lexofficeReceiptTitle(documentLabel: string): string {
+  return `Lexoffice · ${documentLabel}`;
+}
+
+/** Glocke und Push: derselbe Fakt in einem Satz. */
+export const LEXOFFICE_RECEIPT_UPLOADED = "bei Lexoffice hochgeladen";
+
+/**
+ * Push-Text übernimmt die Quelle nur von der Belegzeile.
+ * Fehlt die Zeile, bleibt ein mitgeschicktes source-Feld wirkungslos.
+ */
+export function applyStoredVoucherSource(
+  payload: Record<string, unknown>,
+  storedSource: unknown,
+): Record<string, unknown> {
+  const next = { ...payload };
+  if (isLexofficeDocumentSource(storedSource)) {
+    next.source = "lexoffice";
+    return next;
+  }
+  if (typeof storedSource === "string" && storedSource.trim()) {
+    next.source = "gwada";
+    return next;
+  }
+  delete next.source;
+  return next;
+}
+
+/** „Lexoffice · Beleg“ nur bei gespeicherter Quelle, sonst die manuelle Zeile. */
+export function voucherNoticeHeadline(
+  source: unknown,
+  documentLabel: string,
+  manualHeadline: string,
+): string {
+  return isLexofficeDocumentSource(source)
+    ? lexofficeReceiptTitle(documentLabel)
+    : manualHeadline;
+}
+
+/** Deutscher Satz nur für Lexoffice-Belege. Andere Sprachen bleiben bei der Titelzeile. */
+export function voucherUploadedAtLexofficeLine(
+  source: unknown,
+  locale: string,
+): string | null {
+  if (!isLexofficeDocumentSource(source)) return null;
+  const lang = locale.trim().toLowerCase();
+  if (lang === "de" || lang.startsWith("de-")) return LEXOFFICE_RECEIPT_UPLOADED;
+  return null;
+}
+
 /** Platzhalter aus Profil-Sync und Inhaber-Fallback, kein Personenname. */
 const PLACEHOLDER_NAMES = new Set(["user", "inhaber", "beleg", "empfänger"]);
 

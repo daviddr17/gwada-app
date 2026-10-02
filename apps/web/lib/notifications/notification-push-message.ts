@@ -27,6 +27,10 @@ import {
   staffNotificationCopy,
   type StaffNotificationCopy,
 } from "@/lib/notifications/staff-notification-copy";
+import {
+  voucherNoticeHeadline,
+  voucherUploadedAtLexofficeLine,
+} from "@/lib/live-activity/live-activity-accounting-uploader";
 
 function absoluteAppUrl(path: string): string {
   const base =
@@ -596,12 +600,18 @@ export function buildNotificationPushText(
       const contact = pickString(p.contactName) ?? c.voucherFallback;
       const number = pickString(p.voucherNumber);
       const amount = pickString(p.amountLabel);
+      const headline = voucherNoticeHeadline(
+        p.source,
+        moduleNoticeLabel("accounting_voucher", unitLocale, "one"),
+        c.newVoucher,
+      );
       return buildPushMessage({
         prefix,
-        headline: c.newVoucher,
-        subject: `${prefix}${c.newVoucher}${number ? ` — ${number}` : ""}`,
+        headline,
+        subject: `${prefix}${headline}${number ? ` — ${number}` : ""}`,
         href,
         details: detailLines([
+          voucherUploadedAtLexofficeLine(p.source, unitLocale),
           contact ? `${c.contact}: ${contact}` : null,
           number ? `${c.number}: ${number}` : null,
           amount ? `${c.amount}: ${amount}` : null,

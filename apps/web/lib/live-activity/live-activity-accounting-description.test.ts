@@ -45,6 +45,62 @@ test("Beleg nennt die Person, die ihn hochgeladen hat", () => {
   );
 });
 
+test("Lexoffice-Beleg nennt die Quelle, nicht eine Person", () => {
+  const item = liveActivityFromNotificationEvent({
+    module: "accounting_voucher",
+    payload: {
+      voucherNumber: "152305083",
+      contactName: "Büroshop24 GmbH",
+      amountLabel: "672.65 EUR",
+      uploaderName: "Lukas Dreyer",
+      source: "lexoffice",
+    },
+  });
+
+  assert.equal(item.title, "Lexoffice · Beleg");
+  assert.equal(
+    money(item.description),
+    "Nr. 152305083 · 672,65 € · Büroshop24 GmbH",
+  );
+});
+
+test("Manuell hochgeladener Beleg bleibt bei der Person", () => {
+  const item = liveActivityFromNotificationEvent({
+    module: "accounting_voucher",
+    payload: {
+      voucherNumber: "9",
+      contactName: "Markt",
+      amountLabel: "4.00 EUR",
+      uploaderName: "Lukas Dreyer",
+      source: "gwada",
+    },
+  });
+  assert.equal(item.title, "Lukas Dreyer · Beleg");
+
+  const unlabeled = liveActivityFromNotificationEvent({
+    module: "accounting_voucher",
+    payload: {
+      contactName: "Markt",
+      amountLabel: "4.00 EUR",
+    },
+  });
+  assert.equal(unlabeled.title, "Beleg");
+});
+
+test("Rechnung mit Lexoffice-Flag bleibt Rechnung", () => {
+  const invoice = liveActivityFromNotificationEvent({
+    module: "accounting_invoice",
+    payload: {
+      voucherNumber: "RE-12",
+      recipientLabel: "Bäckerei Sonnenschein",
+      amountLabel: "12.50 EUR",
+      source: "lexoffice",
+      uploaderName: "Lukas Dreyer",
+    },
+  });
+  assert.equal(invoice.title, "Lukas Dreyer · Rechnung");
+});
+
 test("Rechnung ohne bekannten Uploader bleibt ohne Namen", () => {
   const invoice = liveActivityFromNotificationEvent({
     module: "accounting_invoice",

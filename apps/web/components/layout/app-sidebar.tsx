@@ -14,6 +14,7 @@ import {
 import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import {
   Activity,
+  BarChart3,
   Bell,
   Building2,
   CreditCard,
@@ -323,6 +324,16 @@ export function AppSidebar() {
                     >
                       <Building2 />
                       <span>Restaurants</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/analytics")}
+                      tooltip="Statistik"
+                      render={<AppNavLink href="/superadmin/analytics" />}
+                    >
+                      <BarChart3 />
+                      <span>Statistik</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

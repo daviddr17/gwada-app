@@ -20,6 +20,7 @@ import {
   isSignupAllowedForEmailAdmin,
 } from "@/lib/auth/staff-invite-signup-gate";
 import { humanizeLoginErrorMessage } from "@/lib/auth/login-error-messages";
+import { recordPlatformLogin } from "@/lib/analytics/platform-analytics-write";
 
 function loginRedirect(
   origin: string,
@@ -49,6 +50,14 @@ function parseEmailOtpType(raw: string | null): EmailOtpType | null {
   return null;
 }
 
+function loginMethodFromOtp(type: EmailOtpType | null): string {
+  if (type === "magiclink") return "magiclink";
+  if (type === "invite") return "invite";
+  if (type === "recovery") return "recovery";
+  if (type) return "otp";
+  return "oauth";
+}
+
 async function finishAuthRedirect(
   origin: string,
   next: string,
@@ -57,6 +66,7 @@ async function finishAuthRedirect(
   } | null,
   supabase: Awaited<ReturnType<typeof createServerClient>>,
   rawNextParam: string | null,
+  loginMethod: string,
 ): Promise<NextResponse> {
   if (
     !GWADA_PUBLIC_SIGNUP_ENABLED &&
@@ -76,6 +86,16 @@ async function finishAuthRedirect(
         return loginRedirect(origin, GWADA_WAITLIST_SIGNUP_MESSAGE, rawNextParam);
       }
     }
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data: authUser } = await supabase.auth.getUser();
+  if (admin && authUser.user) {
+    await recordPlatformLogin({
+      admin,
+      profileId: authUser.user.id,
+      method: loginMethod,
+    });
   }
 
   const enterUrl = new URL(
@@ -143,6 +163,7 @@ export async function GET(request: NextRequest) {
       sessionData,
       supabase,
       searchParams.get("next"),
+      loginMethodFromOtp(otpType),
     );
   }
 
@@ -167,5 +188,6 @@ export async function GET(request: NextRequest) {
     sessionData,
     supabase,
     searchParams.get("next"),
+    "oauth",
   );
 }

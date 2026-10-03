@@ -28,6 +28,16 @@
   }
 
   /*
+   * Chip-Subnav bleibt im Flow direkt unter der fixed Kopfzeile.
+   * Der Spacer muss sichtbar sein — sonst deckt die Leiste (z-30) die Zeile (z-20) ab.
+   */
+  [data-ios-top-bar-spacer] {
+    display: block;
+    flex-shrink: 0;
+    height: calc(var(--app-chrome-header-h) + env(safe-area-inset-top, 0px));
+  }
+
+  /*
    * overflow-x:auto zusammen mit overflow-y:clip wird zu overflow-y:hidden
    * berechnet und ist auf iOS wieder ein Scrollport mit Kanten-Fade.
    * Beide Achsen clip — langer Titel wird auf dem Handy mit Ellipse gekürzt.

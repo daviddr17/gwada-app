@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import type { RestaurantPermissionKey } from "../permissions/restaurant-permissions.ts";
 import {
   canDeleteReservationDayNote,
   canEditReservationDayNote,
 } from "./can-mutate-reservation-day-note.ts";
 
-function hasKeys(...keys: string[]) {
-  const set = new Set(keys);
-  return (key: string) => set.has(key);
+function hasKeys(...keys: RestaurantPermissionKey[]) {
+  const set = new Set<string>(keys);
+  return (key: RestaurantPermissionKey) => set.has(key);
 }
 
 test("Ersteller darf eigene Tagesnotiz bearbeiten und löschen, auch nur mit Lesen", () => {

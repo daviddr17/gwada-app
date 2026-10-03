@@ -106,7 +106,7 @@ export function ensureLiveActivityRestaurant(restaurantId: string) {
   accessViewer = null;
   state = {
     restaurantId,
-    items: readPersisted(restaurantId),
+    items: collapseNamelessReservationConfirmTwins(readPersisted(restaurantId)),
   };
   emit();
 }
@@ -161,8 +161,9 @@ export function isLiveActivityInsertVisible(
   });
 }
 
+/** Must be referentially stable — used as useSyncExternalStore getSnapshot. */
 export function getLiveActivityItems(): LiveActivityItem[] {
-  return collapseNamelessReservationConfirmTwins(state.items);
+  return state.items;
 }
 
 export function subscribeLiveActivity(listener: Listener): () => void {

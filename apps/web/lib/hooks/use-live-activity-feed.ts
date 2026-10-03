@@ -18,6 +18,8 @@ import { liveFeedModuleVisibleWithPermissions } from "@/lib/live-activity/live-a
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
+const EMPTY_LIVE_ACTIVITY_ITEMS: LiveActivityItem[] = [];
+
 export function useLiveActivityFeed(): {
   items: LiveActivityItem[];
   hasUnseen: boolean;
@@ -63,7 +65,7 @@ export function useLiveActivityFeed(): {
   const storedItems = useSyncExternalStore(
     subscribe,
     getLiveActivityItems,
-    () => [] as LiveActivityItem[],
+    () => EMPTY_LIVE_ACTIVITY_ITEMS,
   );
   const items = permissionsLoading
     ? storedItems

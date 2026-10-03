@@ -169,10 +169,14 @@ function DashboardSpaInset() {
           </div>
         </div>
       </header>
-      {/* Platzhalter: die mobile Kopfzeile ist fixed (siehe app-mobile-chrome.css). */}
+      {/*
+        Platzhalter für die fixed Kopfzeile. `md:hidden`, nicht `hidden max-md:block`:
+        sonst gewinnt display:none und die Chip-Zeile liegt unter der Leiste.
+      */}
       <div
         aria-hidden
-        className="hidden h-[calc(var(--app-chrome-header-h)+env(safe-area-inset-top,0px))] shrink-0 max-md:block"
+        data-ios-top-bar-spacer
+        className="h-[calc(var(--app-chrome-header-h)+env(safe-area-inset-top,0px))] shrink-0 md:hidden"
       />
 
       {showChipStrip ? (

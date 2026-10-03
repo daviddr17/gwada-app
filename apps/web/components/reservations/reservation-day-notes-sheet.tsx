@@ -1,7 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,31 +10,12 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   drawerFormFullWidthButtonClassName,
   drawerFormHeaderClassName,
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
-import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { fetchReservationDayNoteEntries } from "@/lib/supabase/reservation-day-notes-db";
-import type { RestaurantReservationDayNoteEntry } from "@/lib/types/reservation-day-notes";
-
-const whenFmt = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-function formatWhen(iso: string) {
-  try {
-    return whenFmt.format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
+import { ReservationDayNotesSection } from "@/components/reservations/reservation-day-notes-section";
 
 type ReservationDayNotesSheetProps = {
   open: boolean;
@@ -44,6 +23,7 @@ type ReservationDayNotesSheetProps = {
   restaurantId: string | null;
   serviceDate: string | null;
   dayLabel: string | null;
+  onNotesChanged?: () => void;
 };
 
 export function ReservationDayNotesSheet({
@@ -52,34 +32,8 @@ export function ReservationDayNotesSheet({
   restaurantId,
   serviceDate,
   dayLabel,
+  onNotesChanged,
 }: ReservationDayNotesSheetProps) {
-  const [entries, setEntries] = useState<RestaurantReservationDayNoteEntry[]>(
-    [],
-  );
-  const [loading, setLoading] = useState(false);
-  const showSkeleton = useDeferredSkeleton(loading);
-
-  const reloadEntries = useCallback(async () => {
-    if (!restaurantId || !serviceDate) return;
-    setLoading(true);
-    const { data, error } = await fetchReservationDayNoteEntries(
-      restaurantId,
-      serviceDate,
-    );
-    if (error) {
-      toast.error("Tagesnotizen konnten nicht geladen werden.");
-      setEntries([]);
-    } else {
-      setEntries(data);
-    }
-    setLoading(false);
-  }, [restaurantId, serviceDate]);
-
-  useEffect(() => {
-    if (!open) return;
-    void reloadEntries();
-  }, [open, reloadEntries]);
-
   return (
     <Drawer
       open={open}
@@ -101,42 +55,13 @@ export function ReservationDayNotesSheet({
 
         <div className={drawerScrollAreaClassName(6)}>
           <DrawerFormSection>
-            {loading && !showSkeleton ? (
-              <div className="min-h-24" aria-busy="true" />
-            ) : null}
-            {showSkeleton ? (
-              <div className="space-y-2" aria-busy>
-                <Skeleton className="h-16 w-full rounded-xl" />
-                <Skeleton className="h-16 w-full rounded-xl" />
-              </div>
-            ) : entries.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Keine Tagesnotizen für diesen Tag.
-              </p>
-            ) : (
-              <ul className="space-y-3">
-                {entries.map((entry) => {
-                  const edited =
-                    entry.updated_at &&
-                    entry.updated_at !== entry.created_at;
-                  return (
-                    <li
-                      key={entry.id}
-                      className="rounded-xl border border-border/50 bg-muted/20 p-3 text-sm"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        {formatWhen(entry.created_at)}
-                        {edited ? " · bearbeitet" : null}
-                        {entry.actor_label ? ` · ${entry.actor_label}` : null}
-                      </p>
-                      <p className="mt-1.5 whitespace-pre-wrap text-foreground">
-                        {entry.body}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <ReservationDayNotesSection
+              open={open}
+              restaurantId={restaurantId}
+              serviceDate={serviceDate}
+              onNotesChanged={onNotesChanged}
+              className="border-b-0 pb-0"
+            />
           </DrawerFormSection>
         </div>
 

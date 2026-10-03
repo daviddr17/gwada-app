@@ -34,7 +34,9 @@ export function collapseNamelessReservationConfirmTwins(
     const key = confirmTwinKey(item);
     if (key) namedKeys.add(key);
   }
-  if (namedKeys.size === 0) return [...items];
+  if (namedKeys.size === 0) {
+    return items as LiveActivityItem[];
+  }
 
   return items.filter((item) => {
     if (!isReservationActivity(item)) return true;

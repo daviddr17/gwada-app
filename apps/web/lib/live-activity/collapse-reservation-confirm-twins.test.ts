@@ -62,9 +62,8 @@ test("keeps a nameless confirm when there is no named twin", () => {
     title: "Reservierung bestätigt",
     description: "#1 · Gast · Status: „Offen“ → „Bestätigt“",
   });
-  assert.deepEqual(collapseNamelessReservationConfirmTwins([nameless]), [
-    nameless,
-  ]);
+  const items = [nameless];
+  assert.equal(collapseNamelessReservationConfirmTwins(items), items);
 });
 
 test("does not collapse two named confirms for different reservations", () => {

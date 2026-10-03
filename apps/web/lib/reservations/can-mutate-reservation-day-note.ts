@@ -1,4 +1,6 @@
-type PermissionHas = (key: string) => boolean;
+import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
+
+type PermissionHas = (key: RestaurantPermissionKey) => boolean;
 
 /** Eigene Tagesnotiz oder Reservierungen: Bearbeiten (inkl. .manage / Inhaber). */
 export function canEditReservationDayNote(

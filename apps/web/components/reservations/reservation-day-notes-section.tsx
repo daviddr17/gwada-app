@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import {
+  canDeleteReservationDayNote,
+  canEditReservationDayNote,
+} from "@/lib/reservations/can-mutate-reservation-day-note";
 import {
   appendReservationDayNoteEntryClient,
   deleteReservationDayNoteEntryClient,
@@ -55,6 +60,7 @@ export function ReservationDayNotesSection({
   collapsible = false,
 }: ReservationDayNotesSectionProps) {
   const { user } = useWorkspaceAuthSession();
+  const { has } = useRestaurantPermissions();
   const currentUserId = user?.id ?? null;
 
   const [draft, setDraft] = useState("");
@@ -226,8 +232,8 @@ export function ReservationDayNotesSection({
           >
             {!collapsible ? (
               <p className="text-xs text-muted-foreground">
-                Protokoll für dieses Datum — eigene Einträge bearbeiten und
-                löschen.
+                Protokoll für dieses Datum — eigene Einträge immer, fremde mit
+                Reservierungen: Bearbeiten bzw. Löschen.
               </p>
             ) : null}
 
@@ -243,6 +249,8 @@ export function ReservationDayNotesSection({
                 {entries.map((entry) => {
                   const isEditing = editingId === entry.id;
                   const isOwn = currentUserId === entry.actor_user_id;
+                  const canEdit = canEditReservationDayNote(isOwn, has);
+                  const canDelete = canDeleteReservationDayNote(isOwn, has);
                   const edited =
                     entry.updated_at &&
                     entry.updated_at !== entry.created_at;
@@ -254,28 +262,32 @@ export function ReservationDayNotesSection({
                           {edited ? " · bearbeitet" : null}
                           {entry.actor_label ? ` · ${entry.actor_label}` : null}
                         </p>
-                        {isOwn && !isEditing ? (
+                        {(canEdit || canDelete) && !isEditing ? (
                           <div className="flex shrink-0 items-center gap-0.5">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-xs"
-                              className="text-muted-foreground"
-                              aria-label="Notiz bearbeiten"
-                              onClick={() => startEdit(entry)}
-                            >
-                              <Pencil className="size-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-xs"
-                              className="text-muted-foreground"
-                              aria-label="Notiz löschen"
-                              onClick={() => setDeleteTarget(entry)}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
+                            {canEdit ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                className="text-muted-foreground"
+                                aria-label="Notiz bearbeiten"
+                                onClick={() => startEdit(entry)}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            ) : null}
+                            {canDelete ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                className="text-muted-foreground"
+                                aria-label="Notiz löschen"
+                                onClick={() => setDeleteTarget(entry)}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>

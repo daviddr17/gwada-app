@@ -3,6 +3,7 @@ import {
   authorizeModuleCrud,
   authorizeRestaurantModule,
 } from "@/lib/permissions/authorize-restaurant-module";
+import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { RESERVATION_DAY_NOTE_MAX_LENGTH } from "@/lib/types/reservation-day-notes";
 
@@ -19,6 +20,28 @@ async function authorizeReservationDayNotes(restaurantId: string) {
   );
   if (manage.ok) return manage;
   return read;
+}
+
+type DayNoteAuth = Extract<
+  Awaited<ReturnType<typeof authorizeReservationDayNotes>>,
+  { ok: true }
+>;
+
+async function assertCanMutateOthersNote(
+  auth: DayNoteAuth,
+  restaurantId: string,
+  actorUserId: string,
+  permission: Extract<
+    RestaurantPermissionKey,
+    "reservations.update" | "reservations.delete"
+  >,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (actorUserId === auth.userId) return { ok: true };
+  const extra = await authorizeRestaurantModule(restaurantId, permission);
+  if (!extra.ok) {
+    return { ok: false, status: extra.status, error: extra.error };
+  }
+  return { ok: true };
 }
 
 export async function POST(req: Request) {
@@ -118,8 +141,14 @@ export async function PATCH(req: Request) {
   if (!entry) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  if ((entry.actor_user_id as string) !== auth.userId) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
+  const mutate = await assertCanMutateOthersNote(
+    auth,
+    restaurantId,
+    entry.actor_user_id as string,
+    "reservations.update",
+  );
+  if (!mutate.ok) {
+    return Response.json({ error: mutate.error }, { status: mutate.status });
   }
 
   const oldBody = (entry.body as string).trim();
@@ -170,8 +199,14 @@ export async function DELETE(req: Request) {
   if (!entry) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  if ((entry.actor_user_id as string) !== auth.userId) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
+  const mutate = await assertCanMutateOthersNote(
+    auth,
+    restaurantId,
+    entry.actor_user_id as string,
+    "reservations.delete",
+  );
+  if (!mutate.ok) {
+    return Response.json({ error: mutate.error }, { status: mutate.status });
   }
 
   const { error: deleteError } = await auth.sb

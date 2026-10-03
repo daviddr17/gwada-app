@@ -1782,6 +1782,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         dayLabel={
           dayNotesSheetDay ? formatDayHeadingDe(dayNotesSheetDay) : null
         }
+        onNotesChanged={() => setDayNotesReloadNonce((n) => n + 1)}
       />
 
       <ReservationDayShiftStaffSheet

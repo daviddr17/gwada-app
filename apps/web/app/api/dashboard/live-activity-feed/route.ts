@@ -14,6 +14,7 @@ import {
   personNameFromParts,
   resolveAccountingUploaderName,
 } from "@/lib/live-activity/live-activity-accounting-uploader";
+import { collapseNamelessReservationConfirmTwins } from "@/lib/live-activity/collapse-reservation-confirm-twins";
 import { LIVE_ACTIVITY_FEED_MODULES } from "@/lib/live-activity/live-activity-feed-modules";
 import { liveActivityFromNotificationEvent } from "@/lib/live-activity/live-activity-from-notification-event";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
@@ -594,7 +595,9 @@ export async function fetchLiveActivityFeed(params: {
 
   return {
     ok: true,
-    items: rows.map((row) => mapFeedRow(row, params.locale, uploaders)),
+    items: collapseNamelessReservationConfirmTwins(
+      rows.map((row) => mapFeedRow(row, params.locale, uploaders)),
+    ),
     hasMore,
     total,
     viewer: params.viewer,

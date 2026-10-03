@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  collapseNamelessReservationConfirmTwins,
+  isOptimisticReservationConfirmId,
+  shouldReplaceNamelessReservationConfirm,
+} from "@/lib/live-activity/collapse-reservation-confirm-twins";
+import {
   liveActivityPayloadVisibleToViewer,
   type LiveActivityFeedViewer,
 } from "@/lib/live-activity/live-activity-feed-access";
@@ -157,7 +162,7 @@ export function isLiveActivityInsertVisible(
 }
 
 export function getLiveActivityItems(): LiveActivityItem[] {
-  return state.items;
+  return collapseNamelessReservationConfirmTwins(state.items);
 }
 
 export function subscribeLiveActivity(listener: Listener): () => void {
@@ -232,23 +237,35 @@ export function recordLiveActivity(
       (next.id.startsWith("log:") ||
         next.id.startsWith("ref:") ||
         next.id.startsWith("evt:")) &&
-      (dup.id.startsWith("local-") || dup.id.startsWith("local:"));
-    if (!upgradeTitle && !preferServerId) return;
+      !isOptimisticReservationConfirmId(next.id) &&
+      isOptimisticReservationConfirmId(dup.id);
+    const preferNamedConfirm = shouldReplaceNamelessReservationConfirm(
+      dup,
+      next,
+    );
+    if (!upgradeTitle && !preferServerId && !preferNamedConfirm) return;
     const title = isAccountingLiveModule(next.module)
       ? preferAccountingFeedTitle(dup.title, next.title)
       : next.title;
     state = {
       restaurantId,
-      items: sortByAtDesc([
-        {
-          ...next,
-          id: preferServerId ? next.id : canonicalLiveActivityId(dup.id),
-          title,
-        },
-        ...state.items.filter(
-          (row) => canonicalLiveActivityId(row.id) !== canonicalLiveActivityId(dup.id),
-        ),
-      ]).slice(0, MAX_MEMORY_ITEMS),
+      items: collapseNamelessReservationConfirmTwins(
+        sortByAtDesc([
+          {
+            ...next,
+            id:
+              preferServerId || preferNamedConfirm
+                ? next.id
+                : canonicalLiveActivityId(dup.id),
+            title,
+          },
+          ...state.items.filter(
+            (row) =>
+              canonicalLiveActivityId(row.id) !==
+              canonicalLiveActivityId(dup.id),
+          ),
+        ]),
+      ).slice(0, MAX_MEMORY_ITEMS),
     };
     writePersisted(restaurantId, state.items);
     emit();
@@ -257,7 +274,9 @@ export function recordLiveActivity(
 
   state = {
     restaurantId,
-    items: sortByAtDesc([next, ...state.items]).slice(0, MAX_MEMORY_ITEMS),
+    items: collapseNamelessReservationConfirmTwins(
+      sortByAtDesc([next, ...state.items]),
+    ).slice(0, MAX_MEMORY_ITEMS),
   };
   writePersisted(restaurantId, state.items);
   emit();
@@ -291,7 +310,7 @@ export function mergeLiveActivityItems(
     if (!incoming.description || !incoming.module) continue;
     for (const [id, existing] of byId) {
       if (id === canonicalLiveActivityId(incoming.id)) continue;
-      if (!id.startsWith("local-") && !id.startsWith("local:")) continue;
+      if (!isOptimisticReservationConfirmId(id)) continue;
       if (existing.module !== incoming.module) continue;
       if (existing.description !== incoming.description) continue;
       const dt = Math.abs(
@@ -301,7 +320,9 @@ export function mergeLiveActivityItems(
     }
   }
 
-  const merged = sortByAtDesc([...byId.values()]).slice(0, MAX_MEMORY_ITEMS);
+  const merged = collapseNamelessReservationConfirmTwins(
+    sortByAtDesc([...byId.values()]),
+  ).slice(0, MAX_MEMORY_ITEMS);
 
   state = { restaurantId, items: merged };
   writePersisted(restaurantId, merged);

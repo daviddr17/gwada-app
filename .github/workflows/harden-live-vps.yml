@@ -1,0 +1,49 @@
+# Härtet Live-VPS per LIVE_SSH_KEY (gleicher Pfad wie deploy-live-app).
+# Push-Trigger: Agent kann workflow_dispatch oft nicht (403).
+name: Harden live VPS
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [harden-live-vps]
+  push:
+    branches:
+      - main
+      - "cursor/**"
+    paths:
+      - "scripts/vps-harden-public-db-ports.sh"
+      - ".github/workflows/harden-live-vps.yml"
+
+concurrency:
+  group: harden-live-vps
+  cancel-in-progress: false
+
+jobs:
+  harden:
+    name: SSH harden + fail2ban + close 3000/8000
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Harden VPS via SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          bash scripts/vps-harden-public-db-ports.sh
+          echo "Harden script finished — confirming key login still works…"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o ConnectTimeout=20 \
+            "root@${LIVE_VPS_HOST}" "echo POST_HARDEN_KEY_LOGIN_OK"

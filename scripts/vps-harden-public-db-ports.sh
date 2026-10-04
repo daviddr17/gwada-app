@@ -100,10 +100,13 @@ if command -v ufw >/dev/null 2>&1; then
 
   remove_allow_for_port() {
     local port="$1"
-    while ufw status numbered 2>/dev/null | grep -E "^\[[[:space:]]*[0-9]+\][[:space:]]+${port}(/tcp)?[[:space:]]+ALLOW" >/dev/null; do
-      local num
-      num="$(ufw status numbered 2>/dev/null | grep -E "^\[[[:space:]]*[0-9]+\][[:space:]]+${port}(/tcp)?[[:space:]]+ALLOW" | head -1 | sed -E 's/^\[ *([0-9]+)\].*/\1/')"
-      echo "  ufw delete ALLOW ${port} (#${num})"
+    local line num
+    while true; do
+      line="$(ufw status numbered 2>/dev/null | grep -E "ALLOW" | grep -E "[[:space:]]${port}(/tcp)?([[:space:]]+\\(v6\\))?[[:space:]]" | head -1 || true)"
+      [[ -n "${line}" ]] || break
+      num="$(echo "${line}" | sed -E 's/^\[ *([0-9]+)\].*/\1/')"
+      [[ -n "${num}" ]] || break
+      echo "  ufw delete ALLOW ${port} (#${num}) — ${line}"
       ufw --force delete "${num}" >/dev/null 2>&1 || break
     done
   }
@@ -132,10 +135,10 @@ bind_compose_port() {
   local from="$2"
   local to="$3"
   [[ -f "$file" ]] || return 1
-  if grep -qF "${to}" "$file"; then
+  if grep -qF -- "${to}" "$file"; then
     return 1
   fi
-  if grep -qF "${from}" "$file"; then
+  if grep -qF -- "${from}" "$file"; then
     # Nicht 8000:8080 innerhalb schon gesetztem 127.0.0.1:8000:8080 ersetzen.
     if command -v python3 >/dev/null 2>&1 && python3 - "$file" "$from" "$to" <<'PY'
 import sys
@@ -185,12 +188,18 @@ for app_dir in /data/coolify/applications/*/; do
 done
 
 # Coolify-UI selbst (typisch 8000:8080 oder 8000:8000)
-for compose in \
-  /data/coolify/source/docker-compose.yml \
-  /data/coolify/source/docker-compose.prod.yml \
-  /data/coolify/source/docker-compose.prod.yaml \
+coolify_composes=(
+  /data/coolify/source/docker-compose.yml
+  /data/coolify/source/docker-compose.prod.yml
+  /data/coolify/source/docker-compose.prod.yaml
   /data/coolify/docker-compose.yml
-do
+)
+while IFS= read -r extra; do
+  [[ -n "${extra}" ]] || continue
+  coolify_composes+=("${extra}")
+done < <(grep -RIl --include='*.yml' --include='*.yaml' -E '8000:8080|8000:8000' /data/coolify 2>/dev/null | head -30 || true)
+
+for compose in "${coolify_composes[@]}"; do
   bind_compose_port "$compose" '"8000:8080"' '"127.0.0.1:8000:8080"' && patched=1 || true
   bind_compose_port "$compose" "'8000:8080'" "'127.0.0.1:8000:8080'" && patched=1 || true
   bind_compose_port "$compose" "- 8000:8080" "- 127.0.0.1:8000:8080" && patched=1 || true
@@ -227,33 +236,37 @@ install -d /usr/local/sbin
 cat > /usr/local/sbin/gwada-docker-user-filter.sh <<'FILTER'
 #!/usr/bin/env bash
 set -euo pipefail
-if ! command -v iptables >/dev/null 2>&1; then
-  echo "iptables fehlt" >&2
-  exit 0
-fi
-for _try in 1 2 3 4 5 6 7 8 9 10; do
-  if iptables -nL DOCKER-USER >/dev/null 2>&1; then
-    break
+install_deny_chain() {
+  local bin="$1"
+  command -v "${bin}" >/dev/null 2>&1 || return 0
+  for _try in 1 2 3 4 5 6 7 8 9 10; do
+    if "${bin}" -nL DOCKER-USER >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+  if ! "${bin}" -nL DOCKER-USER >/dev/null 2>&1; then
+    echo "${bin}: DOCKER-USER fehlt"
+    return 0
   fi
-  sleep 1
-done
-if ! iptables -nL DOCKER-USER >/dev/null 2>&1; then
-  echo "DOCKER-USER existiert nicht — Docker nicht aktiv?" >&2
-  exit 0
-fi
-iptables -N GWADA-PUB-DENY 2>/dev/null || true
-iptables -F GWADA-PUB-DENY
-# Loopback/original dest 127.0.0.1: Coolify-Tunnel und lokale Healthchecks.
-iptables -A GWADA-PUB-DENY -m conntrack --ctorigdst 127.0.0.1 -j RETURN
-iptables -A GWADA-PUB-DENY -p tcp -m conntrack --ctorigdstport 3000 -j DROP
-iptables -A GWADA-PUB-DENY -p tcp -m conntrack --ctorigdstport 8000 -j DROP
-# Nach DNAT: App 3000:3000 bleibt dport 3000; Coolify oft 8000:8080.
-iptables -A GWADA-PUB-DENY -p tcp --dport 3000 -j DROP
-iptables -A GWADA-PUB-DENY -p tcp --dport 8000 -j DROP
-if ! iptables -C DOCKER-USER -j GWADA-PUB-DENY 2>/dev/null; then
-  iptables -I DOCKER-USER -j GWADA-PUB-DENY
-fi
-echo "GWADA-PUB-DENY in DOCKER-USER aktiv"
+  "${bin}" -N GWADA-PUB-DENY 2>/dev/null || true
+  "${bin}" -F GWADA-PUB-DENY
+  if [[ "${bin}" == ip6tables ]]; then
+    "${bin}" -A GWADA-PUB-DENY -m conntrack --ctorigdst ::1 -j RETURN
+  else
+    "${bin}" -A GWADA-PUB-DENY -m conntrack --ctorigdst 127.0.0.1 -j RETURN
+  fi
+  "${bin}" -A GWADA-PUB-DENY -p tcp -m conntrack --ctorigdstport 3000 -j DROP
+  "${bin}" -A GWADA-PUB-DENY -p tcp -m conntrack --ctorigdstport 8000 -j DROP
+  "${bin}" -A GWADA-PUB-DENY -p tcp --dport 3000 -j DROP
+  "${bin}" -A GWADA-PUB-DENY -p tcp --dport 8000 -j DROP
+  if ! "${bin}" -C DOCKER-USER -j GWADA-PUB-DENY 2>/dev/null; then
+    "${bin}" -I DOCKER-USER -j GWADA-PUB-DENY
+  fi
+  echo "GWADA-PUB-DENY in ${bin} DOCKER-USER aktiv"
+}
+install_deny_chain iptables
+install_deny_chain ip6tables
 FILTER
 chmod 755 /usr/local/sbin/gwada-docker-user-filter.sh
 /usr/local/sbin/gwada-docker-user-filter.sh || true

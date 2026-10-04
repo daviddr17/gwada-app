@@ -7,10 +7,15 @@
  * deckender Farbe liegt. Die Dashboard-Kopfzeile sitzt nur im Flex-Flow
  * und ihr Titelstreifen ist overflow-x:auto — Safari rechnet overflow-y:hidden
  * dann zu auto und fadet die Zeile zusätzlich von oben.
- * Nur unter 768px, nur [data-ios-top-bar] (Dashboard-Shell). Desktop und
- * die Bottom-Nav bleiben unverändert.
+ * Phone und Tablet/PWA (bis 1024px inkl. iPad-Landscape 1024), nur
+ * [data-ios-top-bar] (Dashboard-Shell). Breite Desktop-Fenster und die
+ * Bottom-Nav bleiben unverändert.
  */
-@media (max-width: 767px) {
+[data-ios-top-bar-spacer] {
+  display: none;
+}
+
+@media (max-width: 1024px) {
   [data-app-chrome-header][data-ios-top-bar] {
     position: fixed;
     inset-inline: 0;
@@ -27,9 +32,16 @@
     overflow: clip;
   }
 
+  /* Theme-Toggle u. a. im Header: kein Glas, sonst schmiert iOS die Leiste. */
+  [data-app-chrome-header][data-ios-top-bar] * {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
   /*
    * Chip-Subnav bleibt im Flow direkt unter der fixed Kopfzeile.
    * Der Spacer muss sichtbar sein — sonst deckt die Leiste (z-30) die Zeile (z-20) ab.
+   * Kein Tailwind `md:hidden`: das würde den Spacer ab 768px wieder ausblenden.
    */
   [data-ios-top-bar-spacer] {
     display: block;
@@ -40,7 +52,7 @@
   /*
    * overflow-x:auto zusammen mit overflow-y:clip wird zu overflow-y:hidden
    * berechnet und ist auf iOS wieder ein Scrollport mit Kanten-Fade.
-   * Beide Achsen clip — langer Titel wird auf dem Handy mit Ellipse gekürzt.
+   * Beide Achsen clip — langer Titel wird mit Ellipse gekürzt.
    */
   [data-app-chrome-header][data-ios-top-bar] [data-app-chrome-title-scroll] {
     overflow-x: clip;

@@ -14,6 +14,7 @@ import type {
   RestaurantProfile,
   Weekday,
 } from "@/lib/types/restaurant";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type OpeningHoursScheduleRole = "business" | "kitchen";
 
@@ -185,7 +186,8 @@ function pushWeeklyInserts(
   }
 }
 
-export async function replaceOpeningHoursForRestaurant(
+export async function replaceOpeningHoursWithClient(
+  supabase: SupabaseClient,
   restaurantId: string,
   profile: Pick<
     RestaurantProfile,
@@ -195,16 +197,6 @@ export async function replaceOpeningHoursForRestaurant(
     | "kitchenWeeklyHours"
   >,
 ): Promise<OpeningHoursSaveResult> {
-  if (!openingHoursDbEnabled()) {
-    return { ok: false, error: "Supabase ist nicht konfiguriert." };
-  }
-  const supabase = createSupabaseBrowserClient();
-
-  const sessionOk = await ensureBrowserSupabaseSession(supabase);
-  if (!sessionOk.ok) {
-    return sessionOk;
-  }
-
   const rows = buildOpeningHoursReplaceRows(restaurantId, profile);
 
   // Bevorzugt atomare RPC (DELETE+INSERT in einer Transaktion). Fallback ohne
@@ -282,6 +274,29 @@ export async function replaceOpeningHoursForRestaurant(
     }
   }
   return { ok: true };
+}
+
+export async function replaceOpeningHoursForRestaurant(
+  restaurantId: string,
+  profile: Pick<
+    RestaurantProfile,
+    | "weeklyHours"
+    | "dateExceptions"
+    | "kitchenHoursEnabled"
+    | "kitchenWeeklyHours"
+  >,
+): Promise<OpeningHoursSaveResult> {
+  if (!openingHoursDbEnabled()) {
+    return { ok: false, error: "Supabase ist nicht konfiguriert." };
+  }
+  const supabase = createSupabaseBrowserClient();
+
+  const sessionOk = await ensureBrowserSupabaseSession(supabase);
+  if (!sessionOk.ok) {
+    return sessionOk;
+  }
+
+  return replaceOpeningHoursWithClient(supabase, restaurantId, profile);
 }
 
 function buildOpeningHoursReplaceRows(

@@ -14,6 +14,8 @@ import { useLocale } from "next-intl";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AssistantPendingAction } from "@/lib/assistant/assistant-actions";
+import { consumeAssistantChatStream } from "@/lib/assistant/assistant-chat-stream-client";
+import type { AssistantSsePhase } from "@/lib/assistant/assistant-chat-sse";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { isSuperadminAppPath } from "@/lib/superadmin/superadmin-session";
 import { createPortal } from "react-dom";
@@ -47,7 +49,17 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  streaming?: boolean;
 };
+
+function typingLabel(phase: AssistantSsePhase | null, locale: string): string {
+  if (locale !== "de") {
+    if (phase === "tools") return "Working…";
+    return "Typing…";
+  }
+  if (phase === "tools") return "arbeitet …";
+  return "schreibt …";
+}
 
 function newLocalId(prefix = "local") {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -95,6 +107,7 @@ export function DashboardAssistantMount() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [streamPhase, setStreamPhase] = useState<AssistantSsePhase | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<AssistantPendingAction | null>(null);
@@ -108,6 +121,9 @@ export function DashboardAssistantMount() {
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+  const streamMsgIdRef = useRef<string | null>(null);
+  const sendGenerationRef = useRef(0);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -126,7 +142,13 @@ export function DashboardAssistantMount() {
   useEffect(() => {
     if (!listRef.current) return;
     listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [messages, open, sending]);
+  }, [messages, open, sending, streamPhase]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const mirrorThreadLocal = useCallback(
     (id: string, nextMessages: ChatMessage[], titleHint?: string) => {
@@ -233,43 +255,88 @@ export function DashboardAssistantMount() {
   }, [open, restaurantId, loadThreads]);
 
   const startNewChat = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    sendGenerationRef.current += 1;
+    streamMsgIdRef.current = null;
+    setSending(false);
+    setStreamPhase(null);
     setThreadId(null);
     setMessages([]);
     setShowHistory(false);
     setBootError(null);
+    setPendingAction(null);
   }, []);
 
   const send = useCallback(async (spoken?: string) => {
-    if (!restaurantId || sending) return;
+    if (!restaurantId) return;
     const text = (spoken ?? input).trim();
     if (!text) return;
     const fromVoice = typeof spoken === "string";
     voiceTurnRef.current = fromVoice;
 
+    // New send aborts any in-flight stream (no double replies).
+    abortRef.current?.abort();
+    const generation = ++sendGenerationRef.current;
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // Drop unfinished streaming bubble from a previous turn.
+    const baseMessages = messagesRef.current.filter((m) => !m.streaming);
+    streamMsgIdRef.current = null;
+
     setInput("");
     setSending(true);
+    setStreamPhase("thinking");
     setBootError(null);
     if (pendingAction) suppressCancelRef.current = true;
     setPendingAction(null);
+
     const userLocal: ChatMessage = {
       id: newLocalId("msg"),
       role: "user",
       content: text,
     };
-    const withUser = [...messagesRef.current, userLocal];
+    const assistantId = newLocalId("msg");
+    streamMsgIdRef.current = assistantId;
+    const withUser = [...baseMessages, userLocal];
     setMessages(withUser);
 
-    // Ensure a stable thread id even when server persist is ephemeral.
     let activeThreadId = threadId ?? newLocalId("thread");
     if (!threadId) {
       setThreadId(activeThreadId);
       mirrorThreadLocal(activeThreadId, withUser, titleFromAssistantMessage(text));
     }
 
+    const patchAssistant = (content: string, streaming: boolean) => {
+      if (sendGenerationRef.current !== generation) return;
+      setMessages((prev) => {
+        const withoutStream = prev.filter((m) => m.id !== assistantId && !m.streaming);
+        if (!content && streaming) {
+          // Keep empty streaming bubble out of the list — typing row shows instead.
+          messagesRef.current = withoutStream;
+          return withoutStream;
+        }
+        const next = [
+          ...withoutStream,
+          { id: assistantId, role: "assistant" as const, content, streaming },
+        ];
+        messagesRef.current = next;
+        return next;
+      });
+    };
+
+    let streamed = "";
+    let pendingFromStream: AssistantPendingAction | null = null;
+
     try {
       const res = await fetch("/api/assistant/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
+        signal: controller.signal,
         body: JSON.stringify({
           restaurantId,
           threadId: threadId && !threadId.startsWith("thread-") ? threadId : null,
@@ -277,68 +344,117 @@ export function DashboardAssistantMount() {
           zone,
         }),
       });
-      const json = (await res.json().catch(() => ({}))) as {
-        threadId?: string | null;
-        reply?: string;
-        error?: string;
-        configured?: boolean;
-        ephemeral?: boolean;
-        pendingAction?: AssistantPendingAction | null;
-      };
 
-      const reply =
-        json.reply?.trim() ||
-        json.error ||
-        "Antwort fehlgeschlagen. Bitte erneut versuchen.";
+      const result = await consumeAssistantChatStream(res, {
+        onMeta: (meta) => {
+          if (sendGenerationRef.current !== generation) return;
+          if (meta.threadId) {
+            if (
+              activeThreadId !== meta.threadId &&
+              activeThreadId.startsWith("thread-")
+            ) {
+              const placeholder = getLocalAssistantThread(
+                restaurantId,
+                activeThreadId,
+              );
+              if (placeholder) {
+                upsertLocalAssistantThread(restaurantId, {
+                  ...placeholder,
+                  id: meta.threadId,
+                });
+              }
+            }
+            activeThreadId = meta.threadId;
+            setThreadId(meta.threadId);
+          }
+        },
+        onStatus: (phase) => {
+          if (sendGenerationRef.current !== generation) return;
+          setStreamPhase(phase);
+        },
+        onDelta: (piece) => {
+          if (sendGenerationRef.current !== generation) return;
+          streamed += piece;
+          patchAssistant(streamed, true);
+        },
+        onReset: () => {
+          if (sendGenerationRef.current !== generation) return;
+          streamed = "";
+          patchAssistant("", true);
+        },
+        onPending: (action) => {
+          pendingFromStream = action;
+        },
+      });
 
-      if (json.threadId) {
-        // Migrate local placeholder → server id when persist succeeds.
-        if (activeThreadId !== json.threadId && activeThreadId.startsWith("thread-")) {
+      if (sendGenerationRef.current !== generation) return;
+
+      if (result.threadId) {
+        if (
+          activeThreadId !== result.threadId &&
+          activeThreadId.startsWith("thread-")
+        ) {
           const placeholder = getLocalAssistantThread(restaurantId, activeThreadId);
           if (placeholder) {
             upsertLocalAssistantThread(restaurantId, {
               ...placeholder,
-              id: json.threadId,
+              id: result.threadId,
             });
           }
         }
-        activeThreadId = json.threadId;
-        setThreadId(json.threadId);
+        activeThreadId = result.threadId;
+        setThreadId(result.threadId);
       }
 
-      const assistantLocal: ChatMessage = {
-        id: newLocalId("msg"),
-        role: "assistant",
-        content: reply,
-      };
-      const withAssistant = [...withUser, assistantLocal];
-      setMessages(withAssistant);
+      const reply = result.error
+        ? result.error
+        : result.reply.trim() ||
+          "Antwort fehlgeschlagen. Bitte erneut versuchen.";
+
+      patchAssistant(reply, false);
       mirrorThreadLocal(
         activeThreadId,
-        withAssistant,
+        messagesRef.current,
         titleFromAssistantMessage(text),
       );
-      if (json.pendingAction?.kind === "create_reservation") {
-        setPendingAction(json.pendingAction);
+
+      const action = result.error
+        ? null
+        : (result.pendingAction ?? pendingFromStream);
+      if (
+        action?.kind === "create_reservation" ||
+        action?.kind === "update_opening_hours" ||
+        action?.kind === "confirm_mutation"
+      ) {
+        setPendingAction(action);
       }
-      if (fromVoice) speakReply(reply, dateLocale);
+
+      if (fromVoice && !result.error) speakReply(reply, dateLocale);
       void loadThreads();
-    } catch {
-      const errMsg: ChatMessage = {
-        id: newLocalId("msg"),
-        role: "assistant",
-        content: "Netzwerkfehler — bitte erneut versuchen.",
-      };
-      const withErr = [...withUser, errMsg];
-      setMessages(withErr);
-      mirrorThreadLocal(activeThreadId, withErr, titleFromAssistantMessage(text));
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") return;
+      if (sendGenerationRef.current !== generation) return;
+      const errMsg =
+        locale === "de"
+          ? "Netzwerkfehler — bitte erneut versuchen."
+          : "Network error — please try again.";
+      patchAssistant(errMsg, false);
+      mirrorThreadLocal(
+        activeThreadId,
+        messagesRef.current,
+        titleFromAssistantMessage(text),
+      );
       void loadThreads();
     } finally {
-      setSending(false);
+      if (sendGenerationRef.current === generation) {
+        setSending(false);
+        setStreamPhase(null);
+        streamMsgIdRef.current = null;
+        if (abortRef.current === controller) abortRef.current = null;
+      }
     }
   }, [
     restaurantId,
-    sending,
     input,
     threadId,
     loadThreads,
@@ -346,6 +462,7 @@ export function DashboardAssistantMount() {
     zone,
     dateLocale,
     pendingAction,
+    locale,
   ]);
 
   const confirmPending = useCallback(async () => {
@@ -358,6 +475,7 @@ export function DashboardAssistantMount() {
         body: JSON.stringify({
           restaurantId,
           zone,
+          kind: pendingAction.kind,
           preview: pendingAction.preview,
         }),
       });
@@ -518,23 +636,42 @@ export function DashboardAssistantMount() {
                     </p>
                   </div>
                 ) : null}
-                {messages.map((m) => (
+                {messages.map((m) => {
+                  if (m.role === "assistant" && m.streaming && !m.content.trim()) {
+                    return null;
+                  }
+                  return (
+                    <div
+                      key={m.id}
+                      className={cn(
+                        "max-w-[90%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-relaxed",
+                        m.role === "user"
+                          ? "ms-auto bg-[color-mix(in_oklab,var(--accent)_22%,transparent)] text-foreground"
+                          : "me-auto border border-border/50 bg-card text-foreground shadow-sm",
+                      )}
+                    >
+                      {m.content}
+                      {m.streaming && m.content.trim() ? (
+                        <span
+                          className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse rounded-sm bg-foreground/70"
+                          aria-hidden
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {sending &&
+                !messages.some((m) => m.streaming && m.content.trim()) ? (
                   <div
-                    key={m.id}
-                    className={cn(
-                      "max-w-[90%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-relaxed",
-                      m.role === "user"
-                        ? "ms-auto bg-[color-mix(in_oklab,var(--accent)_22%,transparent)] text-foreground"
-                        : "me-auto border border-border/50 bg-card text-foreground shadow-sm",
-                    )}
+                    className="me-auto flex items-center gap-2 rounded-2xl border border-border/50 bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm"
+                    aria-live="polite"
                   >
-                    {m.content}
-                  </div>
-                ))}
-                {sending ? (
-                  <div className="me-auto flex items-center gap-2 rounded-2xl border border-border/50 bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm">
-                    <Loader2 className="size-3.5 animate-spin" />
-                    Denkt nach …
+                    <span className="flex gap-1" aria-hidden>
+                      <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/80" />
+                      <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/55 [animation-delay:150ms]" />
+                      <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/35 [animation-delay:300ms]" />
+                    </span>
+                    {typingLabel(streamPhase, locale)}
                   </div>
                 ) : null}
                 {bootError ? (
@@ -608,7 +745,6 @@ export function DashboardAssistantMount() {
                     void send();
                   }
                 }}
-                disabled={sending}
               />
               {canSpeakInput ? (
                 <Button
@@ -631,10 +767,10 @@ export function DashboardAssistantMount() {
                   "size-10 shrink-0 rounded-full",
                   brandActionButtonClassName,
                 )}
-                disabled={sending || !input.trim()}
-                aria-label="Senden"
+                disabled={!input.trim()}
+                aria-label={sending ? "Senden (bricht laufende Antwort ab)" : "Senden"}
               >
-                {sending ? (
+                {sending && !input.trim() ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <Send className="size-4" />
@@ -683,9 +819,9 @@ export function DashboardAssistantMount() {
           }
           cancelPending();
         }}
-        title={locale === "de" ? "So speichern?" : "Save this?"}
+        title={locale === "de" ? "Jetzt umsetzen?" : "Apply now?"}
         description={pendingAction?.summary}
-        confirmLabel={locale === "de" ? "Speichern" : "Save"}
+        confirmLabel={locale === "de" ? "Umsetzen" : "Apply"}
         cancelLabel={locale === "de" ? "Abbrechen" : "Cancel"}
         destructive={false}
         confirmDisabled={confirming}

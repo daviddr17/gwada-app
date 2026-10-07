@@ -318,7 +318,10 @@ export function DashboardAssistantMount() {
         withAssistant,
         titleFromAssistantMessage(text),
       );
-      if (json.pendingAction?.kind === "create_reservation") {
+      if (
+        json.pendingAction?.kind === "create_reservation" ||
+        json.pendingAction?.kind === "update_opening_hours"
+      ) {
         setPendingAction(json.pendingAction);
       }
       if (fromVoice) speakReply(reply, dateLocale);
@@ -358,6 +361,7 @@ export function DashboardAssistantMount() {
         body: JSON.stringify({
           restaurantId,
           zone,
+          kind: pendingAction.kind,
           preview: pendingAction.preview,
         }),
       });

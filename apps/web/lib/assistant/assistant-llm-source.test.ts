@@ -122,3 +122,54 @@ test("a complete draft is the confirmation text", () => {
   );
   assert.equal(settled.pendingAction?.preview.guest_first_name, "Ana");
 });
+
+const hoursDraftPayload = JSON.stringify({
+  ok: true,
+  status: "draft",
+  message: "Zur Schlagd: Öffnungszeiten ändern — Montag 12:00–22:00.",
+  preview: {
+    restaurant_name: "Zur Schlagd",
+    weekly_changes: [
+      {
+        weekday: "monday",
+        closed: false,
+        opens_at: "12:00",
+        closes_at: "22:00",
+      },
+    ],
+    exception_changes: [],
+    next_weekly: {
+      monday: { closed: false, open: "12:00", close: "22:00" },
+      tuesday: { closed: false, open: "11:30", close: "22:00" },
+      wednesday: { closed: false, open: "11:30", close: "22:00" },
+      thursday: { closed: false, open: "11:30", close: "22:00" },
+      friday: { closed: false, open: "11:30", close: "22:00" },
+      saturday: { closed: false, open: "11:30", close: "22:00" },
+      sunday: { closed: true },
+    },
+    next_exceptions: [],
+    kitchenHoursEnabled: false,
+    kitchenWeeklyHours: {
+      monday: { closed: false, open: "12:00", close: "21:30" },
+      tuesday: { closed: false, open: "12:00", close: "21:30" },
+      wednesday: { closed: false, open: "12:00", close: "21:30" },
+      thursday: { closed: false, open: "12:00", close: "21:30" },
+      friday: { closed: false, open: "12:00", close: "21:30" },
+      saturday: { closed: false, open: "12:00", close: "21:30" },
+      sunday: { closed: true },
+    },
+  },
+});
+
+test("opening-hours draft becomes a pending confirm action", () => {
+  const settled = settleAssistantToolPayloads("Ok.", [hoursDraftPayload]);
+  assert.equal(settled.pendingAction?.kind, "update_opening_hours");
+  assert.equal(
+    settled.reply,
+    "Zur Schlagd: Öffnungszeiten ändern — Montag 12:00–22:00.",
+  );
+  if (settled.pendingAction?.kind !== "update_opening_hours") {
+    assert.fail("expected update_opening_hours");
+  }
+  assert.equal(settled.pendingAction.preview.weekly_changes[0]?.weekday, "monday");
+});

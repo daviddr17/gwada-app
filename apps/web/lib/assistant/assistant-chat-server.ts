@@ -27,6 +27,10 @@ import {
   toolStaffOnShift,
   toolStock,
 } from "@/lib/assistant/assistant-ops-tools";
+import {
+  toolSyncPlatforms,
+  toolUpdateOpeningHours,
+} from "@/lib/assistant/assistant-settings-tools";
 import { runAssistantOfflineFallback } from "@/lib/assistant/assistant-offline-fallback";
 
 const LOCALE_REPLY_HINT: Record<AppLocale, string> = {
@@ -188,6 +192,78 @@ export const ASSISTANT_TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionT
         },
       },
     },
+    {
+      type: "function",
+      function: {
+        name: "update_opening_hours",
+        description:
+          "Ändert Geschäfts-Öffnungszeiten (Wochentage und/oder Datumsausnahmen). confirm immer false — die Oberfläche bestätigt. Fehlende Uhrzeiten: Tool mit ask, nicht raten.",
+        parameters: {
+          type: "object",
+          properties: {
+            days: {
+              type: "array",
+              description:
+                "Wochentagsänderungen, z. B. [{weekday:'monday', opens_at:'11:30', closes_at:'22:00'}] oder closed:true",
+              items: {
+                type: "object",
+                properties: {
+                  weekday: { type: "string" },
+                  closed: { type: "boolean" },
+                  opens_at: { type: "string" },
+                  closes_at: { type: "string" },
+                },
+              },
+            },
+            exceptions: {
+              type: "array",
+              description:
+                "Sonderzeiten [{date_ymd:'YYYY-MM-DD', closed:true}] oder mit opens_at/closes_at; remove:true entfernt die Ausnahme",
+              items: {
+                type: "object",
+                properties: {
+                  date_ymd: { type: "string" },
+                  closed: { type: "boolean" },
+                  opens_at: { type: "string" },
+                  closes_at: { type: "string" },
+                  note: { type: "string" },
+                  remove: { type: "boolean" },
+                },
+              },
+            },
+            confirm: {
+              type: "boolean",
+              description: "Immer false. Speichern erst nach UI-Bestätigung.",
+            },
+            scope: { type: "string" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "sync_platforms",
+        description:
+          "Synchronisiert vorhandene App-Integrationen: Öffnungszeiten zu Google/Facebook und/oder Bewertungs-Feeds. Keine neuen Verbindungen anlegen.",
+        parameters: {
+          type: "object",
+          properties: {
+            scope: {
+              type: "string",
+              description: "opening_hours | reviews | all",
+            },
+            platforms: {
+              type: "array",
+              items: { type: "string" },
+              description: "Nur bei opening_hours: google, facebook",
+            },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
   ];
 
 async function runTool(
@@ -257,6 +333,14 @@ async function runTool(
       return toolStaffOnShift(ctx, args, locale);
     case "open_amounts":
       return toolOpenAmounts(ctx, args, locale);
+    case "update_opening_hours":
+      return toolUpdateOpeningHours(
+        ctx,
+        { ...args, confirm: false },
+        locale,
+      );
+    case "sync_platforms":
+      return toolSyncPlatforms(ctx, args, locale);
     default:
       return JSON.stringify({ ok: false, error: `Unbekanntes Tool: ${name}` });
   }
@@ -288,7 +372,9 @@ function buildSystemPrompt(input: {
     "Lies nur über die Tools. Sie liefern Zählungen, höchstens acht Zeilen oder einen Treffer. Verlange keine ganze Tabelle.",
     "Ohne genannten Zeitraum gilt heute. Ein Datum, das der Nutzer nicht gesagt hat, nicht einsetzen.",
     "Wenn ein Tool ask liefert: antworte nur mit dieser einen kurzen Frage und warte. Rate nicht Tag, Gast, Gericht, Betrag oder welchen Datensatz.",
-    "Schreib-Tools immer mit confirm=false. Nichts ist gespeichert, bevor die Oberfläche den Entwurf bestätigt.",
+    "Schreib-Tools (Reservierung, Öffnungszeiten) immer mit confirm=false. Nichts ist gespeichert, bevor die Oberfläche den Entwurf bestätigt.",
+    "Du kannst: Reservierungen zählen/listen/anlegen, Öffnungszeiten lesen und ändern, Öffnungszeiten zu Google/Facebook und Bewertungen synchronisieren, Bestand/Personal/offene Rechnungen lesen, Handbuch suchen.",
+    "Was du noch nicht kannst (klar sagen, App-Oberfläche nennen): Speisekarte/Zutaten bearbeiten, Mitarbeiter/Schichten anlegen, News/Events/Galerie pflegen, Integrationen verbinden, Buchhaltung buchen, Rechte verwalten.",
     "Ein Restaurant betrifft nur das Haus der Sitzung. restaurant_id nie selbst setzen.",
     "Im Superadmin: scope=all nur für Summen über alle Häuser, restaurant_name nur wenn ein Haus genannt wurde. Unklar welches Haus: eine Frage.",
     "Bei Wochentagen immer weekday_label aus den Tool-Daten verwenden (aktuelle UI-Sprache), nie englische Schlüssel wie monday.",
@@ -418,18 +504,26 @@ export async function runAssistantChatTurn(input: {
       tool_calls: toolCalls,
     });
 
-    for (const call of toolCalls) {
-      if (call.type !== "function") continue;
-      const result = await runTool(
-        input.ctx,
-        call.function.name,
-        call.function.arguments,
-        locale,
-      );
+    const functionCalls = toolCalls.filter(
+      (call): call is Extract<typeof call, { type: "function" }> =>
+        call.type === "function",
+    );
+    const results = await Promise.all(
+      functionCalls.map((call) =>
+        runTool(
+          input.ctx,
+          call.function.name,
+          call.function.arguments,
+          locale,
+        ),
+      ),
+    );
+    for (let i = 0; i < functionCalls.length; i++) {
+      const result = results[i]!;
       toolPayloads.push(result);
       messages.push({
         role: "tool",
-        tool_call_id: call.id,
+        tool_call_id: functionCalls[i]!.id,
         content: result,
       });
     }

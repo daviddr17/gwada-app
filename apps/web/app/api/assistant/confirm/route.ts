@@ -3,13 +3,20 @@ import type {
   AssistantReservationPreview,
 } from "@/lib/assistant/assistant-actions";
 import {
+  applySendContactMessagePreview,
+  applyUpdateStaffPreview,
+  applyUpsertMenuItemPreview,
+} from "@/lib/assistant/assistant-entity-write-tools";
+import {
   applyAdjustIngredientStockPreview,
   applySetMenuItemActivePreview,
   applySetPurchaseOrderStatusPreview,
   applyUpdateReservationPreview,
 } from "@/lib/assistant/assistant-module-write-tools";
-import { persistOpeningHoursPreview } from "@/lib/assistant/assistant-settings-tools";
-import { toolSyncPlatforms } from "@/lib/assistant/assistant-settings-tools";
+import {
+  persistOpeningHoursPreview,
+  toolSyncPlatforms,
+} from "@/lib/assistant/assistant-settings-tools";
 import { toolCreateReservation } from "@/lib/assistant/assistant-tools";
 import type { AssistantToolContext } from "@/lib/assistant/assistant-tool-context";
 import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboard-restaurant";
@@ -107,13 +114,24 @@ export async function POST(req: Request) {
           locale,
         );
         break;
+      case "upsert_menu_item":
+        raw = await applyUpsertMenuItemPreview(ctx, args, locale);
+        break;
+      case "update_staff":
+        raw = await applyUpdateStaffPreview(ctx, args, locale);
+        break;
+      case "send_contact_message":
+        raw = await applySendContactMessagePreview(ctx, args, locale);
+        break;
       default:
         return Response.json({ error: "unknown_action" }, { status: 400 });
     }
     const parsed = parseToolResult(raw);
     const success =
       parsed.ok === true &&
-      (action === "sync_platforms" || parsed.status === "saved");
+      (action === "sync_platforms" ||
+        action === "send_contact_message" ||
+        parsed.status === "saved");
     if (!success) {
       return Response.json(
         {

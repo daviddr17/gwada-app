@@ -44,16 +44,24 @@ export async function denyUnlessPermission(
   return null;
 }
 
+/** Short change summary + explicit confirm question for the UI dialog. */
+export function withConfirmQuestion(summary: string, locale = "de"): string {
+  const base = summary.trim().replace(/[.?!]+\s*$/, "");
+  const question = locale === "de" ? "Jetzt umsetzen?" : "Apply now?";
+  return `${base}. ${question}`;
+}
+
 export function draftMutation(input: {
   action: string;
   message: string;
   preview: Record<string, unknown>;
+  locale?: string;
 }): string {
   return assistantJson({
     ok: true,
     status: "draft",
     action: input.action,
-    message: input.message,
+    message: withConfirmQuestion(input.message, input.locale ?? "de"),
     preview: input.preview,
   });
 }

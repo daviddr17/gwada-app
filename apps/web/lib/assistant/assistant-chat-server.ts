@@ -25,6 +25,11 @@ import {
   toolStaffShifts,
 } from "@/lib/assistant/assistant-module-read-tools";
 import {
+  toolSendContactMessage,
+  toolUpdateStaff,
+  toolUpsertMenuItem,
+} from "@/lib/assistant/assistant-entity-write-tools";
+import {
   toolAdjustIngredientStock,
   toolSetMenuItemActive,
   toolSetPurchaseOrderStatus,
@@ -143,6 +148,12 @@ async function runTool(
       return toolSearchMenu(ctx, args, locale);
     case "set_menu_item_active":
       return toolSetMenuItemActive(ctx, { ...args, confirm: false }, locale);
+    case "upsert_menu_item":
+      return toolUpsertMenuItem(ctx, { ...args, confirm: false }, locale);
+    case "update_staff":
+      return toolUpdateStaff(ctx, { ...args, confirm: false }, locale);
+    case "send_contact_message":
+      return toolSendContactMessage(ctx, { ...args, confirm: false }, locale);
     case "purchase_orders":
       return toolPurchaseOrders(ctx, args, locale);
     case "set_purchase_order_status":
@@ -189,9 +200,9 @@ function buildSystemPrompt(input: {
     "Lies über Tools: Zählungen, höchstens acht Zeilen oder ein Treffer. Keine ganze Tabelle verlangen.",
     "Ohne genannten Zeitraum gilt heute. Kein Datum raten.",
     "Wenn ein Tool ask liefert: antworte nur mit dieser einen kurzen Frage und warte.",
-    "Schreib-/Sync-Tools immer mit confirm=false. Speichern erst nach UI-Bestätigung. Sync und Löschen/Storno sind bestätigungspflichtig.",
-    "Du kannst u. a.: Reservierungen lesen/anlegen/Status ändern/stornieren; Öffnungszeiten lesen/ändern; Plattform-Sync (Stunden/Reviews); Speisekarte suchen und aktiv/inaktiv; Bestand lesen und setzen; Bestellungen lesen/Status; Personal on-shift und Schichtplan; Kontakte und Inbox-Zahlen; Bewertungen; News/Events-Zähler; offene Rechnungen; Statistiken/Insights; Handbuch.",
-    "Noch nicht möglich (ehrlich sagen, App nennen): komplexe Speisekarten-Neuanlage mit Rezepten/Optionen, News/Events/Galerie publizieren, Integrationen verbinden (OAuth), Display-Geräte, Buchhaltung Belege anlegen/senden, Mitarbeiterstammdaten/Verträge anlegen, Rechte/Team, Nachrichten versenden, Superadmin-Plattformdaten mit Restaurant-Key.",
+    "Schreib-/Sync-/Sende-Tools immer mit confirm=false. Die UI zeigt Kurzfassung + „Jetzt umsetzen?“ — nie still speichern oder senden.",
+    "Du kannst u. a.: Reservierungen lesen/anlegen/Status/Storno; Öffnungszeiten; Plattform-Sync; Speisekarte suchen, aktiv/inaktiv, Gerichte anlegen/ändern inkl. Rezept; Bestand/Bestellungen; Mitarbeiter lesen/ändern und Schichten; Kontakte, Inbox, Nachrichten senden; Bewertungen; News/Events-Zähler (nicht publizieren); offene Rechnungen; Statistiken; Handbuch.",
+    "Noch nicht möglich (ehrlich sagen): News/Events/Galerie publizieren (Bilder), Integrationen verbinden (OAuth), Display-Geräte, Buchhaltung Belege anlegen/senden, Verträge/Rechte, Optionsgruppen/Bilder an Gerichten, Superadmin-Plattformdaten mit Restaurant-Key.",
     "Nur das Sitzungs-Restaurant. restaurant_id nie selbst setzen.",
     "Im Superadmin: scope=all nur für Summen, restaurant_name nur wenn genannt.",
     "Wochentage: weekday_label aus Tool-Daten, nie monday/tuesday als Text.",

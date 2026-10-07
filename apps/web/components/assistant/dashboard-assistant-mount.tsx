@@ -688,9 +688,9 @@ export function DashboardAssistantMount() {
           }
           cancelPending();
         }}
-        title={locale === "de" ? "So speichern?" : "Save this?"}
+        title={locale === "de" ? "Jetzt umsetzen?" : "Apply now?"}
         description={pendingAction?.summary}
-        confirmLabel={locale === "de" ? "Speichern" : "Save"}
+        confirmLabel={locale === "de" ? "Umsetzen" : "Apply"}
         cancelLabel={locale === "de" ? "Abbrechen" : "Cancel"}
         destructive={false}
         confirmDisabled={confirming}

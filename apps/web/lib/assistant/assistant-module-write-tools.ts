@@ -138,6 +138,7 @@ export async function toolUpdateReservation(
     };
     if (!args.confirm) {
       return draftMutation({
+      locale,
         action: "update_reservation",
         message:
           locale === "de"
@@ -197,6 +198,7 @@ export async function toolUpdateReservation(
   };
   if (!args.confirm) {
     return draftMutation({
+      locale,
       action: "update_reservation",
       message:
         locale === "de"
@@ -295,6 +297,7 @@ export async function toolSetMenuItemActive(
   };
   if (!args.confirm) {
     return draftMutation({
+      locale,
       action: "set_menu_item_active",
       message:
         locale === "de"
@@ -400,6 +403,7 @@ export async function toolAdjustIngredientStock(
   };
   if (!args.confirm) {
     return draftMutation({
+      locale,
       action: "adjust_ingredient_stock",
       message:
         locale === "de"
@@ -522,6 +526,7 @@ export async function toolSetPurchaseOrderStatus(
   const preview = { order_id: id, supplier: label, status };
   if (!args.confirm) {
     return draftMutation({
+      locale,
       action: "set_purchase_order_status",
       message:
         locale === "de"

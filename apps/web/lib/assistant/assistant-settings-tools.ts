@@ -11,6 +11,7 @@ import {
   denyUnlessModuleCrud,
   denyUnlessPermission,
   draftMutation,
+  withConfirmQuestion,
 } from "@/lib/assistant/assistant-tool-auth";
 import { weekdayLabelForLocale } from "@/lib/assistant/assistant-weekday-label";
 import type { AssistantToolContext } from "@/lib/assistant/assistant-tool-context";
@@ -301,7 +302,7 @@ export async function toolUpdateOpeningHours(
       ok: true,
       status: "draft",
       preview,
-      message: summarizeHoursPreview(preview, locale),
+      message: withConfirmQuestion(summarizeHoursPreview(preview, locale), locale),
     });
   }
 
@@ -388,10 +389,11 @@ export async function toolSyncPlatforms(
   if (!args.confirm) {
     return draftMutation({
       action: "sync_platforms",
+      locale,
       message:
         locale === "de"
-          ? `Plattformen synchronisieren (${scopeRaw}${wantHours ? `, ${platformsPreview.join("/")}` : ""})?`
-          : `Sync platforms (${scopeRaw}${wantHours ? `, ${platformsPreview.join("/")}` : ""})?`,
+          ? `Plattformen synchronisieren (${scopeRaw}${wantHours ? `, ${platformsPreview.join("/")}` : ""})`
+          : `Sync platforms (${scopeRaw}${wantHours ? `, ${platformsPreview.join("/")}` : ""})`,
       preview: {
         scope: scopeRaw,
         platforms: platformsPreview,

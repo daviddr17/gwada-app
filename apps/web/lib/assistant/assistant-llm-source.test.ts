@@ -180,7 +180,8 @@ test("generic mutation draft becomes confirm_mutation", () => {
       ok: true,
       status: "draft",
       action: "sync_platforms",
-      message: "Plattformen synchronisieren (opening_hours, google/facebook)?",
+      message:
+        "Plattformen synchronisieren (opening_hours, google/facebook). Jetzt umsetzen?",
       preview: { scope: "opening_hours", platforms: ["google", "facebook"] },
     }),
   ]);
@@ -189,4 +190,28 @@ test("generic mutation draft becomes confirm_mutation", () => {
     assert.fail("expected confirm_mutation");
   }
   assert.equal(settled.pendingAction.preview.action, "sync_platforms");
+  assert.match(settled.reply, /Jetzt umsetzen\?/);
+});
+
+test("menu upsert draft carries recipe confirm summary", () => {
+  const settled = settleAssistantToolPayloads("Ok.", [
+    JSON.stringify({
+      ok: true,
+      status: "draft",
+      action: "upsert_menu_item",
+      message:
+        "Gericht anlegen: Schnitzel, 14.50 €, Kategorie Hauptgerichte, Rezept: 0.2× Kalb. Jetzt umsetzen?",
+      preview: {
+        mode: "create",
+        name: "Schnitzel",
+        price: 14.5,
+        recipe: [{ ingredient: "Kalb", amount: 0.2 }],
+      },
+    }),
+  ]);
+  assert.equal(settled.pendingAction?.kind, "confirm_mutation");
+  if (settled.pendingAction?.kind !== "confirm_mutation") {
+    assert.fail("expected confirm_mutation");
+  }
+  assert.equal(settled.pendingAction.preview.action, "upsert_menu_item");
 });

@@ -23,6 +23,7 @@ import {
 import { reservationPreviewSummary } from "@/lib/assistant/assistant-actions";
 import { resolveAssistantTarget } from "@/lib/assistant/assistant-scope";
 import type { AssistantToolContext } from "@/lib/assistant/assistant-tool-context";
+import { withConfirmQuestion } from "@/lib/assistant/assistant-tool-auth";
 import { weekdayLabelForLocale } from "@/lib/assistant/assistant-weekday-label";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -330,7 +331,10 @@ export async function toolCreateReservation(
       ok: true,
       status: "draft",
       preview,
-      message: reservationPreviewSummary(preview, locale),
+      message: withConfirmQuestion(
+        reservationPreviewSummary(preview, locale),
+        locale,
+      ),
     });
   }
 

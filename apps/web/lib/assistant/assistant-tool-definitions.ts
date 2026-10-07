@@ -169,6 +169,88 @@ export const ASSISTANT_TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionT
     {
       type: "function",
       function: {
+        name: "upsert_menu_item",
+        description:
+          "Gericht anlegen (mode=create) oder ändern (mode=update), inkl. Rezept aus Bestandszutaten [{ingredient, amount}]. confirm immer false — UI fragt „Jetzt umsetzen?“.",
+        parameters: {
+          type: "object",
+          properties: {
+            mode: { type: "string", description: "create | update" },
+            name: { type: "string", description: "Gerichtsname (bei update: Suche)" },
+            new_name: { type: "string" },
+            description: { type: "string" },
+            price: { type: "number" },
+            category: { type: "string", description: "Kategoriename" },
+            active: { type: "boolean" },
+            recipe: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  ingredient: { type: "string" },
+                  amount: { type: "number" },
+                },
+              },
+            },
+            replace_recipe: {
+              type: "boolean",
+              description: "true = Rezept leeren/ersetzen",
+            },
+            menu_item_id: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "update_staff",
+        description:
+          "Mitarbeiterstammdaten ändern (Name, E-Mail, Telefon, Adresse, aktiv). confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            staff_id: { type: "string" },
+            given_name: { type: "string" },
+            family_name: { type: "string" },
+            email: { type: "string" },
+            phone: { type: "string" },
+            city: { type: "string" },
+            postal_code: { type: "string" },
+            address_line1: { type: "string" },
+            birth_date: { type: "string" },
+            is_active: { type: "boolean" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "send_contact_message",
+        description:
+          "Nachricht an Kontakt senden (whatsapp|email|gwada|facebook|instagram). confirm immer false — nie still senden.",
+        parameters: {
+          type: "object",
+          properties: {
+            contact_name: { type: "string" },
+            contact_id: { type: "string" },
+            body: { type: "string" },
+            channel: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
         name: "stock",
         description:
           "Bestand: leere Zutaten, offene Bestellungen, eine Zutat per Name.",

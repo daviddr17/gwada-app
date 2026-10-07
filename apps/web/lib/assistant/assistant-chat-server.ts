@@ -49,6 +49,10 @@ import {
 import { ASSISTANT_TOOL_DEFINITIONS } from "@/lib/assistant/assistant-tool-definitions";
 import type { AssistantToolContext } from "@/lib/assistant/assistant-tool-context";
 import {
+  ASSISTANT_MAX_TOOL_ROUNDS,
+  clipAssistantHistory,
+} from "@/lib/assistant/assistant-chat-limits";
+import {
   toolCountReservations,
   toolCreateReservation,
   toolGetRestaurantRules,
@@ -56,16 +60,21 @@ import {
 } from "@/lib/assistant/assistant-tools";
 
 export { ASSISTANT_TOOL_DEFINITIONS };
+export {
+  ASSISTANT_HISTORY_MAX_MESSAGES,
+  ASSISTANT_MAX_TOOL_ROUNDS,
+  clipAssistantHistory,
+} from "@/lib/assistant/assistant-chat-limits";
 
 const LOCALE_REPLY_HINT: Record<AppLocale, string> = {
-  de: "Antworte auf Deutsch, freundlich, klar und in ganzen Sätzen — wie ein kompetenter Betriebsleiter-Assistent.",
-  en: "Reply in English, warmly and clearly, like a capable restaurant ops assistant.",
-  es: "Responde en español, de forma clara y amable.",
-  fr: "Réponds en français, clairement et avec bienveillance.",
-  it: "Rispondi in italiano, in modo chiaro e cordiale.",
-  tr: "Kısa, net ve yardımcı bir şekilde Türkçe yanıt ver.",
-  ar: "أجب بالعربية بوضوح وودية.",
-  zh: "用简体中文清楚友好地回答。",
+  de: "Sprich natürliches Deutsch: kurz, freundlich, wie ein erfahrener Betriebsleiter im Gasthaus — keine Roboterlisten, kein JSON.",
+  en: "Speak naturally and briefly, like an experienced restaurant manager — no robot lists, no JSON.",
+  es: "Habla de forma natural y breve, como un gerente de restaurante — sin listas robóticas ni JSON.",
+  fr: "Parle naturellement et brièvement, comme un responsable de restaurant — pas de listes robotiques ni de JSON.",
+  it: "Parla in modo naturale e breve, come un responsabile di ristorante — niente elenchi robotici né JSON.",
+  tr: "Doğal ve kısa konuş; restoran müdürü gibi — robot listesi veya JSON yok.",
+  ar: "تحدّث بطبيعية وإيجاز كمدير مطعم — بلا قوائم آلية أو JSON.",
+  zh: "用自然简短的话回答，像餐厅经理一样——不要机器列表或 JSON。",
 };
 
 async function runTool(
@@ -192,25 +201,20 @@ function buildSystemPrompt(input: {
   locale: AppLocale;
 }): string {
   const today = todayYmdInTz(input.timeZone);
+  const house = input.restaurantName?.trim() || "dieses Restaurant";
   return [
-    "Du bist der Gwada-Restaurant-Assistent: ein fähiger Betriebshelfer für genau dieses Haus.",
+    `Du bist der Gwada-Assistent für ${house}: hilfst im Tagesgeschäft, wie ein ruhiger, kompetenter Kollege.`,
     LOCALE_REPLY_HINT[input.locale],
-    "Nutze Tools für Fakten — erfinde keine Zahlen, Status oder Datensätze.",
-    "Du hast dieselben Modulrechte wie der angemeldete Nutzer. Bei forbidden/Keine Berechtigung: klar sagen, nicht umgehen.",
-    "Lies über Tools: Zählungen, höchstens acht Zeilen oder ein Treffer. Keine ganze Tabelle verlangen.",
-    "Ohne genannten Zeitraum gilt heute. Kein Datum raten.",
-    "Wenn ein Tool ask liefert: antworte nur mit dieser einen kurzen Frage und warte.",
-    "Schreib-/Sync-/Sende-Tools immer mit confirm=false. Die UI zeigt Kurzfassung + „Jetzt umsetzen?“ — nie still speichern oder senden.",
-    "Du kannst u. a.: Reservierungen lesen/anlegen/Status/Storno; Öffnungszeiten; Plattform-Sync; Speisekarte suchen, aktiv/inaktiv, Gerichte anlegen/ändern inkl. Rezept; Bestand/Bestellungen; Mitarbeiter lesen/ändern und Schichten; Kontakte, Inbox, Nachrichten senden; Bewertungen; News/Events-Zähler (nicht publizieren); offene Rechnungen; Statistiken; Handbuch.",
-    "Noch nicht möglich (ehrlich sagen): News/Events/Galerie publizieren (Bilder), Integrationen verbinden (OAuth), Display-Geräte, Buchhaltung Belege anlegen/senden, Verträge/Rechte, Optionsgruppen/Bilder an Gerichten, Superadmin-Plattformdaten mit Restaurant-Key.",
-    "Nur das Sitzungs-Restaurant. restaurant_id nie selbst setzen.",
-    "Im Superadmin: scope=all nur für Summen, restaurant_name nur wenn genannt.",
-    "Wochentage: weekday_label aus Tool-Daten, nie monday/tuesday als Text.",
-    "Handbuch-Links: /docs/handbook/<slug>.",
-    `UI-Locale: ${input.locale}`,
-    `Restaurant: ${input.restaurantName ?? "unbekannt"}`,
-    `Zeitzone: ${input.timeZone}`,
-    `Heute (Restaurant): ${today}`,
+    "Gespräch: Erst die Frage verstehen, dann antworten. Bei Smalltalk oder „Wie geht’s?“ kurz menschlich antworten — nicht sofort Tools erzwingen.",
+    "Fakten nur aus Tools (Zahlen, Zeiten, Namen, Status). Tool-Ergebnisse in klaren Sätzen zusammenfassen — keine Roh-JSON, keine Bullet-Wüste.",
+    "Rechte wie der angemeldete Nutzer. Bei „Keine Berechtigung“: freundlich sagen, was fehlt — nicht umgehen.",
+    "Lesen: höchstens kurze Listen (≤8) oder ein Treffer. Ohne Zeitraum = heute. Kein Datum raten.",
+    "Wenn ein Tool `ask` liefert: genau diese eine Rückfrage stellen und warten.",
+    "Schreiben/Sync/Senden: immer confirm=false. Die App fragt „Jetzt umsetzen?“ — nie still speichern oder senden.",
+    "Kannst du: Reservierungen, Öffnungszeiten, Plattform-Sync, Speisekarte inkl. Rezept, Bestand/Bestellungen, Mitarbeiter/Schichten, Kontakte/Nachrichten senden, Bewertungen, News/Events-Zähler (nicht publizieren), offene Rechnungen, Statistiken, Handbuch.",
+    "Kannst du nicht (ehrlich, App nennen): News/Events/Galerie publizieren, Integrationen verbinden, Display, Buchhaltungsbelege anlegen/senden, Verträge/Rechte, Optionsgruppen/Gerichtsbilder, Superadmin-Daten mit Restaurant-Key.",
+    "Nur dieses Haus. restaurant_id nie setzen. Wochentage: weekday_label aus Tools. Handbuch: /docs/handbook/<slug>.",
+    `Locale: ${input.locale} · Zeitzone: ${input.timeZone} · Heute: ${today}`,
   ].join("\n");
 }
 
@@ -265,6 +269,7 @@ export async function runAssistantChatTurn(input: {
     ...(llm.baseURL ? { baseURL: llm.baseURL } : {}),
   });
   const providerLabel = llm.provider === "grok" ? "Grok" : "OpenAI";
+  const history = clipAssistantHistory(input.history);
   const messages: ChatCompletionMessageParam[] = [
     {
       role: "system",
@@ -274,7 +279,7 @@ export async function runAssistantChatTurn(input: {
         locale,
       }),
     },
-    ...input.history.map((m) => ({
+    ...history.map((m) => ({
       role: m.role,
       content: m.content,
     })),
@@ -283,7 +288,7 @@ export async function runAssistantChatTurn(input: {
 
   const toolPayloads: string[] = [];
 
-  for (let step = 0; step < 6; step++) {
+  for (let step = 0; step < ASSISTANT_MAX_TOOL_ROUNDS; step++) {
     let completion: OpenAI.Chat.Completions.ChatCompletion;
     try {
       completion = await client.chat.completions.create({
@@ -291,7 +296,7 @@ export async function runAssistantChatTurn(input: {
         messages,
         tools: ASSISTANT_TOOL_DEFINITIONS,
         tool_choice: "auto",
-        temperature: 0.4,
+        temperature: 0.5,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : `${providerLabel}-Fehler`;

@@ -50,9 +50,56 @@ export async function POST(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
+  const zone = body.zone === "superadmin" ? "superadmin" : "restaurant";
+
+  /** Load restaurant context + LLM key in parallel with chat history (latency win). */
+  const runtimePromise = (async () => {
+    const [{ data: restaurant }, timeZone, localeRaw, superSession] = await Promise.all([
+      auth.sb
+        .from("restaurants")
+        .select("name")
+        .eq("id", auth.restaurantId)
+        .maybeSingle(),
+      fetchRestaurantTimezoneServer(auth.sb, auth.restaurantId),
+      getLocale().catch(() => "de"),
+      zone === "superadmin" ? getSuperadminSession(auth.sb) : Promise.resolve(null),
+    ]);
+    const callerIsSuperadmin = superSession?.status === "ok";
+    const usePlatform = zone === "superadmin" && callerIsSuperadmin;
+    const platformConfig = usePlatform ? await fetchPlatformOpenaiConfigAdmin() : null;
+    const platform =
+      platformConfig?.enabled && platformConfig.apiKey
+        ? {
+            apiKey: platformConfig.apiKey,
+            model: platformConfig.model,
+            provider: platformConfig.provider,
+            ...(platformConfig.baseURL ? { baseURL: platformConfig.baseURL } : {}),
+          }
+        : null;
+    const restaurantLlm = usePlatform
+      ? null
+      : await fetchRestaurantAssistantRuntime(auth.restaurantId);
+    const llm = pickAssistantLlm({
+      zone,
+      callerIsSuperadmin,
+      platform,
+      restaurant: restaurantLlm,
+    });
+    return {
+      restaurantName: restaurant?.name ?? null,
+      timeZone,
+      locale: normalizeAppLocale(localeRaw),
+      callerIsSuperadmin,
+      usePlatform,
+      llm,
+    };
+  })();
+
   let persist = true;
   let thread: AssistantThreadRow | null = null;
   let history: Array<{ role: "user" | "assistant"; content: string }> = [];
+  /** Persist user turn without blocking the first LLM round-trip. */
+  let persistUserPromise: Promise<void> | null = null;
 
   try {
     const threadId = body.threadId?.trim() || null;
@@ -80,18 +127,20 @@ export async function POST(req: Request) {
         content: m.content,
       }));
 
-    await insertAssistantMessage(auth.sb, {
-      threadId: thread.id,
-      role: "user",
-      content: message,
-    });
-
     const isFirst = history.length === 0;
-    await touchAssistantThread(
-      auth.sb,
-      thread.id,
-      isFirst ? titleFromUserMessage(message) : undefined,
-    );
+    const threadIdForPersist = thread.id;
+    persistUserPromise = (async () => {
+      await insertAssistantMessage(auth.sb, {
+        threadId: threadIdForPersist,
+        role: "user",
+        content: message,
+      });
+      await touchAssistantThread(
+        auth.sb,
+        threadIdForPersist,
+        isFirst ? titleFromUserMessage(message) : undefined,
+      );
+    })();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "persist_failed";
     if (!isAssistantPersistenceUnavailable(msg)) {
@@ -102,43 +151,11 @@ export async function POST(req: Request) {
     persist = false;
     thread = null;
     history = [];
+    persistUserPromise = null;
   }
 
   try {
-    const [{ data: restaurant }, timeZone, localeRaw] = await Promise.all([
-      auth.sb
-        .from("restaurants")
-        .select("name")
-        .eq("id", auth.restaurantId)
-        .maybeSingle(),
-      fetchRestaurantTimezoneServer(auth.sb, auth.restaurantId),
-      getLocale().catch(() => "de"),
-    ]);
-
-    const zone = body.zone === "superadmin" ? "superadmin" : "restaurant";
-    const superSession =
-      zone === "superadmin" ? await getSuperadminSession(auth.sb) : null;
-    const callerIsSuperadmin = superSession?.status === "ok";
-    const usePlatform = zone === "superadmin" && callerIsSuperadmin;
-    const platformConfig = usePlatform ? await fetchPlatformOpenaiConfigAdmin() : null;
-    const platform =
-      platformConfig?.enabled && platformConfig.apiKey
-        ? {
-            apiKey: platformConfig.apiKey,
-            model: platformConfig.model,
-            provider: platformConfig.provider,
-            ...(platformConfig.baseURL ? { baseURL: platformConfig.baseURL } : {}),
-          }
-        : null;
-    const restaurantLlm = usePlatform
-      ? null
-      : await fetchRestaurantAssistantRuntime(auth.restaurantId);
-    const llm = pickAssistantLlm({
-      zone,
-      callerIsSuperadmin,
-      platform,
-      restaurant: restaurantLlm,
-    });
+    const runtime = await runtimePromise;
 
     const result = await runAssistantChatTurn({
       ctx: {
@@ -146,16 +163,29 @@ export async function POST(req: Request) {
         userId: auth.userId,
         sb: auth.sb,
         zone,
-        callerIsSuperadmin,
+        callerIsSuperadmin: runtime.callerIsSuperadmin,
       },
       history,
       userMessage: message,
-      restaurantName: restaurant?.name ?? null,
-      timeZone,
-      locale: normalizeAppLocale(localeRaw),
-      llm,
-      keyAudience: usePlatform ? "superadmin" : "restaurant",
+      restaurantName: runtime.restaurantName,
+      timeZone: runtime.timeZone,
+      locale: runtime.locale,
+      llm: runtime.llm,
+      keyAudience: runtime.usePlatform ? "superadmin" : "restaurant",
     });
+
+    if (persistUserPromise) {
+      try {
+        await persistUserPromise;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "persist_failed";
+        if (!isAssistantPersistenceUnavailable(msg)) {
+          console.warn("[assistant] chat persist user (deferred)", msg);
+        } else {
+          persist = false;
+        }
+      }
+    }
 
     if (!result.ok) {
       if (persist && thread) {

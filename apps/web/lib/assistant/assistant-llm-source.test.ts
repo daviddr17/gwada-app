@@ -9,6 +9,11 @@ import {
   ASSISTANT_LIST_CAP,
 } from "./assistant-ask";
 import { settleAssistantToolPayloads } from "./assistant-actions";
+import {
+  ASSISTANT_HISTORY_MAX_MESSAGES,
+  ASSISTANT_MAX_TOOL_ROUNDS,
+  clipAssistantHistory,
+} from "./assistant-chat-limits";
 
 const platform: AssistantLlmRuntime = {
   apiKey: "platform-key",
@@ -191,6 +196,17 @@ test("generic mutation draft becomes confirm_mutation", () => {
   }
   assert.equal(settled.pendingAction.preview.action, "sync_platforms");
   assert.match(settled.reply, /Jetzt umsetzen\?/);
+});
+
+test("history is clipped to keep long threads fast", () => {
+  const long = Array.from({ length: ASSISTANT_HISTORY_MAX_MESSAGES + 5 }, (_, i) => ({
+    role: i % 2 === 0 ? ("user" as const) : ("assistant" as const),
+    content: `m${i}`,
+  }));
+  const clipped = clipAssistantHistory(long);
+  assert.equal(clipped.length, ASSISTANT_HISTORY_MAX_MESSAGES);
+  assert.equal(clipped[0]?.content, `m${5}`);
+  assert.equal(ASSISTANT_MAX_TOOL_ROUNDS, 4);
 });
 
 test("menu upsert draft carries recipe confirm summary", () => {

@@ -8,19 +8,29 @@ import {
   type AppLocale,
 } from "@/i18n/config";
 import {
-  toolCountReservations,
-  toolCreateReservation,
-  toolGetRestaurantRules,
-  toolSearchHandbook,
-  type AssistantToolContext,
-} from "@/lib/assistant/assistant-tools";
-import {
   askFromToolJson,
   pendingActionFromToolJson,
   settleAssistantToolPayloads,
   type AssistantPendingAction,
 } from "@/lib/assistant/assistant-actions";
 import type { AssistantLlmRuntime } from "@/lib/assistant/assistant-llm-source";
+import {
+  toolContentFeed,
+  toolInboxSummary,
+  toolPurchaseOrders,
+  toolRestaurantStats,
+  toolReviewsSummary,
+  toolSearchContacts,
+  toolSearchMenu,
+  toolStaffShifts,
+} from "@/lib/assistant/assistant-module-read-tools";
+import {
+  toolAdjustIngredientStock,
+  toolSetMenuItemActive,
+  toolSetPurchaseOrderStatus,
+  toolUpdateReservation,
+} from "@/lib/assistant/assistant-module-write-tools";
+import { runAssistantOfflineFallback } from "@/lib/assistant/assistant-offline-fallback";
 import {
   toolOpenAmounts,
   toolServiceToday,
@@ -31,240 +41,27 @@ import {
   toolSyncPlatforms,
   toolUpdateOpeningHours,
 } from "@/lib/assistant/assistant-settings-tools";
-import { runAssistantOfflineFallback } from "@/lib/assistant/assistant-offline-fallback";
+import { ASSISTANT_TOOL_DEFINITIONS } from "@/lib/assistant/assistant-tool-definitions";
+import type { AssistantToolContext } from "@/lib/assistant/assistant-tool-context";
+import {
+  toolCountReservations,
+  toolCreateReservation,
+  toolGetRestaurantRules,
+  toolSearchHandbook,
+} from "@/lib/assistant/assistant-tools";
+
+export { ASSISTANT_TOOL_DEFINITIONS };
 
 const LOCALE_REPLY_HINT: Record<AppLocale, string> = {
-  de: "Antworte auf Deutsch, kurz und klar.",
-  en: "Reply in English, briefly and clearly.",
-  es: "Responde en español, de forma breve y clara.",
-  fr: "Réponds en français, de façon courte et claire.",
-  it: "Rispondi in italiano, in modo breve e chiaro.",
-  tr: "Kısa ve net bir şekilde Türkçe yanıt ver.",
-  ar: "أجب بالعربية باختصار ووضوح.",
-  zh: "用简体中文简短清楚地回答。",
+  de: "Antworte auf Deutsch, freundlich, klar und in ganzen Sätzen — wie ein kompetenter Betriebsleiter-Assistent.",
+  en: "Reply in English, warmly and clearly, like a capable restaurant ops assistant.",
+  es: "Responde en español, de forma clara y amable.",
+  fr: "Réponds en français, clairement et avec bienveillance.",
+  it: "Rispondi in italiano, in modo chiaro e cordiale.",
+  tr: "Kısa, net ve yardımcı bir şekilde Türkçe yanıt ver.",
+  ar: "أجب بالعربية بوضوح وودية.",
+  zh: "用简体中文清楚友好地回答。",
 };
-
-export const ASSISTANT_TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionTool[] =
-  [
-    {
-      type: "function",
-      function: {
-        name: "count_reservations",
-        description:
-          "Zählt Reservierungen und Gäste. Ohne Datum gilt heute in der Restaurant-Zeitzone. Keine Gästeliste.",
-        parameters: {
-          type: "object",
-          properties: {
-            start_ymd: { type: "string", description: "Starttag YYYY-MM-DD, nur wenn der Nutzer Tage nennt" },
-            end_ymd: { type: "string", description: "Endtag YYYY-MM-DD inklusiv, nur wenn genannt" },
-            date_ymd: { type: "string", description: "Ein Tag YYYY-MM-DD, nur wenn genannt" },
-            scope: { type: "string", description: "Nur Superadmin: all, sonst weglassen" },
-            restaurant_name: { type: "string", description: "Nur Superadmin, wenn ein Haus genannt wurde" },
-          },
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "search_handbook",
-        description:
-          "Durchsucht das Gwada-Benutzerhandbuch und liefert Erklärungen zu App-Funktionen.",
-        parameters: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "Suchbegriff oder Frage, z. B. Sonderöffnungszeiten",
-            },
-          },
-          required: ["query"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "get_restaurant_rules",
-        description:
-          "Lädt Öffnungszeiten, Sonderregeln und Reservierungs-Einstellungen des aktuellen Restaurants.",
-        parameters: {
-          type: "object",
-          properties: {
-            scope: { type: "string" },
-            restaurant_name: { type: "string" },
-          },
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "service_today",
-        description:
-          "Heutiger Service: Zählung, kurze Liste (höchstens 8) oder ein Gast per Name. Ohne Datum = heute. Keine ganze Tabelle.",
-        parameters: {
-          type: "object",
-          properties: {
-            mode: { type: "string", description: "count, list oder one" },
-            date_ymd: { type: "string" },
-            guest_name: { type: "string" },
-            scope: { type: "string" },
-            restaurant_name: { type: "string" },
-          },
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "stock",
-        description:
-          "Bestand: Zahl leerer Zutaten und offener Bestellungen, kurze Liste oder eine Zutat per Name. Kein kompletter Katalog.",
-        parameters: {
-          type: "object",
-          properties: {
-            mode: { type: "string", description: "count, list oder one" },
-            name: { type: "string" },
-            scope: { type: "string" },
-            restaurant_name: { type: "string" },
-          },
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "staff_on_shift",
-        description:
-          "Wer gerade eingestempelt ist: Zahl, kurze Liste oder eine Person per Name. Keine Personalakte.",
-        parameters: {
-          type: "object",
-          properties: {
-            mode: { type: "string", description: "count, list oder one" },
-            name: { type: "string" },
-            scope: { type: "string" },
-            restaurant_name: { type: "string" },
-          },
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "open_amounts",
-        description:
-          "Offene und überfällige Rechnungsbeträge: Summe und Anzahl, kurze Liste oder ein Beleg per Nummer oder Titel. Keine Belegliste des ganzen Hauses, wenn nur die Summe gefragt ist.",
-        parameters: {
-          type: "object",
-          properties: {
-            mode: { type: "string", description: "count, list oder one" },
-            name: { type: "string" },
-            scope: { type: "string" },
-            restaurant_name: { type: "string" },
-          },
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "create_reservation",
-        description:
-          "Legt eine Reservierung an. Fehlendes Datum, Uhrzeit, Personenzahl oder Name: Tool ohne geratenen Wert aufrufen, damit ask zurückkommt. confirm immer false. Die Oberfläche bestätigt.",
-        parameters: {
-          type: "object",
-          properties: {
-            date_ymd: { type: "string", description: "YYYY-MM-DD" },
-            time_hm: { type: "string", description: "HH:MM lokal" },
-            party_size: { type: "integer", minimum: 1 },
-            guest_first_name: { type: "string" },
-            guest_last_name: { type: "string" },
-            guest_phone: { type: "string" },
-            notes: { type: "string" },
-            confirm: {
-              type: "boolean",
-              description: "Immer false. Die Oberfläche speichert nach dem Dialog.",
-            },
-            scope: { type: "string" },
-            restaurant_name: { type: "string" },
-          },
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "update_opening_hours",
-        description:
-          "Ändert Geschäfts-Öffnungszeiten (Wochentage und/oder Datumsausnahmen). confirm immer false — die Oberfläche bestätigt. Fehlende Uhrzeiten: Tool mit ask, nicht raten.",
-        parameters: {
-          type: "object",
-          properties: {
-            days: {
-              type: "array",
-              description:
-                "Wochentagsänderungen, z. B. [{weekday:'monday', opens_at:'11:30', closes_at:'22:00'}] oder closed:true",
-              items: {
-                type: "object",
-                properties: {
-                  weekday: { type: "string" },
-                  closed: { type: "boolean" },
-                  opens_at: { type: "string" },
-                  closes_at: { type: "string" },
-                },
-              },
-            },
-            exceptions: {
-              type: "array",
-              description:
-                "Sonderzeiten [{date_ymd:'YYYY-MM-DD', closed:true}] oder mit opens_at/closes_at; remove:true entfernt die Ausnahme",
-              items: {
-                type: "object",
-                properties: {
-                  date_ymd: { type: "string" },
-                  closed: { type: "boolean" },
-                  opens_at: { type: "string" },
-                  closes_at: { type: "string" },
-                  note: { type: "string" },
-                  remove: { type: "boolean" },
-                },
-              },
-            },
-            confirm: {
-              type: "boolean",
-              description: "Immer false. Speichern erst nach UI-Bestätigung.",
-            },
-            scope: { type: "string" },
-            restaurant_name: { type: "string" },
-          },
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "sync_platforms",
-        description:
-          "Synchronisiert vorhandene App-Integrationen: Öffnungszeiten zu Google/Facebook und/oder Bewertungs-Feeds. Keine neuen Verbindungen anlegen.",
-        parameters: {
-          type: "object",
-          properties: {
-            scope: {
-              type: "string",
-              description: "opening_hours | reviews | all",
-            },
-            platforms: {
-              type: "array",
-              items: { type: "string" },
-              description: "Nur bei opening_hours: google, facebook",
-            },
-            restaurant_name: { type: "string" },
-          },
-        },
-      },
-    },
-  ];
 
 async function runTool(
   ctx: AssistantToolContext,
@@ -315,8 +112,7 @@ async function runTool(
           guest_first_name: String(args.guest_first_name ?? ""),
           guest_last_name:
             args.guest_last_name == null ? null : String(args.guest_last_name),
-          guest_phone:
-            args.guest_phone == null ? null : String(args.guest_phone),
+          guest_phone: args.guest_phone == null ? null : String(args.guest_phone),
           notes: args.notes == null ? null : String(args.notes),
           confirm: false,
           scope: args.scope == null ? undefined : String(args.scope),
@@ -325,22 +121,42 @@ async function runTool(
         },
         locale,
       );
+    case "update_reservation":
+      return toolUpdateReservation(ctx, { ...args, confirm: false }, locale);
     case "service_today":
       return toolServiceToday(ctx, args, locale);
     case "stock":
       return toolStock(ctx, args, locale);
+    case "adjust_ingredient_stock":
+      return toolAdjustIngredientStock(ctx, { ...args, confirm: false }, locale);
     case "staff_on_shift":
       return toolStaffOnShift(ctx, args, locale);
+    case "staff_shifts":
+      return toolStaffShifts(ctx, args, locale);
     case "open_amounts":
       return toolOpenAmounts(ctx, args, locale);
     case "update_opening_hours":
-      return toolUpdateOpeningHours(
-        ctx,
-        { ...args, confirm: false },
-        locale,
-      );
+      return toolUpdateOpeningHours(ctx, { ...args, confirm: false }, locale);
     case "sync_platforms":
-      return toolSyncPlatforms(ctx, args, locale);
+      return toolSyncPlatforms(ctx, { ...args, confirm: false }, locale);
+    case "search_menu":
+      return toolSearchMenu(ctx, args, locale);
+    case "set_menu_item_active":
+      return toolSetMenuItemActive(ctx, { ...args, confirm: false }, locale);
+    case "purchase_orders":
+      return toolPurchaseOrders(ctx, args, locale);
+    case "set_purchase_order_status":
+      return toolSetPurchaseOrderStatus(ctx, { ...args, confirm: false }, locale);
+    case "search_contacts":
+      return toolSearchContacts(ctx, args, locale);
+    case "inbox_summary":
+      return toolInboxSummary(ctx, args, locale);
+    case "reviews_summary":
+      return toolReviewsSummary(ctx, args, locale);
+    case "content_feed":
+      return toolContentFeed(ctx, args, locale);
+    case "restaurant_stats":
+      return toolRestaurantStats(ctx, args, locale);
     default:
       return JSON.stringify({ ok: false, error: `Unbekanntes Tool: ${name}` });
   }
@@ -366,19 +182,20 @@ function buildSystemPrompt(input: {
 }): string {
   const today = todayYmdInTz(input.timeZone);
   return [
-    "Du bist der Gwada-Assistent im Restaurant-Dashboard.",
+    "Du bist der Gwada-Restaurant-Assistent: ein fähiger Betriebshelfer für genau dieses Haus.",
     LOCALE_REPLY_HINT[input.locale],
-    "Nutze Tools für Fakten — erfinde keine Zahlen und keine Datensätze.",
-    "Lies nur über die Tools. Sie liefern Zählungen, höchstens acht Zeilen oder einen Treffer. Verlange keine ganze Tabelle.",
-    "Ohne genannten Zeitraum gilt heute. Ein Datum, das der Nutzer nicht gesagt hat, nicht einsetzen.",
-    "Wenn ein Tool ask liefert: antworte nur mit dieser einen kurzen Frage und warte. Rate nicht Tag, Gast, Gericht, Betrag oder welchen Datensatz.",
-    "Schreib-Tools (Reservierung, Öffnungszeiten) immer mit confirm=false. Nichts ist gespeichert, bevor die Oberfläche den Entwurf bestätigt.",
-    "Du kannst: Reservierungen zählen/listen/anlegen, Öffnungszeiten lesen und ändern, Öffnungszeiten zu Google/Facebook und Bewertungen synchronisieren, Bestand/Personal/offene Rechnungen lesen, Handbuch suchen.",
-    "Was du noch nicht kannst (klar sagen, App-Oberfläche nennen): Speisekarte/Zutaten bearbeiten, Mitarbeiter/Schichten anlegen, News/Events/Galerie pflegen, Integrationen verbinden, Buchhaltung buchen, Rechte verwalten.",
-    "Ein Restaurant betrifft nur das Haus der Sitzung. restaurant_id nie selbst setzen.",
-    "Im Superadmin: scope=all nur für Summen über alle Häuser, restaurant_name nur wenn ein Haus genannt wurde. Unklar welches Haus: eine Frage.",
-    "Bei Wochentagen immer weekday_label aus den Tool-Daten verwenden (aktuelle UI-Sprache), nie englische Schlüssel wie monday.",
-    "Handbuch-Links als /docs/handbook/<slug> nennen.",
+    "Nutze Tools für Fakten — erfinde keine Zahlen, Status oder Datensätze.",
+    "Du hast dieselben Modulrechte wie der angemeldete Nutzer. Bei forbidden/Keine Berechtigung: klar sagen, nicht umgehen.",
+    "Lies über Tools: Zählungen, höchstens acht Zeilen oder ein Treffer. Keine ganze Tabelle verlangen.",
+    "Ohne genannten Zeitraum gilt heute. Kein Datum raten.",
+    "Wenn ein Tool ask liefert: antworte nur mit dieser einen kurzen Frage und warte.",
+    "Schreib-/Sync-Tools immer mit confirm=false. Speichern erst nach UI-Bestätigung. Sync und Löschen/Storno sind bestätigungspflichtig.",
+    "Du kannst u. a.: Reservierungen lesen/anlegen/Status ändern/stornieren; Öffnungszeiten lesen/ändern; Plattform-Sync (Stunden/Reviews); Speisekarte suchen und aktiv/inaktiv; Bestand lesen und setzen; Bestellungen lesen/Status; Personal on-shift und Schichtplan; Kontakte und Inbox-Zahlen; Bewertungen; News/Events-Zähler; offene Rechnungen; Statistiken/Insights; Handbuch.",
+    "Noch nicht möglich (ehrlich sagen, App nennen): komplexe Speisekarten-Neuanlage mit Rezepten/Optionen, News/Events/Galerie publizieren, Integrationen verbinden (OAuth), Display-Geräte, Buchhaltung Belege anlegen/senden, Mitarbeiterstammdaten/Verträge anlegen, Rechte/Team, Nachrichten versenden, Superadmin-Plattformdaten mit Restaurant-Key.",
+    "Nur das Sitzungs-Restaurant. restaurant_id nie selbst setzen.",
+    "Im Superadmin: scope=all nur für Summen, restaurant_name nur wenn genannt.",
+    "Wochentage: weekday_label aus Tool-Daten, nie monday/tuesday als Text.",
+    "Handbuch-Links: /docs/handbook/<slug>.",
     `UI-Locale: ${input.locale}`,
     `Restaurant: ${input.restaurantName ?? "unbekannt"}`,
     `Zeitzone: ${input.timeZone}`,
@@ -463,7 +280,7 @@ export async function runAssistantChatTurn(input: {
         messages,
         tools: ASSISTANT_TOOL_DEFINITIONS,
         tool_choice: "auto",
-        temperature: 0.3,
+        temperature: 0.4,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : `${providerLabel}-Fehler`;
@@ -546,4 +363,3 @@ export async function runAssistantChatTurn(input: {
     pendingAction: null,
   };
 }
-

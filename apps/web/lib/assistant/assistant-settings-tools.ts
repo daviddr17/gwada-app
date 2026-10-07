@@ -6,6 +6,12 @@ import type {
   AssistantOpeningHoursPreview,
 } from "@/lib/assistant/assistant-actions";
 import { assistantAsk } from "@/lib/assistant/assistant-ask";
+import {
+  assistantJson,
+  denyUnlessModuleCrud,
+  denyUnlessPermission,
+  draftMutation,
+} from "@/lib/assistant/assistant-tool-auth";
 import { weekdayLabelForLocale } from "@/lib/assistant/assistant-weekday-label";
 import type { AssistantToolContext } from "@/lib/assistant/assistant-tool-context";
 import { resolveAssistantTarget } from "@/lib/assistant/assistant-scope";
@@ -13,11 +19,6 @@ import { WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
 import { syncOpeningHoursToFacebook } from "@/lib/integrations/facebook-hours-sync-server";
 import { syncOpeningHoursToGoogleBusiness } from "@/lib/integrations/google-business-hours-sync-server";
 import { loadOpeningHoursPayloadAdmin } from "@/lib/integrations/opening-hours-load-server";
-import {
-  authorizeModuleCrud,
-  authorizeRestaurantModule,
-} from "@/lib/permissions/authorize-restaurant-module";
-import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
 import { syncRestaurantReviewsPlatforms } from "@/lib/reviews/reviews-feed-sync-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
@@ -28,23 +29,7 @@ import type { DayHours, Weekday } from "@/lib/types/restaurant";
 import type { AppLocale } from "@/i18n/config";
 
 function json(value: unknown): string {
-  return JSON.stringify(value);
-}
-
-function skipModuleAuth(ctx: AssistantToolContext): boolean {
-  return ctx.callerIsSuperadmin && ctx.zone === "superadmin";
-}
-
-async function denyUnlessPermission(
-  ctx: AssistantToolContext,
-  restaurantId: string,
-  permission: RestaurantPermissionKey,
-  error: string,
-): Promise<string | null> {
-  if (skipModuleAuth(ctx)) return null;
-  const auth = await authorizeRestaurantModule(restaurantId, permission);
-  if (!auth.ok) return error;
-  return null;
+  return assistantJson(value);
 }
 
 const WEEKDAY_ALIASES: Record<string, Weekday> = {
@@ -397,6 +382,23 @@ export async function toolSyncPlatforms(
     });
   }
 
+  const platformsPreview = Array.isArray(args.platforms)
+    ? args.platforms.map((p) => String(p))
+    : ["google", "facebook"];
+  if (!args.confirm) {
+    return draftMutation({
+      action: "sync_platforms",
+      message:
+        locale === "de"
+          ? `Plattformen synchronisieren (${scopeRaw}${wantHours ? `, ${platformsPreview.join("/")}` : ""})?`
+          : `Sync platforms (${scopeRaw}${wantHours ? `, ${platformsPreview.join("/")}` : ""})?`,
+      preview: {
+        scope: scopeRaw,
+        platforms: platformsPreview,
+      },
+    });
+  }
+
   const results: Array<{ target: string; ok: boolean; error?: string; detail?: string }> =
     [];
 
@@ -481,18 +483,15 @@ export async function toolSyncPlatforms(
   }
 
   if (wantReviews) {
-    if (!skipModuleAuth(ctx)) {
-      const revAuth = await authorizeModuleCrud(
-        target.restaurantId,
-        "reviews",
-        "read",
-      );
-      if (!revAuth.ok) {
-        return json({
-          ok: false,
-          error: "Keine Berechtigung, Bewertungen zu synchronisieren.",
-        });
-      }
+    const revDenied = await denyUnlessModuleCrud(
+      ctx,
+      target.restaurantId,
+      "reviews",
+      "read",
+      "Keine Berechtigung, Bewertungen zu synchronisieren.",
+    );
+    if (revDenied) {
+      return json({ ok: false, error: revDenied });
     }
     const admin = createSupabaseAdminClient();
     if (!admin) {

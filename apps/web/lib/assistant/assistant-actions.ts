@@ -45,6 +45,11 @@ export type AssistantOpeningHoursPreview = {
   kitchenWeeklyHours: Record<Weekday, DayHours>;
 };
 
+export type AssistantConfirmMutationPreview = {
+  action: string;
+  args: Record<string, unknown>;
+};
+
 export type AssistantPendingAction =
   | {
       kind: "create_reservation";
@@ -55,6 +60,11 @@ export type AssistantPendingAction =
       kind: "update_opening_hours";
       summary: string;
       preview: AssistantOpeningHoursPreview;
+    }
+  | {
+      kind: "confirm_mutation";
+      summary: string;
+      preview: AssistantConfirmMutationPreview;
     };
 
 export function reservationPreviewSummary(
@@ -92,8 +102,23 @@ export function pendingActionFromToolJson(
       status?: string;
       preview?: unknown;
       message?: string;
+      action?: string;
     };
     if (parsed.status !== "draft" || !parsed.preview) return null;
+
+    if (typeof parsed.action === "string" && parsed.action.length > 0) {
+      return {
+        kind: "confirm_mutation",
+        summary: parsed.message?.trim() || "Änderung bestätigen?",
+        preview: {
+          action: parsed.action,
+          args:
+            parsed.preview && typeof parsed.preview === "object"
+              ? (parsed.preview as Record<string, unknown>)
+              : {},
+        },
+      };
+    }
 
     if (isOpeningHoursPreview(parsed.preview)) {
       const preview = parsed.preview;

@@ -320,7 +320,8 @@ export function DashboardAssistantMount() {
       );
       if (
         json.pendingAction?.kind === "create_reservation" ||
-        json.pendingAction?.kind === "update_opening_hours"
+        json.pendingAction?.kind === "update_opening_hours" ||
+        json.pendingAction?.kind === "confirm_mutation"
       ) {
         setPendingAction(json.pendingAction);
       }

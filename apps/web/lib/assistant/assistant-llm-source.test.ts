@@ -173,3 +173,20 @@ test("opening-hours draft becomes a pending confirm action", () => {
   }
   assert.equal(settled.pendingAction.preview.weekly_changes[0]?.weekday, "monday");
 });
+
+test("generic mutation draft becomes confirm_mutation", () => {
+  const settled = settleAssistantToolPayloads("Ok.", [
+    JSON.stringify({
+      ok: true,
+      status: "draft",
+      action: "sync_platforms",
+      message: "Plattformen synchronisieren (opening_hours, google/facebook)?",
+      preview: { scope: "opening_hours", platforms: ["google", "facebook"] },
+    }),
+  ]);
+  assert.equal(settled.pendingAction?.kind, "confirm_mutation");
+  if (settled.pendingAction?.kind !== "confirm_mutation") {
+    assert.fail("expected confirm_mutation");
+  }
+  assert.equal(settled.pendingAction.preview.action, "sync_platforms");
+});

@@ -1,5 +1,6 @@
 import { pickAssistantLlm } from "@/lib/assistant/assistant-llm-source";
-import { runAssistantChatTurn } from "@/lib/assistant/assistant-chat-server";
+import { streamAssistantChatTurn } from "@/lib/assistant/assistant-chat-stream";
+import { encodeAssistantSse } from "@/lib/assistant/assistant-chat-sse";
 import {
   getAssistantThreadForUser,
   insertAssistantMessage,
@@ -52,7 +53,6 @@ export async function POST(req: Request) {
 
   const zone = body.zone === "superadmin" ? "superadmin" : "restaurant";
 
-  /** Load restaurant context + LLM key in parallel with chat history (latency win). */
   const runtimePromise = (async () => {
     const [{ data: restaurant }, timeZone, localeRaw, superSession] = await Promise.all([
       auth.sb
@@ -98,7 +98,6 @@ export async function POST(req: Request) {
   let persist = true;
   let thread: AssistantThreadRow | null = null;
   let history: Array<{ role: "user" | "assistant"; content: string }> = [];
-  /** Persist user turn without blocking the first LLM round-trip. */
   let persistUserPromise: Promise<void> | null = null;
 
   try {
@@ -154,100 +153,136 @@ export async function POST(req: Request) {
     persistUserPromise = null;
   }
 
-  try {
-    const runtime = await runtimePromise;
+  const encoder = new TextEncoder();
+  const signal = req.signal;
 
-    const result = await runAssistantChatTurn({
-      ctx: {
-        restaurantId: auth.restaurantId,
-        userId: auth.userId,
-        sb: auth.sb,
-        zone,
-        callerIsSuperadmin: runtime.callerIsSuperadmin,
-      },
-      history,
-      userMessage: message,
-      restaurantName: runtime.restaurantName,
-      timeZone: runtime.timeZone,
-      locale: runtime.locale,
-      llm: runtime.llm,
-      keyAudience: runtime.usePlatform ? "superadmin" : "restaurant",
-    });
+  const bodyStream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: Parameters<typeof encodeAssistantSse>[0]) => {
+        controller.enqueue(encoder.encode(encodeAssistantSse(event)));
+      };
 
-    if (persistUserPromise) {
       try {
-        await persistUserPromise;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "persist_failed";
-        if (!isAssistantPersistenceUnavailable(msg)) {
-          console.warn("[assistant] chat persist user (deferred)", msg);
-        } else {
-          persist = false;
-        }
-      }
-    }
-
-    if (!result.ok) {
-      if (persist && thread) {
-        try {
-          await insertAssistantMessage(auth.sb, {
-            threadId: thread.id,
-            role: "assistant",
-            content: result.error,
-            metadata: { error: true, configured: result.configured },
-          });
-        } catch {
-          /* ignore */
-        }
-      }
-      return Response.json(
-        {
+        const runtime = await runtimePromise;
+        const configured = Boolean(runtime.llm?.apiKey);
+        send({
+          type: "meta",
           threadId: thread?.id ?? null,
-          reply: result.error,
-          configured: result.configured,
-          error: result.error,
-          pendingAction: null,
-          ephemeral: !persist,
-        },
-        { status: result.status ?? 500 },
-      );
-    }
-
-    if (persist && thread) {
-      try {
-        const assistantMsg = await insertAssistantMessage(auth.sb, {
-          threadId: thread.id,
-          role: "assistant",
-          content: result.reply,
-          metadata: { configured: result.configured, mode: result.mode },
+          configured,
+          mode: configured ? "llm" : "offline",
         });
-        await touchAssistantThread(auth.sb, thread.id);
-        return Response.json({
-          threadId: thread.id,
+
+        const result = await streamAssistantChatTurn({
+          ctx: {
+            restaurantId: auth.restaurantId,
+            userId: auth.userId,
+            sb: auth.sb,
+            zone,
+            callerIsSuperadmin: runtime.callerIsSuperadmin,
+          },
+          history,
+          userMessage: message,
+          restaurantName: runtime.restaurantName,
+          timeZone: runtime.timeZone,
+          locale: runtime.locale,
+          llm: runtime.llm,
+          keyAudience: runtime.usePlatform ? "superadmin" : "restaurant",
+          signal,
+          onEvent: (event) => {
+            if (event.type === "done" || event.type === "error" || event.type === "meta") {
+              return;
+            }
+            send(event);
+          },
+        });
+
+        if (persistUserPromise) {
+          try {
+            await persistUserPromise;
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "persist_failed";
+            if (!isAssistantPersistenceUnavailable(msg)) {
+              console.warn("[assistant] chat persist user (deferred)", msg);
+            } else {
+              persist = false;
+            }
+          }
+        }
+
+        if (!result.ok) {
+          if (persist && thread) {
+            try {
+              await insertAssistantMessage(auth.sb, {
+                threadId: thread.id,
+                role: "assistant",
+                content: result.error,
+                metadata: { error: true, configured: result.configured },
+              });
+            } catch {
+              /* ignore */
+            }
+          }
+          send({
+            type: "error",
+            error: result.error,
+            configured: result.configured,
+          });
+          return;
+        }
+
+        if (persist && thread) {
+          try {
+            await insertAssistantMessage(auth.sb, {
+              threadId: thread.id,
+              role: "assistant",
+              content: result.reply,
+              metadata: { configured: result.configured, mode: result.mode },
+            });
+            await touchAssistantThread(auth.sb, thread.id);
+            send({
+              type: "done",
+              reply: result.reply,
+              threadId: thread.id,
+              configured: result.configured,
+              mode: result.mode,
+              pendingAction: result.pendingAction,
+              ephemeral: false,
+            });
+            return;
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "persist_failed";
+            console.warn("[assistant] chat persist reply", msg);
+          }
+        }
+
+        send({
+          type: "done",
           reply: result.reply,
-          message: assistantMsg,
+          threadId: thread?.id ?? null,
           configured: result.configured,
           mode: result.mode,
           pendingAction: result.pendingAction,
-          ephemeral: false,
+          ephemeral: true,
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "persist_failed";
-        console.warn("[assistant] chat persist reply", msg);
+        if ((e as Error)?.name === "AbortError" || signal.aborted) {
+          return;
+        }
+        const msg = e instanceof Error ? e.message : "chat_failed";
+        console.warn("[assistant] chat stream", msg);
+        send({ type: "error", error: msg, configured: true });
+      } finally {
+        controller.close();
       }
-    }
+    },
+  });
 
-    return Response.json({
-      threadId: thread?.id ?? null,
-      reply: result.reply,
-      configured: result.configured,
-      mode: result.mode,
-      pendingAction: result.pendingAction,
-      ephemeral: true,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "chat_failed";
-    console.warn("[assistant] chat", msg);
-    return Response.json({ error: msg }, { status: 500 });
-  }
+  return new Response(bodyStream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }

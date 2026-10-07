@@ -14,6 +14,12 @@ import {
   ASSISTANT_MAX_TOOL_ROUNDS,
   clipAssistantHistory,
 } from "./assistant-chat-limits";
+import {
+  encodeAssistantSse,
+  parseAssistantSseBlock,
+  pushAssistantSseBuffer,
+} from "./assistant-chat-sse";
+import { accumulateStreamToolCallDelta } from "./assistant-stream-tool-acc";
 
 const platform: AssistantLlmRuntime = {
   apiKey: "platform-key",
@@ -207,6 +213,42 @@ test("history is clipped to keep long threads fast", () => {
   assert.equal(clipped.length, ASSISTANT_HISTORY_MAX_MESSAGES);
   assert.equal(clipped[0]?.content, `m${5}`);
   assert.equal(ASSISTANT_MAX_TOOL_ROUNDS, 4);
+});
+
+test("SSE encode/parse and buffer split", () => {
+  const encoded = encodeAssistantSse({ type: "delta", text: "Hallo" });
+  assert.match(encoded, /^event: delta\n/);
+  const parsed = parseAssistantSseBlock(encoded.trim());
+  assert.equal(parsed?.type, "delta");
+  if (parsed?.type !== "delta") assert.fail("delta");
+  assert.equal(parsed.text, "Hallo");
+
+  const { events, rest } = pushAssistantSseBuffer(
+    "",
+    `${encodeAssistantSse({ type: "status", phase: "writing" })}event: delta\ndata: {"type":"delta","text":"Hi"`,
+  );
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.type, "status");
+  assert.match(rest, /delta/);
+});
+
+test("stream tool-call deltas accumulate by index", () => {
+  const acc: Array<{
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }> = [];
+  accumulateStreamToolCallDelta(acc, [
+    { index: 0, id: "c1", function: { name: "search_", arguments: "" } },
+  ]);
+  accumulateStreamToolCallDelta(acc, [
+    { index: 0, function: { name: "menu", arguments: '{"q":' } },
+  ]);
+  accumulateStreamToolCallDelta(acc, [
+    { index: 0, function: { arguments: '"x"}' } },
+  ]);
+  assert.equal(acc[0]?.function.name, "search_menu");
+  assert.equal(acc[0]?.function.arguments, '{"q":"x"}');
 });
 
 test("menu upsert draft carries recipe confirm summary", () => {

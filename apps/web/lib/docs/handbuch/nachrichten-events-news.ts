@@ -300,12 +300,12 @@ export const newsGuide: UserGuidePage = {
     },
     {
       heading: "Autopilot",
-      body: "Unter Autopilot erzeugt gwada Vorschläge. Pro Vorschlag kannst du Titel und Text anpassen, das Bild wechseln und dann freigeben:",
+      body: "Unter Autopilot erzeugt gwada Vorschläge mit dem Restaurant-KI-Schlüssel (OpenAI/Grok unter Einstellungen → Integrationen). Ohne Schlüssel läuft Autopilot nicht. Pro Vorschlag kannst du Titel und Text anpassen, das Bild wechseln und dann freigeben:",
       items: [
         "Freigeben & posten — sofort veröffentlichen",
         "Freigeben (planen) — für späteren Zeitpunkt",
         "Überspringen — Vorschlag verwerfen",
-        "Neu vorschlagen — weitere Ideen erzeugen",
+        "Neu vorschlagen — weitere Ideen erzeugen (verbraucht begrenzte KI-Tokens)",
       ],
     },
     {

@@ -9,6 +9,17 @@ import {
   ASSISTANT_LIST_CAP,
 } from "./assistant-ask";
 import { settleAssistantToolPayloads } from "./assistant-actions";
+import {
+  ASSISTANT_HISTORY_MAX_MESSAGES,
+  ASSISTANT_MAX_TOOL_ROUNDS,
+  clipAssistantHistory,
+} from "./assistant-chat-limits";
+import {
+  encodeAssistantSse,
+  parseAssistantSseBlock,
+  pushAssistantSseBuffer,
+} from "./assistant-chat-sse";
+import { accumulateStreamToolCallDelta } from "./assistant-stream-tool-acc";
 
 const platform: AssistantLlmRuntime = {
   apiKey: "platform-key",
@@ -121,4 +132,144 @@ test("a complete draft is the confirmation text", () => {
     "Reservierung am 2026-10-01 um 19:00, 2 Personen, Ana.",
   );
   assert.equal(settled.pendingAction?.preview.guest_first_name, "Ana");
+});
+
+const hoursDraftPayload = JSON.stringify({
+  ok: true,
+  status: "draft",
+  message: "Zur Schlagd: Öffnungszeiten ändern — Montag 12:00–22:00.",
+  preview: {
+    restaurant_name: "Zur Schlagd",
+    weekly_changes: [
+      {
+        weekday: "monday",
+        closed: false,
+        opens_at: "12:00",
+        closes_at: "22:00",
+      },
+    ],
+    exception_changes: [],
+    next_weekly: {
+      monday: { closed: false, open: "12:00", close: "22:00" },
+      tuesday: { closed: false, open: "11:30", close: "22:00" },
+      wednesday: { closed: false, open: "11:30", close: "22:00" },
+      thursday: { closed: false, open: "11:30", close: "22:00" },
+      friday: { closed: false, open: "11:30", close: "22:00" },
+      saturday: { closed: false, open: "11:30", close: "22:00" },
+      sunday: { closed: true },
+    },
+    next_exceptions: [],
+    kitchenHoursEnabled: false,
+    kitchenWeeklyHours: {
+      monday: { closed: false, open: "12:00", close: "21:30" },
+      tuesday: { closed: false, open: "12:00", close: "21:30" },
+      wednesday: { closed: false, open: "12:00", close: "21:30" },
+      thursday: { closed: false, open: "12:00", close: "21:30" },
+      friday: { closed: false, open: "12:00", close: "21:30" },
+      saturday: { closed: false, open: "12:00", close: "21:30" },
+      sunday: { closed: true },
+    },
+  },
+});
+
+test("opening-hours draft becomes a pending confirm action", () => {
+  const settled = settleAssistantToolPayloads("Ok.", [hoursDraftPayload]);
+  assert.equal(settled.pendingAction?.kind, "update_opening_hours");
+  assert.equal(
+    settled.reply,
+    "Zur Schlagd: Öffnungszeiten ändern — Montag 12:00–22:00.",
+  );
+  if (settled.pendingAction?.kind !== "update_opening_hours") {
+    assert.fail("expected update_opening_hours");
+  }
+  assert.equal(settled.pendingAction.preview.weekly_changes[0]?.weekday, "monday");
+});
+
+test("generic mutation draft becomes confirm_mutation", () => {
+  const settled = settleAssistantToolPayloads("Ok.", [
+    JSON.stringify({
+      ok: true,
+      status: "draft",
+      action: "sync_platforms",
+      message:
+        "Plattformen synchronisieren (opening_hours, google/facebook). Jetzt umsetzen?",
+      preview: { scope: "opening_hours", platforms: ["google", "facebook"] },
+    }),
+  ]);
+  assert.equal(settled.pendingAction?.kind, "confirm_mutation");
+  if (settled.pendingAction?.kind !== "confirm_mutation") {
+    assert.fail("expected confirm_mutation");
+  }
+  assert.equal(settled.pendingAction.preview.action, "sync_platforms");
+  assert.match(settled.reply, /Jetzt umsetzen\?/);
+});
+
+test("history is clipped to keep long threads fast", () => {
+  const long = Array.from({ length: ASSISTANT_HISTORY_MAX_MESSAGES + 5 }, (_, i) => ({
+    role: i % 2 === 0 ? ("user" as const) : ("assistant" as const),
+    content: `m${i}`,
+  }));
+  const clipped = clipAssistantHistory(long);
+  assert.equal(clipped.length, ASSISTANT_HISTORY_MAX_MESSAGES);
+  assert.equal(clipped[0]?.content, `m${5}`);
+  assert.equal(ASSISTANT_MAX_TOOL_ROUNDS, 4);
+});
+
+test("SSE encode/parse and buffer split", () => {
+  const encoded = encodeAssistantSse({ type: "delta", text: "Hallo" });
+  assert.match(encoded, /^event: delta\n/);
+  const parsed = parseAssistantSseBlock(encoded.trim());
+  assert.equal(parsed?.type, "delta");
+  if (parsed?.type !== "delta") assert.fail("delta");
+  assert.equal(parsed.text, "Hallo");
+
+  const { events, rest } = pushAssistantSseBuffer(
+    "",
+    `${encodeAssistantSse({ type: "status", phase: "writing" })}event: delta\ndata: {"type":"delta","text":"Hi"`,
+  );
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.type, "status");
+  assert.match(rest, /delta/);
+});
+
+test("stream tool-call deltas accumulate by index", () => {
+  const acc: Array<{
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }> = [];
+  accumulateStreamToolCallDelta(acc, [
+    { index: 0, id: "c1", function: { name: "search_", arguments: "" } },
+  ]);
+  accumulateStreamToolCallDelta(acc, [
+    { index: 0, function: { name: "menu", arguments: '{"q":' } },
+  ]);
+  accumulateStreamToolCallDelta(acc, [
+    { index: 0, function: { arguments: '"x"}' } },
+  ]);
+  assert.equal(acc[0]?.function.name, "search_menu");
+  assert.equal(acc[0]?.function.arguments, '{"q":"x"}');
+});
+
+test("menu upsert draft carries recipe confirm summary", () => {
+  const settled = settleAssistantToolPayloads("Ok.", [
+    JSON.stringify({
+      ok: true,
+      status: "draft",
+      action: "upsert_menu_item",
+      message:
+        "Gericht anlegen: Schnitzel, 14.50 €, Kategorie Hauptgerichte, Rezept: 0.2× Kalb. Jetzt umsetzen?",
+      preview: {
+        mode: "create",
+        name: "Schnitzel",
+        price: 14.5,
+        recipe: [{ ingredient: "Kalb", amount: 0.2 }],
+      },
+    }),
+  ]);
+  assert.equal(settled.pendingAction?.kind, "confirm_mutation");
+  if (settled.pendingAction?.kind !== "confirm_mutation") {
+    assert.fail("expected confirm_mutation");
+  }
+  assert.equal(settled.pendingAction.preview.action, "upsert_menu_item");
 });

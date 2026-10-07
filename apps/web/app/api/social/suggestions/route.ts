@@ -1,15 +1,42 @@
 import { authorizeSocialNewsRestaurant } from "@/lib/social/route-auth";
 import { resolveSocialSuggestionImageUrl } from "@/lib/social/social-asset-resolve-server";
+import {
+  SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
+  SOCIAL_AUTOPILOT_MAX_LLM_CALLS,
+} from "@/lib/social/social-autopilot-bounds";
 import { fetchSocialBrandKitFromDb } from "@/lib/social/social-brand-kit-db";
 import { resolveSuggestionFeedLayout } from "@/lib/social/social-feed-layout";
-import { generateSocialSuggestionsForRestaurant } from "@/lib/social/social-suggestion-generate-server";
+import {
+  generateSocialSuggestionsForRestaurant,
+  type SocialSuggestionGenerateResult,
+} from "@/lib/social/social-suggestion-generate-server";
 import {
   listOpenSocialTasksFromDb,
   listSocialSuggestionsFromDb,
 } from "@/lib/social/social-suggestions-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { fetchRestaurantAssistantRuntime } from "@/lib/supabase/restaurant-assistant-key-db";
 
 export const dynamic = "force-dynamic";
+
+async function peekSocialAutopilotAiStatus(
+  restaurantId: string,
+): Promise<SocialSuggestionGenerateResult> {
+  const llm = await fetchRestaurantAssistantRuntime(restaurantId);
+  const aiConfigured = Boolean(llm?.apiKey);
+  return {
+    created: 0,
+    pending: 0,
+    tasksCreated: false,
+    aiConfigured,
+    aiProvider: llm?.provider,
+    skippedReason: aiConfigured ? undefined : "ai_not_configured",
+    caps: {
+      maxItemsPerRun: SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
+      maxLlmCalls: SOCIAL_AUTOPILOT_MAX_LLM_CALLS,
+    },
+  };
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -26,11 +53,13 @@ export async function GET(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const generation = await generateSocialSuggestionsForRestaurant(
-    admin,
-    restaurantId,
-    { force: refresh },
-  );
+  // LLM-Autopilot nur bei explizitem Refresh („Neu vorschlagen“) —
+  // kein Token-Verbrauch beim bloßen Öffnen der Seite.
+  const generation = refresh
+    ? await generateSocialSuggestionsForRestaurant(admin, restaurantId, {
+        force: true,
+      })
+    : await peekSocialAutopilotAiStatus(restaurantId);
 
   const [rawSuggestions, tasks, kit] = await Promise.all([
     listSocialSuggestionsFromDb(admin, restaurantId, {

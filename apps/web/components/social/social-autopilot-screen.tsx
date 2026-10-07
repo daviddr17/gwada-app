@@ -110,6 +110,8 @@ export function SocialAutopilotScreen() {
   const [suggestions, setSuggestions] = useState<SocialPostSuggestion[]>([]);
   const [tasks, setTasks] = useState<SocialMediaTask[]>([]);
   const [kit, setKit] = useState<SocialBrandKit | null>(null);
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
+  const [aiProvider, setAiProvider] = useState<"openai" | "grok" | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [draftTitles, setDraftTitles] = useState<Record<string, string>>({});
@@ -144,6 +146,9 @@ export function SocialAutopilotScreen() {
           generation?: {
             created?: number;
             skippedReason?: string;
+            aiConfigured?: boolean;
+            aiProvider?: "openai" | "grok";
+            llmApplied?: number;
           };
         };
         const kitData = (await kitRes.json().catch(() => ({}))) as {
@@ -164,6 +169,15 @@ export function SocialAutopilotScreen() {
         setTasks(sugData.tasks ?? []);
         setKit(kitData.kit ?? defaultSocialBrandKit(restaurantId));
         setAssetOptions(optData.options ?? []);
+        const gen = sugData.generation;
+        if (typeof gen?.aiConfigured === "boolean") {
+          setAiConfigured(gen.aiConfigured);
+        }
+        if (gen?.aiProvider === "openai" || gen?.aiProvider === "grok") {
+          setAiProvider(gen.aiProvider);
+        } else if (gen?.aiConfigured === false) {
+          setAiProvider(null);
+        }
 
         const nextTitles: Record<string, string> = {};
         const nextCaptions: Record<string, string> = {};
@@ -176,12 +190,19 @@ export function SocialAutopilotScreen() {
           setDraftCaptions(nextCaptions);
           setEditId(null);
           setActionsId(null);
-          const gen = sugData.generation;
-          if (gen?.skippedReason === "disabled") {
+          if (gen?.skippedReason === "ai_not_configured") {
+            toast.error(
+              "Autopilot braucht die KI-Verbindung (OpenAI oder Grok) unter Einstellungen → Integrationen",
+            );
+          } else if (gen?.skippedReason === "disabled") {
             toast.error("Autopilot ist in der Social-Marke ausgeschaltet");
           } else if ((gen?.created ?? 0) > 0) {
+            const llmHint =
+              (gen?.llmApplied ?? 0) > 0
+                ? " · Texte mit Restaurant-KI"
+                : " · Vorlagen (KI-Antwort unbrauchbar)";
             toast.success(
-              `${gen!.created} neue Vorschläge mit Galerie & Speisekarte`,
+              `${gen!.created} neue Vorschläge mit Galerie & Speisekarte${llmHint}`,
             );
           } else {
             toast.message("Keine neuen Vorschläge erzeugt");
@@ -376,14 +397,39 @@ export function SocialAutopilotScreen() {
   const galleryCount = assetOptions.filter((o) => o.group === "gallery").length;
   const menuCount = assetOptions.filter((o) => o.group === "menu").length;
 
+  const aiReady = aiConfigured === true;
+
   return (
     <div className="space-y-6 pb-4">
+      {aiConfigured === false ? (
+        <Card className="border-border/50 shadow-card">
+          <CardContent className="space-y-3 pt-5">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">KI-Verbindung fehlt</p>
+              <p className="text-sm text-muted-foreground">
+                Der News-Autopilot nutzt denselben OpenAI- oder Grok-Schlüssel wie
+                der Restaurant-Assistent. Ohne hinterlegten Schlüssel werden keine
+                Vorschläge erzeugt.
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="lg"
+              className={cn("w-full", brandActionButtonRoundedClassName)}
+              render={<Link href={APP_ROUTES.settings.integrations} />}
+            >
+              KI unter Integrationen verbinden
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Button
         type="button"
         size="lg"
         className={modulePrimaryAddButtonFullWidthClassName}
         onClick={() => void load({ refresh: true })}
-        disabled={loading}
+        disabled={loading || aiConfigured === false}
       >
         <RefreshCw className={cn("size-4", loading && "animate-spin")} />
         Neu vorschlagen
@@ -400,6 +446,9 @@ export function SocialAutopilotScreen() {
             </p>
             <p className="text-xs text-muted-foreground/90">
               Bildquellen: {galleryCount} Galerie · {menuCount} Speisekarte
+              {aiReady
+                ? ` · Texte: ${aiProvider === "grok" ? "Grok" : "OpenAI"}`
+                : null}
             </p>
           </div>
           <Button

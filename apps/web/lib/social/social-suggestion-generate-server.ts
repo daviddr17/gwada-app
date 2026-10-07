@@ -6,6 +6,16 @@ import { resolveEventsCoverSignedUrl } from "@/lib/events/events-media";
 import { isUpcomingEmbedEvent } from "@/lib/events/events-embed-upcoming";
 import { listPublicHolidaysInRange } from "@/lib/holidays/public-holidays-server";
 import { resolveRestaurantProfileImageSignedUrl } from "@/lib/restaurant/restaurant-profile-image";
+import {
+  clampAutopilotItemCount,
+  SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
+  SOCIAL_AUTOPILOT_MAX_LLM_CALLS,
+} from "@/lib/social/social-autopilot-bounds";
+import {
+  applyAutopilotCaptionResults,
+  rewriteAutopilotCaptionsWithLlm,
+  type SocialAutopilotCaptionJob,
+} from "@/lib/social/social-autopilot-llm";
 import { fetchSocialBrandKitFromDb } from "@/lib/social/social-brand-kit-db";
 import {
   feedLayoutToLegacyTemplate,
@@ -32,6 +42,7 @@ import {
   skipPendingSocialSuggestionsInDb,
 } from "@/lib/social/social-suggestions-db";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
+import { fetchRestaurantAssistantRuntime } from "@/lib/supabase/restaurant-assistant-key-db";
 
 type RestaurantRow = {
   id: string;
@@ -310,19 +321,59 @@ function prioritizeHeroGallery(
   return [...first, ...rest];
 }
 
-export async function generateSocialSuggestionsForRestaurant(
-  sb: SupabaseClient,
-  restaurantId: string,
-  opts?: { force?: boolean },
-): Promise<{
+export type SocialSuggestionGenerateResult = {
   created: number;
   pending: number;
   tasksCreated: boolean;
   skippedReason?: string;
-}> {
+  /** Restaurant-Assistent OpenAI/Grok-Key vorhanden. */
+  aiConfigured: boolean;
+  aiProvider?: "openai" | "grok";
+  llmCalls?: number;
+  llmApplied?: number;
+  /** Hard cap documentation for clients / UI. */
+  caps?: {
+    maxItemsPerRun: number;
+    maxLlmCalls: number;
+  };
+};
+
+export async function generateSocialSuggestionsForRestaurant(
+  sb: SupabaseClient,
+  restaurantId: string,
+  opts?: { force?: boolean },
+): Promise<SocialSuggestionGenerateResult> {
+  const caps = {
+    maxItemsPerRun: SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
+    maxLlmCalls: SOCIAL_AUTOPILOT_MAX_LLM_CALLS,
+  };
+
+  const llmRuntime = await fetchRestaurantAssistantRuntime(restaurantId);
+  const aiConfigured = Boolean(llmRuntime?.apiKey);
+  const aiProvider = llmRuntime?.provider;
+
+  if (!aiConfigured || !llmRuntime) {
+    return {
+      created: 0,
+      pending: 0,
+      tasksCreated: false,
+      skippedReason: "ai_not_configured",
+      aiConfigured: false,
+      caps,
+    };
+  }
+
   const kit = await fetchSocialBrandKitFromDb(sb, restaurantId);
   if (!kit.enabled) {
-    return { created: 0, pending: 0, tasksCreated: false, skippedReason: "disabled" };
+    return {
+      created: 0,
+      pending: 0,
+      tasksCreated: false,
+      skippedReason: "disabled",
+      aiConfigured,
+      aiProvider,
+      caps,
+    };
   }
 
   let existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
@@ -353,6 +404,9 @@ export async function generateSocialSuggestionsForRestaurant(
       pending: pendingThisWeek.length,
       tasksCreated: false,
       skippedReason: "already_filled",
+      aiConfigured,
+      aiProvider,
+      caps,
     };
   }
 
@@ -363,6 +417,9 @@ export async function generateSocialSuggestionsForRestaurant(
       pending: pendingThisWeek.length,
       tasksCreated: false,
       skippedReason: "restaurant_missing",
+      aiConfigured,
+      aiProvider,
+      caps,
     };
   }
 
@@ -398,9 +455,18 @@ export async function generateSocialSuggestionsForRestaurant(
     toYmd,
   );
 
-  const need = Math.max(0, kit.weeklyPostTarget - pendingThisWeek.length);
+  const need = clampAutopilotItemCount(
+    Math.max(0, kit.weeklyPostTarget - pendingThisWeek.length),
+  );
   if (need === 0) {
-    return { created: 0, pending: pendingThisWeek.length, tasksCreated };
+    return {
+      created: 0,
+      pending: pendingThisWeek.length,
+      tasksCreated,
+      aiConfigured,
+      aiProvider,
+      caps,
+    };
   }
 
   const usedDishIds = new Set(
@@ -646,6 +712,9 @@ export async function generateSocialSuggestionsForRestaurant(
       source: withOverlay(caption, {
         dishId: dish.id,
         dishName: dish.name,
+        ...(dish.description
+          ? { dishDescription: dish.description.slice(0, 160) }
+          : {}),
         feedLayout,
       }),
       asset: {
@@ -782,7 +851,81 @@ export async function generateSocialSuggestionsForRestaurant(
     break;
   }
 
+  if (drafts.length === 0) {
+    return {
+      created: 0,
+      pending: pendingThisWeek.length,
+      tasksCreated,
+      aiConfigured,
+      aiProvider,
+      llmCalls: 0,
+      llmApplied: 0,
+      caps,
+    };
+  }
+
+  // Template-Captions als Gerüst → ein LLM-Call (Restaurant-Key) für bessere Texte.
+  const captionJobs: SocialAutopilotCaptionJob[] = drafts.map((d, index) => {
+    const facts: Record<string, string> = { slotKind: d.slotKind };
+    if (typeof d.source.dishName === "string") facts.dishName = d.source.dishName;
+    if (typeof d.source.dishDescription === "string") {
+      facts.dishDescription = d.source.dishDescription;
+    }
+    if (typeof d.source.holidayName === "string") {
+      facts.holidayName = d.source.holidayName;
+    }
+    if (typeof d.source.date === "string") facts.date = d.source.date;
+    if (typeof d.source.eventId === "string") facts.eventId = d.source.eventId;
+    if (typeof d.source.startAt === "string") {
+      facts.whenLabel = formatEventWhen(String(d.source.startAt));
+    }
+    if (typeof d.source.imageCaption === "string") {
+      facts.imageCaption = d.source.imageCaption;
+    }
+    if (d.title) facts.title = d.title;
+    if (d.asset.imageLabel) facts.imageLabel = d.asset.imageLabel;
+    return {
+      index,
+      slotKind: d.slotKind,
+      title: d.title,
+      imageLabel: d.asset.imageLabel ?? null,
+      facts,
+      templateCaption: d.caption,
+    };
+  });
+
+  const llmOutcome = await rewriteAutopilotCaptionsWithLlm({
+    llm: llmRuntime,
+    kit,
+    restaurantName,
+    jobs: captionJobs,
+  });
+
+  const applied = applyAutopilotCaptionResults({
+    captions: drafts.map((d) => d.caption),
+    titles: drafts.map((d) => d.title),
+    sources: drafts.map((d) => d.source),
+    kit,
+    llmResults: llmOutcome.results,
+  });
+
+  for (let i = 0; i < drafts.length; i++) {
+    drafts[i]!.caption = applied.captions[i] ?? drafts[i]!.caption;
+    drafts[i]!.title = applied.titles[i] ?? drafts[i]!.title;
+    drafts[i]!.source = applied.sources[i] ?? drafts[i]!.source;
+  }
+
   const created = await insertSocialSuggestionsInDb(sb, drafts);
   const pending = pendingThisWeek.length + created;
-  return { created, pending, tasksCreated };
+  return {
+    created,
+    pending,
+    tasksCreated,
+    aiConfigured,
+    aiProvider,
+    llmCalls: llmOutcome.llmCalls,
+    llmApplied: applied.llmApplied,
+    caps,
+    ...(llmOutcome.ok ? {} : { skippedReason: undefined }),
+  };
 }

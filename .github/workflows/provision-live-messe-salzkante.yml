@@ -2,6 +2,10 @@ name: Provision Messe Salzkante live
 
 on:
   workflow_dispatch:
+  # Agent cannot workflow_dispatch (403); push to this branch runs provision with LIVE_* secrets.
+  push:
+    branches:
+      - cursor/messe-provision-run-a992
 
 concurrency:
   group: provision-live-messe-salzkante

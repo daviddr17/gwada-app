@@ -43,6 +43,8 @@ declare
   c3 uuid := 'a55c0001-5a17-4a17-8a17-c00000000062'::uuid;
   po1 text := 'sk-po-fisch-01';
   po2 text := 'sk-po-hof-01';
+  main_speisen uuid;
+  main_getraenke uuid;
   cat_vorspeisen uuid := 'a55c0001-5a17-4a17-8a17-c00000000080'::uuid;
   cat_haupt uuid := 'a55c0001-5a17-4a17-8a17-c00000000081'::uuid;
   cat_beilagen uuid := 'a55c0001-5a17-4a17-8a17-c00000000082'::uuid;
@@ -213,16 +215,33 @@ begin
     );
   end loop;
 
-  -- Speisekarte
-  insert into public.menu_categories (id, restaurant_id, name, sort_order, is_active) values
-    (cat_vorspeisen, v_rid, 'Vorspeisen vom Meer', 0, true),
-    (cat_haupt, v_rid, 'Hauptgerichte', 1, true),
-    (cat_beilagen, v_rid, 'Beilagen & Gemüse', 2, true),
-    (cat_desserts, v_rid, 'Süßes', 3, true),
-    (cat_getraenke, v_rid, 'Getränke', 4, true)
+  -- Speisekarte (Hauptkategorien Pflicht; Trigger legt ggf. schon Speisen/Getränke an)
+  select id into main_speisen from public.menu_main_categories
+  where restaurant_id = v_rid and name ilike 'Speisen' order by sort_order limit 1;
+  select id into main_getraenke from public.menu_main_categories
+  where restaurant_id = v_rid and name ilike 'Getränke' order by sort_order limit 1;
+
+  if main_speisen is null then
+    insert into public.menu_main_categories (id, restaurant_id, name, sort_order, is_active)
+    values ('a55c0001-5a17-4a17-8a17-c00000000085'::uuid, v_rid, 'Speisen', 0, true)
+    returning id into main_speisen;
+  end if;
+  if main_getraenke is null then
+    insert into public.menu_main_categories (id, restaurant_id, name, sort_order, is_active)
+    values ('a55c0001-5a17-4a17-8a17-c00000000086'::uuid, v_rid, 'Getränke', 1, true)
+    returning id into main_getraenke;
+  end if;
+
+  insert into public.menu_categories (id, restaurant_id, name, sort_order, is_active, main_category_id) values
+    (cat_vorspeisen, v_rid, 'Vorspeisen vom Meer', 0, true, main_speisen),
+    (cat_haupt, v_rid, 'Hauptgerichte', 1, true, main_speisen),
+    (cat_beilagen, v_rid, 'Beilagen & Gemüse', 2, true, main_speisen),
+    (cat_desserts, v_rid, 'Süßes', 3, true, main_speisen),
+    (cat_getraenke, v_rid, 'Getränke', 4, true, main_getraenke)
   on conflict (id) do update set
     name = excluded.name,
     sort_order = excluded.sort_order,
+    main_category_id = excluded.main_category_id,
     is_active = true;
 
   insert into public.menu_tags (id, restaurant_id, name, background_color, sort_order, is_active) values

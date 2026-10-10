@@ -1,9 +1,5 @@
 name: Provision Fadi live
 
-# TEMP (branch-only dispatch): runs Messe Salzkante provision via existing workflow name
-# so we can workflow_dispatch before the dedicated workflow lands on main.
-# Restored to Fadi after successful live run.
-
 on:
   workflow_dispatch:
 
@@ -35,21 +31,11 @@ jobs:
           export LIVE_VPS_HOST
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-
-      - name: Install psql
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client
-
-      - name: Provision Die Salzkante (Messe) via Fadi workflow name
+      - name: Provision Fadis BurgerStation + Magic-Link
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
-          bash scripts/provision-live-messe-salzkante-ci.sh
+          bash scripts/provision-live-fadi-ci.sh

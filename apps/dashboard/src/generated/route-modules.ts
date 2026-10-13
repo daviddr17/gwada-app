@@ -132,6 +132,7 @@ const Lazy__dashboard_staff_work_hours_fix = staffLazy(() => import("@/component
 const Lazy__dashboard_staff_work_hours_payroll = staffLazy(() => import("@/components/staff/staff-payroll-settlement-screen").then((m) => ({ default: m.StaffPayrollSettlementScreen as ComponentType })));
 const Lazy__dashboard_tasks_mine = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-meine-screen").then((m) => ({ default: m.AufgabenMeineScreen as ComponentType }))));
 const Lazy__dashboard_tasks_messages = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-nachrichten-screen").then((m) => ({ default: m.AufgabenNachrichtenScreen as ComponentType }))));
+const Lazy__dashboard_tasks_guides = lazy(moduleSubpageLazy("checklisten", () => import("@/components/guides/guides-screen").then((m) => ({ default: m.GuidesScreen as ComponentType }))));
 
 export type DashboardRouteEntry = {
   path: string;
@@ -270,5 +271,6 @@ export const DASHBOARD_ROUTE_ENTRIES: DashboardRouteEntry[] = [
   { path: "/staff/work-hours/payroll", fullPath: "/dashboard/staff/work-hours/payroll", Lazy: Lazy__dashboard_staff_work_hours_payroll },
   { path: "/tasks/mine", fullPath: "/dashboard/tasks/mine", Lazy: Lazy__dashboard_tasks_mine },
   { path: "/tasks/messages", fullPath: "/dashboard/tasks/messages", Lazy: Lazy__dashboard_tasks_messages },
+  { path: "/tasks/guides", fullPath: "/dashboard/tasks/guides", Lazy: Lazy__dashboard_tasks_guides },
   { path: "/tasks/eigenkontrolle", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
 ];

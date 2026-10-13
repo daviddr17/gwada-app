@@ -26,6 +26,7 @@ export type WorkspaceStorageBreakdown = {
   galleryBytes: number;
   newsBytes: number;
   accountingBytes: number;
+  guidesBytes: number;
   totalBytes: number;
   quotaBytes: number;
 };
@@ -38,4 +39,5 @@ export const WORKSPACE_STORAGE_MODULE_LABELS: Record<
   galleryBytes: "Galerie",
   newsBytes: "News",
   accountingBytes: "Buchführung",
+  guidesBytes: "Anleitungen",
 };

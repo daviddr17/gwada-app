@@ -128,6 +128,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/tasks/devices": "Aufgaben",
   "/dashboard/tasks/entries": "Protokoll",
   "/dashboard/tasks/log": "Protokoll",
+  "/dashboard/tasks/guides": "Anleitungen",
   "/dashboard/tasks/settings": "Einstellungen",
   "/settings/eigenkontrolle": "Aufgaben",
   "/settings/eigenkontrolle/devices": "Aufgaben",

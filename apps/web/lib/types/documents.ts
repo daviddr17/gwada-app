@@ -41,4 +41,5 @@ export type RestaurantDocumentsStorageUsage = {
   galleryBytes: number;
   newsBytes: number;
   accountingBytes: number;
+  guidesBytes: number;
 };

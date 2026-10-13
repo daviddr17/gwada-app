@@ -2,6 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 import {
+  BookOpen,
   CalendarDays,
   ChefHat,
   ClipboardCheck,
@@ -19,6 +20,7 @@ const MODULE_ICONS: Record<DisplayModule, LucideIcon> = {
   recipes: ChefHat,
   inventory: Package,
   compliance: ClipboardCheck,
+  guides: BookOpen,
   profile: UserRound,
   kds: MonitorPlay,
 };

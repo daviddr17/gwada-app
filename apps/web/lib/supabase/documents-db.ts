@@ -418,6 +418,7 @@ export async function fetchDocumentsStorageUsage(
         galleryBytes: 0,
         newsBytes: 0,
         accountingBytes: 0,
+        guidesBytes: 0,
       },
       error: error.message,
     };
@@ -431,6 +432,7 @@ export async function fetchDocumentsStorageUsage(
       galleryBytes: Number(raw.galleryBytes ?? 0),
       newsBytes: Number(raw.newsBytes ?? 0),
       accountingBytes: Number(raw.accountingBytes ?? 0),
+      guidesBytes: Number(raw.guidesBytes ?? 0),
     },
     error: null,
   };

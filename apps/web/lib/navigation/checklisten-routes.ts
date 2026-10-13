@@ -11,6 +11,7 @@ export const CHECKLISTEN_ROUTES = {
   geraete: "/dashboard/tasks/devices",
   eintraege: "/dashboard/tasks/entries",
   protokoll: "/dashboard/tasks/log",
+  anleitungen: "/dashboard/tasks/guides",
   einstellungen: "/dashboard/tasks/settings",
 } as const;
 
@@ -34,6 +35,11 @@ export const CHECKLISTEN_NAV = [
   {
     href: CHECKLISTEN_ROUTES.protokoll,
     label: "Protokoll",
+    matchMode: "prefix" as const,
+  },
+  {
+    href: CHECKLISTEN_ROUTES.anleitungen,
+    label: "Anleitungen",
     matchMode: "prefix" as const,
   },
   {

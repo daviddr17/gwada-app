@@ -4,6 +4,7 @@ export type DisplayModule =
   | "recipes"
   | "inventory"
   | "compliance"
+  | "guides"
   | "profile"
   | "kds";
 
@@ -38,6 +39,11 @@ export const DISPLAY_MODULES: readonly DisplayModuleMeta[] = [
     id: "compliance",
     label: "Checklisten",
     description: "Temperatur, Reinigung und wiederkehrende Erfassungen",
+  },
+  {
+    id: "guides",
+    label: "Anleitungen",
+    description: "SOPs und Arbeitsanleitungen nachschlagen",
   },
   {
     id: "profile",

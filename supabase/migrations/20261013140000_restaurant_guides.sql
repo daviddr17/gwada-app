@@ -1,4 +1,5 @@
 -- Anleitungen (SOPs/Guides) unter Aufgaben: Schema, Rechte, Storage, Display
+-- (Dev-DB-Push: Missing-relfilenode repair in deploy scripts)
 
 do $$ begin
   alter type public.display_module add value if not exists 'guides';

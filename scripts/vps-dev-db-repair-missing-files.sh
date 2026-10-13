@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dev-DB: fehlende Relation-Dateien (SQLSTATE 58P01) + schema_migrations Ownership reparieren.
+# Dev-DB: schema_migrations lesbar machen (58P01 / Ownership). Nicht hart an ALTER OWNER scheitern.
 set -euo pipefail
 
 compose_dir="${1:?compose_dir}"
@@ -14,91 +14,49 @@ if [[ -z "${pw}" ]]; then
   [[ -n "${pw}" ]] || pw="$(grep -m1 '^POSTGRES_PASSWORD=' .env | sed 's/^POSTGRES_PASSWORD=//' | tr -d '\r\n')"
 fi
 
-# postgres-Superuser für DDL/OWNER; supabase_admin für App-CLI
-psql_postgres() {
+# Versuche postgres, dann supabase_admin (je nach Owner der Tabelle).
+psql_as() {
+  local user="$1"
+  shift
   docker compose exec -T -e PGPASSWORD="${pw}" db \
-    psql -U postgres -h localhost -p "${db_port}" -d postgres -v ON_ERROR_STOP=1 "$@"
+    psql -U "${user}" -h localhost -p "${db_port}" -d postgres "$@"
 }
 
-psql_admin() {
-  docker compose exec -T -e PGPASSWORD="${pw}" db \
-    psql -U supabase_admin -h localhost -p "${db_port}" -d postgres -v ON_ERROR_STOP=1 "$@"
+readable() {
+  local user="$1"
+  psql_as "${user}" -v ON_ERROR_STOP=1 -tAc \
+    "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1
 }
 
-echo "→ Dev-DB: prüfe auf fehlende Relation-Dateien (base/<dboid>/<relfilenode>) …"
+echo "→ Dev-DB: schema_migrations Health-Check …"
 
-mapfile -t MISSING < <(
-  docker compose exec -T -e PGPASSWORD="${pw}" db bash -c "
-    set -euo pipefail
-    DB_OID=\$(psql -U postgres -h localhost -p '${db_port}' -d postgres -tAc \"select oid from pg_database where datname = 'postgres'\" | tr -d '[:space:]')
-    DATA_DIR=\$(psql -U postgres -h localhost -p '${db_port}' -d postgres -tAc 'show data_directory' | tr -d '[:space:]')
-    psql -U postgres -h localhost -p '${db_port}' -d postgres -tAc \"
-      select c.oid::text || '|' || n.nspname || '|' || c.relname || '|' || c.relkind::text || '|' || c.relfilenode::text
-      from pg_class c
-      join pg_namespace n on n.oid = c.relnamespace
-      where c.relfilenode <> 0
-        and n.nspname not in ('pg_catalog', 'information_schema')
-        and n.nspname not like 'pg_toast%'
-      order by 1;
-    \" | tr -d '\r' | while IFS='|' read -r oid nsp name kind node; do
-      [[ -z \"\${node:-}\" ]] && continue
-      f=\"\${DATA_DIR}/base/\${DB_OID}/\${node}\"
-      if [[ ! -e \"\$f\" ]]; then
-        echo \"\${oid}|\${nsp}|\${name}|\${kind}|\${node}\"
-      fi
-    done
-  " | tr -d '\r'
-)
+if readable supabase_admin || readable postgres; then
+  owner="$(
+    psql_as postgres -tAc \
+      "select tableowner from pg_tables where schemaname='supabase_migrations' and tablename='schema_migrations';" \
+      2>/dev/null | tr -d '[:space:]' || true
+  )"
+  count="$(
+    if readable supabase_admin; then
+      psql_as supabase_admin -tAc "select count(*) from supabase_migrations.schema_migrations;" | tr -d '[:space:]'
+    else
+      psql_as postgres -tAc "select count(*) from supabase_migrations.schema_migrations;" | tr -d '[:space:]'
+    fi
+  )"
+  echo "✓ schema_migrations lesbar (owner=${owner:-?}, rows=${count})."
+  # Best-effort Grants — Fehler ignorieren
+  psql_as postgres -v ON_ERROR_STOP=0 -c \
+    "grant usage on schema supabase_migrations to supabase_admin, postgres;
+     grant all on table supabase_migrations.schema_migrations to supabase_admin, postgres;" \
+    >/dev/null 2>&1 || true
+  exit 0
+fi
 
-for row in "${MISSING[@]+"${MISSING[@]}"}"; do
-  [[ -z "${row//[[:space:]]/}" ]] && continue
-  IFS='|' read -r oid nsp name kind node <<<"${row}"
-  echo "  fehlt: ${nsp}.${name} (kind=${kind}, oid=${oid}, relfilenode=${node})"
-  case "${kind}" in
-    i|I)
-      echo "  → DROP INDEX ${nsp}.${name}"
-      psql_postgres -c "DROP INDEX IF EXISTS ${nsp}.\"${name}\" CASCADE;" || true
-      ;;
-    r)
-      if [[ "${nsp}" == "supabase_migrations" && "${name}" == "schema_migrations" ]]; then
-        echo "  → schema_migrations Heap fehlt — Tabelle neu anlegen"
-        psql_postgres -c "
-          drop table if exists supabase_migrations.schema_migrations cascade;
-        "
-      else
-        echo "  WARN: Tabellen-Datei fehlt (${nsp}.${name}) — manueller Eingriff nötig." >&2
-      fi
-      ;;
-    t|T)
-      echo "  → Toast-Relation ${nsp}.${name} (kind=${kind}) — Parent-Tabelle ggf. neu anlegen"
-      ;;
-    *)
-      echo "  WARN: unbekannter relkind=${kind} für ${nsp}.${name}" >&2
-      ;;
-  esac
-done
+echo "  unlesbar — Indexes droppen / Tabelle neu anlegen …"
 
-ensure_schema_migrations() {
-  psql_postgres -c "
-    create schema if not exists supabase_migrations;
-    create table if not exists supabase_migrations.schema_migrations (
-      version text primary key,
-      statements text[],
-      name text
-    );
-    alter table supabase_migrations.schema_migrations owner to postgres;
-    grant usage on schema supabase_migrations to postgres, supabase_admin;
-    grant all on table supabase_migrations.schema_migrations to postgres, supabase_admin;
-    -- CLI (supabase_admin) muss Owner sein für migration repair / ensure table
-    alter table supabase_migrations.schema_migrations owner to supabase_admin;
-  "
-}
-
-# Lesbarkeit prüfen (auch ohne ORDER BY — kaputter Index)
-if ! psql_admin -tAc "select version from supabase_migrations.schema_migrations limit 1;" >/dev/null 2>&1; then
-  echo "  schema_migrations unlesbar oder fehlend — neu initialisieren …"
-  # Kaputte Indexes droppen falls Heap noch da
-  psql_postgres -c "
+# Indexes droppen (beide Rollen versuchen)
+for user in postgres supabase_admin; do
+  psql_as "${user}" -v ON_ERROR_STOP=0 -c "
     do \$\$
     declare r record;
     begin
@@ -114,32 +72,48 @@ if ! psql_admin -tAc "select version from supabase_migrations.schema_migrations 
         begin
           execute format('drop index if exists supabase_migrations.%I cascade', r.indexname);
         exception when others then
-          raise notice 'index drop skip: %', sqlerrm;
+          null;
         end;
       end loop;
     end
     \$\$;
   " >/dev/null 2>&1 || true
+done
 
-  if ! psql_admin -tAc "select version from supabase_migrations.schema_migrations limit 1;" >/dev/null 2>&1; then
-    echo "  DROP + CREATE schema_migrations …"
-    psql_postgres -c "drop table if exists supabase_migrations.schema_migrations cascade;"
-  fi
+if readable supabase_admin || readable postgres; then
+  echo "✓ schema_migrations nach Index-Drop wieder lesbar."
+  exit 0
 fi
 
-ensure_schema_migrations
+echo "  DROP + CREATE als Owner-fähigem User …"
+recreated=0
+for user in supabase_admin postgres; do
+  if psql_as "${user}" -v ON_ERROR_STOP=1 -c "
+    create schema if not exists supabase_migrations;
+    drop table if exists supabase_migrations.schema_migrations cascade;
+    create table supabase_migrations.schema_migrations (
+      version text primary key,
+      statements text[],
+      name text
+    );
+    grant usage on schema supabase_migrations to postgres, supabase_admin;
+    grant all on table supabase_migrations.schema_migrations to postgres, supabase_admin;
+  " >/dev/null 2>&1; then
+    recreated=1
+    echo "  neu angelegt als ${user}"
+    break
+  fi
+done
 
-# Ownership/Grants immer sicherstellen (auch wenn Tabelle schon ok war)
-psql_postgres -c "
-  alter table if exists supabase_migrations.schema_migrations owner to supabase_admin;
-  grant all on table supabase_migrations.schema_migrations to supabase_admin, postgres;
-" >/dev/null
-
-if psql_admin -tAc "select 1 from supabase_migrations.schema_migrations limit 1;" >/dev/null 2>&1 \
-  || psql_admin -tAc "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
-  count="$(psql_admin -tAc "select count(*) from supabase_migrations.schema_migrations;" | tr -d '[:space:]')"
-  echo "✓ schema_migrations ok (rows=${count}, owner=supabase_admin)."
-else
-  echo "FEHLER: schema_migrations nach Repair weiterhin unlesbar." >&2
+if (( recreated == 0 )); then
+  echo "FEHLER: schema_migrations konnte nicht neu angelegt werden." >&2
   exit 1
 fi
+
+if readable supabase_admin || readable postgres; then
+  echo "✓ schema_migrations neu initialisiert und lesbar."
+  exit 0
+fi
+
+echo "FEHLER: schema_migrations nach Recreate weiterhin unlesbar." >&2
+exit 1

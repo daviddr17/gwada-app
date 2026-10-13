@@ -79,6 +79,7 @@ export const APP_ROUTES = {
     geraete: "/dashboard/tasks/devices",
     eintraege: "/dashboard/tasks/entries",
     protokoll: "/dashboard/tasks/log",
+    anleitungen: "/dashboard/tasks/guides",
     settings: "/dashboard/tasks/settings",
   },
 

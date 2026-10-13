@@ -56,6 +56,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.recipes",
   "display.inventory",
   "display.compliance",
+  "display.guides",
   "display.profile",
   "display.kds",
   "display.module_switch",
@@ -310,6 +311,12 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       label: "Display: Eigenkontrolle",
       description:
         "HACCP-Checklisten am Tablet erfassen — Temperatur, Reinigung u. a.",
+      group: "display",
+    },
+    {
+      key: "display.guides",
+      label: "Display: Anleitungen",
+      description: "SOPs und Arbeitsanleitungen am Tablet nachschlagen.",
       group: "display",
     },
     {

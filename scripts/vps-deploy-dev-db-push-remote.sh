@@ -47,38 +47,103 @@ if ! docker compose exec -T -e PGPASSWORD="${PW}" db \
   DB_PORT="5432"
 fi
 
-DB_URL="postgresql://supabase_admin:${ENC_PW}@127.0.0.1:${DB_PORT}/postgres?sslmode=disable"
 SUPABASE_BIN="/tmp/supabase-cli/supabase-go"
 if ! docker exec "${DB_CID}" test -x "${SUPABASE_BIN}"; then
   SUPABASE_BIN="/tmp/supabase-cli/supabase"
 fi
 
-echo "→ Dev: Remote-Migrationen ohne lokale Datei als reverted markieren …"
-mapfile -t REMOTE_VERS < <(
-  docker compose exec -T -e PGPASSWORD="${PW}" db \
-    psql -U supabase_admin -h localhost -p "${DB_PORT}" -d postgres -tAc \
-    "select version from supabase_migrations.schema_migrations order by version;" \
-    | tr -d '\r'
-)
-repair_args=()
-shopt -s nullglob
-for ver in "${REMOTE_VERS[@]}"; do
-  ver="${ver//[[:space:]]/}"
-  [[ -z "${ver}" ]] && continue
-  matches=("${mig_root}/supabase/migrations/${ver}_"*.sql)
-  if ((${#matches[@]} == 0)); then
-    repair_args+=("${ver}")
+# Welcher DB-User kann schema_migrations lesen/schreiben?
+DB_USER="supabase_admin"
+if ! docker compose exec -T -e PGPASSWORD="${PW}" db \
+  psql -U supabase_admin -h localhost -p "${DB_PORT}" -d postgres -tAc \
+  "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
+  if docker compose exec -T -e PGPASSWORD="${PW}" db \
+    psql -U postgres -h localhost -p "${DB_PORT}" -d postgres -tAc \
+    "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
+    DB_USER="postgres"
   fi
-done
-if ((${#repair_args[@]} > 0)); then
-  echo "  reverted: ${repair_args[*]}"
-  docker compose exec -T -w /tmp/migrations db \
-    env PGSSLMODE=disable \
-    "${SUPABASE_BIN}" migration repair --status reverted --db-url "${DB_URL}" \
-    "${repair_args[@]}"
 fi
 
-echo "→ supabase db push (im DB-Container, localhost:${DB_PORT}) …"
+psql_db() {
+  docker compose exec -T -e PGPASSWORD="${PW}" db \
+    psql -U "${DB_USER}" -h localhost -p "${DB_PORT}" -d postgres -v ON_ERROR_STOP=1 "$@"
+}
+
+DB_URL="postgresql://${DB_USER}:${ENC_PW}@127.0.0.1:${DB_PORT}/postgres?sslmode=disable"
+
+if [[ -f /tmp/vps-dev-db-repair-missing-files.sh ]]; then
+  bash /tmp/vps-dev-db-repair-missing-files.sh "${compose_dir}" "${DB_PORT}" "${PW}"
+fi
+
+# Nach Repair erneut User wählen
+if docker compose exec -T -e PGPASSWORD="${PW}" db \
+  psql -U supabase_admin -h localhost -p "${DB_PORT}" -d postgres -tAc \
+  "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
+  DB_USER="supabase_admin"
+elif docker compose exec -T -e PGPASSWORD="${PW}" db \
+  psql -U postgres -h localhost -p "${DB_PORT}" -d postgres -tAc \
+  "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
+  DB_USER="postgres"
+fi
+DB_URL="postgresql://${DB_USER}:${ENC_PW}@127.0.0.1:${DB_PORT}/postgres?sslmode=disable"
+echo "→ DB-User für Push: ${DB_USER}"
+
+seed_applied_except_latest() {
+  shopt -s nullglob
+  local local_migs=("${mig_root}/supabase/migrations/"*.sql)
+  ((${#local_migs[@]} > 0)) || return 0
+  local IFS=$'\n'
+  local sorted_migs=($(printf '%s\n' "${local_migs[@]}" | sort))
+  unset IFS
+  local sql="insert into supabase_migrations.schema_migrations (version, name) values"
+  local first=1 i base ver name
+  for ((i = 0; i < ${#sorted_migs[@]} - 1; i++)); do
+    base="$(basename "${sorted_migs[$i]}")"
+    ver="${base%%_*}"
+    name="${base%.sql}"
+    [[ -z "${ver}" ]] && continue
+    if ((first)); then first=0; else sql+=","; fi
+    sql+=$'\n'"  ('${ver}', '${name}')"
+  done
+  if ((first == 0)); then
+    sql+=$'\n'"on conflict (version) do nothing;"
+    echo "  SQL-seed applied (${#sorted_migs[@]} - 1 Versionen) als ${DB_USER} …"
+    psql_db -c "${sql}"
+  fi
+  echo "  offen für db push: $(basename "${sorted_migs[-1]}")"
+}
+
+echo "→ Dev: Migration-History abgleichen …"
+mapfile -t REMOTE_VERS < <(
+  psql_db -tAc "select version from supabase_migrations.schema_migrations;" \
+    2>/dev/null | tr -d '\r' || true
+)
+
+remote_count=0
+for ver in "${REMOTE_VERS[@]+"${REMOTE_VERS[@]}"}"; do
+  ver="${ver//[[:space:]]/}"
+  [[ -n "${ver}" ]] && remote_count=$((remote_count + 1))
+done
+
+shopt -s nullglob
+local_migs=("${mig_root}/supabase/migrations/"*.sql)
+
+if (( remote_count == 0 && ${#local_migs[@]} > 0 )); then
+  echo "  schema_migrations leer — seed außer letzter …"
+  seed_applied_except_latest
+else
+  for ver in "${REMOTE_VERS[@]+"${REMOTE_VERS[@]}"}"; do
+    ver="${ver//[[:space:]]/}"
+    [[ -z "${ver}" ]] && continue
+    matches=("${mig_root}/supabase/migrations/${ver}_"*.sql)
+    if ((${#matches[@]} == 0)); then
+      echo "  reverted (SQL): ${ver}"
+      psql_db -c "delete from supabase_migrations.schema_migrations where version = '${ver}';"
+    fi
+  done
+fi
+
+echo "→ supabase db push (user=${DB_USER}, port=${DB_PORT}) …"
 docker compose exec -T -w /tmp/migrations db \
   env PGSSLMODE=disable \
   "${SUPABASE_BIN}" db push --db-url "${DB_URL}" --yes --include-all

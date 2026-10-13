@@ -10,6 +10,10 @@ on:
       - "cursor/**"
     paths:
       - "supabase/migrations/**"
+      - "scripts/deploy-db-dev-ci.sh"
+      - "scripts/vps-deploy-dev-db-push-remote.sh"
+      - "scripts/vps-finish-dev-db-after-push-remote.sh"
+      - "scripts/vps-dev-db-repair-missing-files.sh"
       - ".github/workflows/deploy-dev-db-on-migration-push.yml"
 
 concurrency:

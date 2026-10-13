@@ -5222,7 +5222,15 @@ export type Database = {
       }
     }
     Enums: {
-      display_module: "time" | "reservations" | "recipes" | "kds" | "inventory"
+      display_module:
+        | "time"
+        | "reservations"
+        | "recipes"
+        | "kds"
+        | "inventory"
+        | "compliance"
+        | "guides"
+        | "profile"
       employee_role:
         | "owner"
         | "manager"
@@ -5399,7 +5407,16 @@ export const Constants = {
   },
   public: {
     Enums: {
-      display_module: ["time", "reservations", "recipes", "kds", "inventory"],
+      display_module: [
+        "time",
+        "reservations",
+        "recipes",
+        "kds",
+        "inventory",
+        "compliance",
+        "guides",
+        "profile",
+      ],
       employee_role: ["owner", "manager", "host", "server", "kitchen", "other"],
       order_status: [
         "draft",

@@ -27,6 +27,7 @@ export async function GET(req: Request) {
     galleryBytes: Number(raw.galleryBytes ?? 0),
     newsBytes: Number(raw.newsBytes ?? 0),
     accountingBytes: Number(raw.accountingBytes ?? 0),
+    guidesBytes: Number(raw.guidesBytes ?? 0),
     totalBytes: Number(raw.totalBytes ?? 0),
     quotaBytes: Number(raw.quotaBytes ?? RESTAURANT_WORKSPACE_QUOTA_BYTES),
   };

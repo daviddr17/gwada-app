@@ -15,6 +15,7 @@ export const MODULE_CRUD_PREFIXES = [
   "staff_todos",
   "accounting",
   "compliance",
+  "guides",
 ] as const;
 
 export type ModuleCrudPrefix = (typeof MODULE_CRUD_PREFIXES)[number];
@@ -178,5 +179,12 @@ export const MODULE_CRUD_LABELS: Record<
     create: "Eigenkontrolle: Anlegen",
     update: "Eigenkontrolle: Bearbeiten",
     delete: "Eigenkontrolle: Löschen",
+  },
+  guides: {
+    module: "Anleitungen",
+    read: "Anleitungen: Ansehen",
+    create: "Anleitungen: Anlegen",
+    update: "Anleitungen: Bearbeiten",
+    delete: "Anleitungen: Löschen",
   },
 };

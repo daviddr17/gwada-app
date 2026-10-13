@@ -190,7 +190,9 @@ export function hasDashboardWidgetAccess(
   if (widgetId === "checklists") {
     if (
       !(
-        hasModuleRead(has, "staff_todos") || hasModuleRead(has, "compliance")
+        hasModuleRead(has, "staff_todos") ||
+        hasModuleRead(has, "compliance") ||
+        hasModuleRead(has, "guides")
       )
     ) {
       return false;

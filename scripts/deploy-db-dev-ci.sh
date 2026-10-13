@@ -65,9 +65,13 @@ gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" "chmod +x ${DEV_REMOTE_CLI_DIR}/
 
 echo ""
 echo "=== Dev-DB: Migrationen anwenden (supabase db push auf VPS) ==="
-gwada_scp_cmd "${ROOT}/scripts/vps-deploy-dev-db-push-remote.sh" \
+gwada_scp_cmd \
+  "${ROOT}/scripts/vps-deploy-dev-db-push-remote.sh" \
   "${ROOT}/scripts/vps-finish-dev-db-after-push-remote.sh" \
+  "${ROOT}/scripts/vps-dev-db-repair-missing-files.sh" \
   "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/"
+gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
+  "chmod +x /tmp/vps-deploy-dev-db-push-remote.sh /tmp/vps-finish-dev-db-after-push-remote.sh /tmp/vps-dev-db-repair-missing-files.sh"
 gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
   "bash /tmp/vps-deploy-dev-db-push-remote.sh ${DEV_COMPOSE_DIR} ${DEV_REMOTE_MIG_DIR} ${DEV_REMOTE_CLI_DIR}"
 gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \

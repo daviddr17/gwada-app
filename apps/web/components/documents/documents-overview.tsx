@@ -239,6 +239,7 @@ const EMPTY_DOCUMENTS_USAGE = {
   galleryBytes: 0,
   newsBytes: 0,
   accountingBytes: 0,
+  guidesBytes: 0,
 };
 
 function initialDocumentsRestaurantId(): string | null {
@@ -731,6 +732,7 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
                 ["galleryBytes", usage.galleryBytes],
                 ["newsBytes", usage.newsBytes],
                 ["accountingBytes", usage.accountingBytes],
+                ["guidesBytes", usage.guidesBytes],
               ] as const
             )
               .filter(([, bytes]) => bytes > 0)

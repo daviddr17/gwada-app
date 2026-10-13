@@ -54,7 +54,9 @@ export function hasSidebarModulePermissionAccess(
 ): boolean {
   if (moduleId === "checklisten") {
     return (
-      hasModuleRead(has, "staff_todos") || hasModuleRead(has, "compliance")
+      hasModuleRead(has, "staff_todos") ||
+      hasModuleRead(has, "compliance") ||
+      hasModuleRead(has, "guides")
     );
   }
   if (moduleId === "pos") {

@@ -221,6 +221,16 @@ const EXTRA_ROUTE_ENTRIES = [
     ],
   },
   {
+    route: "/dashboard/tasks/guides",
+    pageBehavior: "render",
+    imports: [
+      {
+        component: "GuidesScreen",
+        from: "@/components/guides/guides-screen",
+      },
+    ],
+  },
+  {
     route: "/dashboard/tasks/eigenkontrolle",
     pageBehavior: "redirect",
     redirectTarget: "/dashboard/tasks",

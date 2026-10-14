@@ -89,6 +89,8 @@ type StaffDocumentsAllTableProps = {
   documents: readonly StaffDocumentListItem[];
   staffList: readonly RestaurantStaffRow[];
   onSelectStaff?: (staffId: string) => void;
+  /** Kurzhinweis über der Suche, z. B. Upload-Pfad. */
+  uploadHint?: string | null;
 };
 
 export function StaffDocumentsAllTable({
@@ -96,6 +98,7 @@ export function StaffDocumentsAllTable({
   documents,
   staffList,
   onSelectStaff,
+  uploadHint = null,
 }: StaffDocumentsAllTableProps) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
@@ -180,6 +183,11 @@ export function StaffDocumentsAllTable({
   return (
     <>
       <div className="space-y-4">
+        {uploadHint ? (
+          <p className="rounded-xl border border-border/50 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
+            {uploadHint}
+          </p>
+        ) : null}
         <div className={moduleSearchFilterRowClassName}>
           <div className={moduleSearchFieldWrapClassName}>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

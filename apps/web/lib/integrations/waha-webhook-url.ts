@@ -1,6 +1,12 @@
 import "server-only";
 
+import { WAHA_SESSION_WEBHOOK_EVENTS } from "@/lib/integrations/waha-webhook-events";
 import { getPublicSiteUrl } from "@/lib/public-env";
+
+export {
+  WAHA_SESSION_WEBHOOK_EVENTS,
+  type WahaSessionWebhookEvent,
+} from "@/lib/integrations/waha-webhook-events";
 
 export function resolveWahaWebhookPublicUrl(): string | null {
   const base =
@@ -23,7 +29,7 @@ export function wahaSessionWebhookConfig(restaurantId: string): {
     webhooks: [
       {
         url,
-        events: ["message", "message.ack"],
+        events: [...WAHA_SESSION_WEBHOOK_EVENTS],
       },
     ],
     metadata: {

@@ -227,7 +227,6 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
     Boolean(primary.body.trim()) &&
     !mediaPlaceholderKind &&
     !isRedundantWhatsappMediaBody(primary.body, primary.attachments);
-  const hasBody = showTextBody || hasHtmlBody;
   const fallbackMediaAttachments =
     mediaPlaceholderKind != null
       ? [
@@ -248,6 +247,13 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
           },
         ]
       : null;
+  const hasMediaVisual = Boolean(
+    primary.attachments?.length || fallbackMediaAttachments,
+  );
+  /** Business/rare WAHA types without parsed body/media — never render a blank bubble. */
+  const showSafeEmptyFallback =
+    !isEmail && !showTextBody && !hasHtmlBody && !hasMediaVisual;
+  const hasBody = showTextBody || hasHtmlBody || showSafeEmptyFallback;
   const [deleting, setDeleting] = useState(false);
   const [toolbarHover, setToolbarHover] = useState(false);
   const toolbarHoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -348,6 +354,10 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
             />
           ) : showTextBody ? (
             <p className="whitespace-pre-wrap break-words">{primary.body}</p>
+          ) : showSafeEmptyFallback ? (
+            <p className="whitespace-pre-wrap break-words text-muted-foreground">
+              WhatsApp-Nachricht
+            </p>
           ) : null}
         </div>
         {showReactions &&

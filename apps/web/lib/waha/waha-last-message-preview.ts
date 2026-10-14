@@ -1,4 +1,8 @@
 import {
+  extractWahaMessageDisplayText,
+  resolveWahaInboundMirrorContent,
+} from "@/lib/contact-messages/waha-message-content";
+import {
   parseWahaMessageMedia,
   wahaMediaPreviewLabel,
 } from "@/lib/contact-messages/waha-message-media";
@@ -57,9 +61,13 @@ export function wahaLastMessagePreview(last: WahaLastMessageLike | null | undefi
   }
 
   const media = parseWahaMessageMedia(last as WahaChatMessage);
-  const attachmentKind = media?.kind;
+  const mirrored = resolveWahaInboundMirrorContent(last);
+  const attachmentKind = media?.kind ?? mirrored.mediaKind;
 
-  const body = (last.body ?? "").trim();
+  const body =
+    extractWahaMessageDisplayText(last) ||
+    (last.body ?? "").trim() ||
+    mirrored.body;
   if (body) {
     return { text: body, isReaction: false, attachmentKind };
   }

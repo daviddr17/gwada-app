@@ -187,19 +187,47 @@ function mediaLabel(kind) {
   return "";
 }
 
-async function backfillSbUnionFromWaha(admin, restaurantId, baseUrl, apiKey) {
-  const sessionName = wahaSessionName(restaurantId);
-  const url = `${baseUrl}/api/${encodeURIComponent(sessionName)}/chats/${encodeURIComponent(SB_UNION_CHAT_ID)}/messages?limit=80&downloadMedia=false`;
+function lidChatIdFromExternalSourceId(externalSourceId) {
+  // waha:false_10561878282360@lid_HEX → 10561878282360@lid
+  const raw = String(externalSourceId ?? "").replace(/^waha:/, "");
+  const m = raw.match(/^(?:true_|false_)?(\d+)@lid_/i);
+  return m ? `${m[1]}@lid` : null;
+}
+
+function wahaMessageIdFromExternal(externalSourceId) {
+  return String(externalSourceId ?? "").replace(/^waha:/, "").trim();
+}
+
+async function fetchWahaChatMessages(baseUrl, apiKey, sessionName, chatId, limit = 80) {
+  const url = `${baseUrl}/api/${encodeURIComponent(sessionName)}/chats/${encodeURIComponent(chatId)}/messages?limit=${limit}&downloadMedia=false`;
   const res = await fetch(url, {
     headers: { Accept: "application/json", "X-Api-Key": apiKey },
   });
   if (!res.ok) {
-    console.log(`RESULT backfill_waha_http=${res.status}`);
-    return;
+    return { ok: false, status: res.status, list: [] };
   }
   const raw = await res.json();
   const list = Array.isArray(raw) ? raw : (raw.messages ?? []);
-  console.log(`RESULT backfill_waha_fetched=${list.length}`);
+  return { ok: true, status: res.status, list };
+}
+
+async function fetchWahaMessageById(
+  baseUrl,
+  apiKey,
+  sessionName,
+  chatId,
+  messageId,
+) {
+  const url = `${baseUrl}/api/${encodeURIComponent(sessionName)}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}?downloadMedia=false`;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json", "X-Api-Key": apiKey },
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function backfillSbUnionFromWaha(admin, restaurantId, baseUrl, apiKey) {
+  const sessionName = wahaSessionName(restaurantId);
 
   const { data: dbMsgs } = await admin
     .from("contact_messages")
@@ -214,13 +242,78 @@ async function backfillSbUnionFromWaha(admin, restaurantId, baseUrl, apiKey) {
     (dbMsgs ?? []).map((m) => [m.external_source_id, m]),
   );
 
+  const lidFromDb = (dbMsgs ?? [])
+    .map((m) => lidChatIdFromExternalSourceId(m.external_source_id))
+    .find(Boolean);
+  const chatCandidates = [
+    SB_UNION_CHAT_ID,
+    lidFromDb,
+    "10561878282360@lid",
+  ].filter(Boolean);
+  console.log(
+    `RESULT backfill_chat_candidates=${JSON.stringify([...new Set(chatCandidates)])}`,
+  );
+
+  /** @type {Map<string, any>} */
+  const wahaById = new Map();
+  let usedChatId = SB_UNION_CHAT_ID;
+
+  for (const chatId of [...new Set(chatCandidates)]) {
+    const fetched = await fetchWahaChatMessages(
+      baseUrl,
+      apiKey,
+      sessionName,
+      chatId,
+      80,
+    );
+    console.log(
+      `RESULT backfill_fetch chat=${chatId} http=${fetched.status} count=${fetched.list.length}`,
+    );
+    if (fetched.list.length > 0) {
+      usedChatId = chatId;
+      for (const m of fetched.list) {
+        if (m?.id) wahaById.set(m.id, m);
+      }
+      break;
+    }
+  }
+
+  // Fallback: fetch each DB message by id against phone + lid chats
+  if (wahaById.size === 0) {
+    const sample = (dbMsgs ?? []).slice(0, 15);
+    let byIdHits = 0;
+    for (const row of sample) {
+      const msgId = wahaMessageIdFromExternal(row.external_source_id);
+      if (!msgId) continue;
+      for (const chatId of [...new Set(chatCandidates)]) {
+        const m = await fetchWahaMessageById(
+          baseUrl,
+          apiKey,
+          sessionName,
+          chatId,
+          msgId,
+        );
+        if (m?.id) {
+          wahaById.set(m.id, m);
+          usedChatId = chatId;
+          byIdHits += 1;
+          break;
+        }
+      }
+    }
+    console.log(
+      `RESULT backfill_by_id_hits=${byIdHits} usedChat=${usedChatId}`,
+    );
+  }
+
+  console.log(`RESULT backfill_waha_fetched=${wahaById.size}`);
+
   let bodiesUpdated = 0;
   let attachmentsAdded = 0;
   let captionsFound = 0;
 
-  for (const m of list) {
-    if (!m?.id) continue;
-    const ext = `waha:${m.id}`;
+  for (const [wahaId, m] of wahaById) {
+    const ext = `waha:${wahaId}`;
     const dbRow = byExt.get(ext);
     if (!dbRow) continue;
 
@@ -257,6 +350,10 @@ async function backfillSbUnionFromWaha(admin, restaurantId, baseUrl, apiKey) {
     if ((existingAtt?.length ?? 0) > 0) continue;
 
     const meta = dbKindAndMeta(mediaKind);
+    // Prefer phone chat id for media proxy (conversation_key), fall back to used chat
+    const storageChatId = SB_UNION_CHAT_ID.includes("@")
+      ? SB_UNION_CHAT_ID
+      : usedChatId;
     const { error: attErr } = await admin
       .from("contact_message_attachments")
       .insert({
@@ -267,9 +364,49 @@ async function backfillSbUnionFromWaha(admin, restaurantId, baseUrl, apiKey) {
         file_name: meta.fileName,
         mime_type: meta.mimeType.slice(0, 127),
         byte_size: null,
-        storage_path: `waha:${SB_UNION_CHAT_ID}:${m.id}`,
+        storage_path: `waha:${storageChatId}:${wahaId}`,
       });
     if (!attErr) attachmentsAdded += 1;
+  }
+
+  // If WAHA history is empty but DB has media labels, still attach meta from external ids
+  // so bubbles can load image via proxy (caption may remain label until new webhook).
+  if (attachmentsAdded === 0) {
+    let metaFromDb = 0;
+    for (const dbRow of dbMsgs ?? []) {
+      const body = (dbRow.body ?? "").trim();
+      if (body !== "Bild" && body !== "Datei" && body !== "datei") continue;
+      const wahaId = wahaMessageIdFromExternal(dbRow.external_source_id);
+      if (!wahaId) continue;
+      const { data: existingAtt } = await admin
+        .from("contact_message_attachments")
+        .select("id")
+        .eq("restaurant_id", restaurantId)
+        .eq("message_id", dbRow.id)
+        .limit(1);
+      if ((existingAtt?.length ?? 0) > 0) continue;
+      const kind = body === "Bild" ? "image" : "file";
+      const meta = dbKindAndMeta(kind);
+      const lidChat = lidChatIdFromExternalSourceId(dbRow.external_source_id);
+      const storageChatId = lidChat || SB_UNION_CHAT_ID;
+      const { error: attErr } = await admin
+        .from("contact_message_attachments")
+        .insert({
+          id: randomUUID(),
+          restaurant_id: restaurantId,
+          message_id: dbRow.id,
+          kind: meta.kind,
+          file_name: meta.fileName,
+          mime_type: meta.mimeType.slice(0, 127),
+          byte_size: null,
+          storage_path: `waha:${storageChatId}:${wahaId}`,
+        });
+      if (!attErr) {
+        attachmentsAdded += 1;
+        metaFromDb += 1;
+      }
+    }
+    console.log(`RESULT backfill_meta_from_db_labels=${metaFromDb}`);
   }
 
   console.log(

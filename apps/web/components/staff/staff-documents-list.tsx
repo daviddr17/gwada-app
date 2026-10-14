@@ -2,15 +2,16 @@
 
 import { useRef, useState } from "react";
 import { Download, Eye, FileText, Upload } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { StaffDocumentPdfPreviewDialog } from "@/components/staff/staff-document-pdf-preview-dialog";
+import { RESTAURANT_DOCUMENT_FILE_ACCEPT } from "@/lib/documents/validate-restaurant-document-file";
 import {
   downloadStaffDocument,
   formatStaffDocumentMeta,
   type StaffDocumentListItem,
 } from "@/lib/staff/staff-documents-api";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 
 type StaffDocumentsListProps = {
   restaurantId: string;
@@ -52,8 +53,29 @@ export function StaffDocumentsList({
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap gap-2">
-        {exportZipUrl && documents.length > 0 ? (
+      {allowUpload && onUpload ? (
+        <div className="mb-4">
+          <input
+            ref={fileRef}
+            type="file"
+            className="hidden"
+            accept={RESTAURANT_DOCUMENT_FILE_ACCEPT}
+            onChange={(e) => void handleFileChange(e.target.files?.[0])}
+          />
+          <Button
+            type="button"
+            size="lg"
+            className={modulePrimaryAddButtonFullWidthClassName}
+            disabled={uploadPending}
+            onClick={() => fileRef.current?.click()}
+          >
+            <Upload className="size-4" />
+            {uploadPending ? "Wird hochgeladen …" : "Dokument hochladen"}
+          </Button>
+        </div>
+      ) : null}
+      {exportZipUrl && documents.length > 0 ? (
+        <div className="mb-4 flex flex-wrap gap-2">
           <a
             href={exportZipUrl}
             download
@@ -62,30 +84,8 @@ export function StaffDocumentsList({
             <Download className="size-4" />
             Alle als ZIP
           </a>
-        ) : null}
-        {allowUpload && onUpload ? (
-          <>
-            <input
-              ref={fileRef}
-              type="file"
-              className="hidden"
-              accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-              onChange={(e) => void handleFileChange(e.target.files?.[0])}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full border-border/60"
-              disabled={uploadPending}
-              onClick={() => fileRef.current?.click()}
-            >
-              <Upload className="size-4" />
-              {uploadPending ? "Wird hochgeladen …" : "Dokument hochladen"}
-            </Button>
-          </>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {documents.length === 0 ? (
         <p className="rounded-xl border border-border/50 bg-muted/15 px-4 py-6 text-sm text-muted-foreground">

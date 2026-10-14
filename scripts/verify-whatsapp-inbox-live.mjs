@@ -46,71 +46,117 @@ async function main() {
     .limit(10);
 
   let contactIds = [...new Set((phones ?? []).map((p) => p.contact_id))];
-  if (contactIds.length === 0) {
-    const { data: byName } = await admin
-      .from("contacts")
-      .select("id, first_name, last_name, company")
-      .eq("restaurant_id", restaurant.id)
-      .or("company.ilike.%SB Union%,first_name.ilike.%SB%,last_name.ilike.%Union%,company.ilike.%Union%")
-      .limit(10);
-    contactIds = (byName ?? []).map((c) => c.id);
-    console.log(
-      "RESULT contacts_by_name=",
-      JSON.stringify(
-        (byName ?? []).map((c) => ({
-          id: c.id,
-          name: [c.first_name, c.last_name].filter(Boolean).join(" "),
-          company: c.company,
-        })),
-      ),
-    );
-  } else {
-    console.log("RESULT phones=", JSON.stringify(phones));
-  }
+  console.log("RESULT phones=", JSON.stringify(phones ?? []));
 
-  if (contactIds.length === 0) {
-    // Fallback: conversation_key / label search in messages
-    const { data: labeled } = await admin
-      .from("contact_messages")
-      .select("contact_id, conversation_key, conversation_label, body, direction, external_source_id, created_at")
-      .eq("restaurant_id", restaurant.id)
-      .eq("platform", "whatsapp")
-      .or("conversation_label.ilike.%SB Union%,conversation_label.ilike.%Union%,body.ilike.%Union%")
-      .order("created_at", { ascending: false })
-      .limit(20);
-    console.log(
-      "RESULT labeled_messages=",
-      JSON.stringify(
-        (labeled ?? []).map((m) => ({
-          contact_id: m.contact_id,
-          conversation_key: m.conversation_key,
-          label: m.conversation_label,
-          direction: m.direction,
-          body: (m.body ?? "").slice(0, 120),
-          external_source_id: m.external_source_id,
-          created_at: m.created_at,
-        })),
-      ),
-    );
+  const { data: byName } = await admin
+    .from("contacts")
+    .select("id, first_name, last_name, company")
+    .eq("restaurant_id", restaurant.id)
+    .or(
+      "company.ilike.%SB Union%,first_name.ilike.%sb-union%,first_name.ilike.%SB Union%,last_name.ilike.%Union%,company.ilike.%Union%",
+    )
+    .limit(20);
+  console.log(
+    "RESULT contacts_by_name=",
+    JSON.stringify(
+      (byName ?? []).map((c) => ({
+        id: c.id,
+        name: [c.first_name, c.last_name].filter(Boolean).join(" "),
+        company: c.company,
+      })),
+    ),
+  );
+  for (const c of byName ?? []) contactIds.push(c.id);
+
+  const { data: messaging } = await admin
+    .from("contact_messaging_ids")
+    .select("contact_id, platform, external_sender_id")
+    .eq("restaurant_id", restaurant.id)
+    .eq("platform", "whatsapp")
+    .or(
+      `external_sender_id.ilike.%${phoneDigits}%,external_sender_id.ilike.%566172321%`,
+    )
+    .limit(20);
+  console.log("RESULT messaging_ids=", JSON.stringify(messaging ?? []));
+  for (const m of messaging ?? []) contactIds.push(m.contact_id);
+
+  // Pseudo-threads / labels (unlinked WAHA chats)
+  const { data: labeled } = await admin
+    .from("contact_messages")
+    .select(
+      "id, contact_id, conversation_key, conversation_label, body, direction, external_source_id, created_at",
+    )
+    .eq("restaurant_id", restaurant.id)
+    .eq("platform", "whatsapp")
+    .or(
+      `conversation_label.ilike.%SB Union%,conversation_label.ilike.%sb-union%,conversation_key.ilike.%${phoneDigits}%,conversation_key.ilike.%566172321%,body.ilike.%SB Union%`,
+    )
+    .order("created_at", { ascending: false })
+    .limit(40);
+  console.log(
+    "RESULT labeled_or_phone_messages=",
+    JSON.stringify(
+      (labeled ?? []).slice(0, 20).map((m) => ({
+        contact_id: m.contact_id,
+        conversation_key: m.conversation_key,
+        label: m.conversation_label,
+        direction: m.direction,
+        body: (m.body ?? "").slice(0, 120),
+        external_source_id: m.external_source_id,
+        created_at: m.created_at,
+      })),
+    ),
+  );
+  for (const m of labeled ?? []) {
+    if (m.contact_id) contactIds.push(m.contact_id);
+    if (m.conversation_key) contactIds.push(m.conversation_key);
   }
+  contactIds = [...new Set(contactIds.filter(Boolean))];
 
   if (contactIds.length > 0) {
-    const { data: contacts } = await admin
-      .from("contacts")
-      .select("id, first_name, last_name, company")
-      .in("id", contactIds);
-    console.log("RESULT contacts=", JSON.stringify(contacts));
+    const uuidIds = contactIds.filter((id) =>
+      /^[0-9a-f-]{36}$/i.test(id),
+    );
+    const pseudoKeys = contactIds.filter((id) => !/^[0-9a-f-]{36}$/i.test(id));
+    if (uuidIds.length) {
+      const { data: contacts } = await admin
+        .from("contacts")
+        .select("id, first_name, last_name, company")
+        .in("id", uuidIds);
+      console.log("RESULT contacts=", JSON.stringify(contacts));
+    }
 
-    const { data: msgs } = await admin
-      .from("contact_messages")
-      .select(
-        "id, contact_id, conversation_key, direction, body, external_source_id, created_at, delivery_status",
-      )
-      .eq("restaurant_id", restaurant.id)
-      .eq("platform", "whatsapp")
-      .in("contact_id", contactIds)
-      .order("created_at", { ascending: false })
-      .limit(30);
+    let msgs = [];
+    if (uuidIds.length) {
+      const { data } = await admin
+        .from("contact_messages")
+        .select(
+          "id, contact_id, conversation_key, direction, body, external_source_id, created_at, delivery_status",
+        )
+        .eq("restaurant_id", restaurant.id)
+        .eq("platform", "whatsapp")
+        .in("contact_id", uuidIds)
+        .order("created_at", { ascending: false })
+        .limit(40);
+      msgs = data ?? [];
+    }
+    if (pseudoKeys.length) {
+      const { data } = await admin
+        .from("contact_messages")
+        .select(
+          "id, contact_id, conversation_key, direction, body, external_source_id, created_at, delivery_status",
+        )
+        .eq("restaurant_id", restaurant.id)
+        .eq("platform", "whatsapp")
+        .in("conversation_key", pseudoKeys)
+        .order("created_at", { ascending: false })
+        .limit(40);
+      msgs = [...msgs, ...(data ?? [])];
+    }
+    // Prefer labeled hits if contact-linked empty
+    if (msgs.length === 0 && (labeled ?? []).length) {
+      msgs = labeled;
+    }
 
     const messageIds = (msgs ?? []).map((m) => m.id);
     const { data: atts } = messageIds.length

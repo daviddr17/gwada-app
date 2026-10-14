@@ -88,7 +88,7 @@ async function mirrorWahaThreadToDb(
 
   let existingQuery = admin
     .from("contact_messages")
-    .select("external_source_id, body, external_seen")
+    .select("id, external_source_id, body, external_seen")
     .eq("restaurant_id", params.restaurantId)
     .in("external_source_id", externalIds);
 
@@ -102,15 +102,21 @@ async function mirrorWahaThreadToDb(
 
   const known = new Map<
     string,
-    { body: string; externalSeen: boolean | null | undefined }
+    {
+      id: string;
+      body: string;
+      externalSeen: boolean | null | undefined;
+    }
   >();
   for (const row of existing ?? []) {
     const r = row as {
+      id: string;
       external_source_id: string;
       body: string;
       external_seen: boolean | null;
     };
     known.set(r.external_source_id, {
+      id: r.id,
       body: r.body ?? "",
       externalSeen: r.external_seen,
     });
@@ -182,6 +188,8 @@ async function mirrorWahaThreadToDb(
         }
         await updateQuery;
       }
+      // History re-mirror: also attach media meta for pre-fix rows (caption-only bodies).
+      await persistMediaIfNeeded(existingRow.id, m);
       continue;
     }
 

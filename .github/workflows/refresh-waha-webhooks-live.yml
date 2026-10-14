@@ -1,0 +1,94 @@
+# Bestehende WAHA-Sessions: Webhook-Events inkl. message.any neu setzen.
+name: Refresh WAHA webhooks live
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/triggers/refresh-waha-webhooks.env
+
+concurrency:
+  group: refresh-waha-webhooks-live
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Preflight (Secrets + SSH)
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: bash scripts/ci-live-secrets-preflight.sh
+
+      - name: Load live Supabase env from VPS + refresh webhooks
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          GWADA_LIVE_ORIGIN: https://gwada.app
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          # shellcheck source=scripts/gwada-ssh-lib.sh
+          source scripts/gwada-ssh-lib.sh
+
+          ENV_OUT="$(mktemp)"
+          gwada_ssh "root@${LIVE_VPS_HOST}" bash -s <<'REMOTE' >"${ENV_OUT}"
+          set -euo pipefail
+          container="$(
+            docker ps --format '{{.Names}}' \
+              | grep -E 'gwada|coolify' \
+              | grep -viE 'waha|postgres|redis|supabase|traefik|authelia' \
+              | head -1 || true
+          )"
+          if [ -z "${container}" ]; then
+            container="$(docker ps --format '{{.Names}}' | head -1 || true)"
+          fi
+          if [ -z "${container}" ]; then
+            echo "no_container" >&2
+            exit 1
+          fi
+          url="$(docker exec "${container}" printenv NEXT_PUBLIC_SUPABASE_URL 2>/dev/null || true)"
+          key="$(docker exec "${container}" printenv SUPABASE_SERVICE_ROLE_KEY 2>/dev/null || true)"
+          if [ -z "${url}" ] || [ -z "${key}" ]; then
+            # Coolify env files fallback
+            envf="$(find /data/coolify -name '.env' -type f 2>/dev/null | head -20 || true)"
+            for f in ${envf}; do
+              [ -f "$f" ] || continue
+              u="$(grep -E '^NEXT_PUBLIC_SUPABASE_URL=' "$f" | head -1 | cut -d= -f2- | tr -d '"' || true)"
+              k="$(grep -E '^SUPABASE_SERVICE_ROLE_KEY=' "$f" | head -1 | cut -d= -f2- | tr -d '"' || true)"
+              if [ -n "$u" ] && [ -n "$k" ]; then
+                url="$u"
+                key="$k"
+                break
+              fi
+            done
+          fi
+          if [ -z "${url}" ] || [ -z "${key}" ]; then
+            echo "missing_supabase_env container=${container}" >&2
+            exit 1
+          fi
+          printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "${url}"
+          printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "${key}"
+          REMOTE
+
+          set -a
+          # shellcheck disable=SC1090
+          source "${ENV_OUT}"
+          set +a
+          rm -f "${ENV_OUT}"
+          echo "Supabase URL geladen (Länge ${#NEXT_PUBLIC_SUPABASE_URL}), starte Webhook-Refresh …"
+          node scripts/refresh-waha-webhooks-live.mjs

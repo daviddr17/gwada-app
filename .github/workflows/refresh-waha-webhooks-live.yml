@@ -85,10 +85,18 @@ jobs:
           printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "${key}"
           REMOTE
 
-          set -a
-          # shellcheck disable=SC1090
-          source "${ENV_OUT}"
-          set +a
+          NEXT_PUBLIC_SUPABASE_URL="$(
+            grep -E '^NEXT_PUBLIC_SUPABASE_URL=' "${ENV_OUT}" | head -1 | cut -d= -f2-
+          )"
+          SUPABASE_SERVICE_ROLE_KEY="$(
+            grep -E '^SUPABASE_SERVICE_ROLE_KEY=' "${ENV_OUT}" | head -1 | cut -d= -f2-
+          )"
           rm -f "${ENV_OUT}"
+          if [ -z "${NEXT_PUBLIC_SUPABASE_URL}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY}" ]; then
+            echo "::error::Supabase-Env vom VPS unvollständig"
+            exit 1
+          fi
+          export NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GWADA_LIVE_ORIGIN
           echo "Supabase URL geladen (Länge ${#NEXT_PUBLIC_SUPABASE_URL}), starte Webhook-Refresh …"
+          npm install --no-save @supabase/supabase-js@2 >/dev/null
           node scripts/refresh-waha-webhooks-live.mjs

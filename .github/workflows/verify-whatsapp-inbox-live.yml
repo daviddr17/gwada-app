@@ -1,0 +1,98 @@
+name: Verify WhatsApp inbox live
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/triggers/verify-whatsapp-inbox.env
+
+concurrency:
+  group: verify-whatsapp-inbox-live
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Preflight (Secrets + SSH)
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: bash scripts/ci-live-secrets-preflight.sh
+
+      - name: Load live Supabase env + verify inbox
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          GWADA_LIVE_ORIGIN: https://gwada.app
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          # shellcheck source=scripts/gwada-ssh-lib.sh
+          source scripts/gwada-ssh-lib.sh
+
+          ENV_OUT="$(mktemp)"
+          gwada_ssh "root@${LIVE_VPS_HOST}" bash -s <<'REMOTE' >"${ENV_OUT}"
+          set -euo pipefail
+          COOLIFY_APP_ID="${GWADA_COOLIFY_APP_UUID:-d3cg1b54arvue2tcm8u34qty}"
+          COMPOSE_DIR="/data/coolify/applications/${COOLIFY_APP_ID}"
+          url=""
+          key=""
+          container="$(
+            docker ps --format '{{.Names}}' \
+              | grep "${COOLIFY_APP_ID}-" \
+              | head -1 || true
+          )"
+          if [ -n "${container}" ]; then
+            url="$(docker exec "${container}" printenv NEXT_PUBLIC_SUPABASE_URL 2>/dev/null || true)"
+            key="$(docker exec "${container}" printenv SUPABASE_SERVICE_ROLE_KEY 2>/dev/null || true)"
+          fi
+          is_http_url() {
+            case "$1" in
+              http://*|https://*) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+          if ! is_http_url "${url}" || [ -z "${key}" ]; then
+            for f in "${COMPOSE_DIR}/.env" "${COMPOSE_DIR}/.env.production"; do
+              [ -f "$f" ] || continue
+              u="$(grep -E '^NEXT_PUBLIC_SUPABASE_URL=' "$f" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+              k="$(grep -E '^SUPABASE_SERVICE_ROLE_KEY=' "$f" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+              if is_http_url "$u" && [ -n "$k" ]; then
+                url="$u"
+                key="$k"
+                break
+              fi
+            done
+          fi
+          if ! is_http_url "${url}" || [ -z "${key}" ]; then
+            echo "missing_supabase_env" >&2
+            exit 1
+          fi
+          printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "${url}"
+          printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "${key}"
+          REMOTE
+
+          NEXT_PUBLIC_SUPABASE_URL="$(
+            grep -E '^NEXT_PUBLIC_SUPABASE_URL=' "${ENV_OUT}" | head -1 | cut -d= -f2-
+          )"
+          SUPABASE_SERVICE_ROLE_KEY="$(
+            grep -E '^SUPABASE_SERVICE_ROLE_KEY=' "${ENV_OUT}" | head -1 | cut -d= -f2-
+          )"
+          rm -f "${ENV_OUT}"
+          export NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
+          npm install --no-save @supabase/supabase-js@2 >/dev/null
+          node scripts/verify-whatsapp-inbox-live.mjs

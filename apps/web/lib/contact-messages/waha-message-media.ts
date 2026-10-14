@@ -36,17 +36,45 @@ function readStringField(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function unwrapProtobufMessage(
+  data: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+  if (!data) return null;
+  const message = asRecord(data.message) ?? data;
+  if (!message) return null;
+
+  for (const key of [
+    "ephemeralMessage",
+    "viewOnceMessage",
+    "viewOnceMessageV2",
+    "viewOnceMessageV2Extension",
+    "documentWithCaptionMessage",
+    "editedMessage",
+    "futureProofMessage",
+  ] as const) {
+    const wrapped = asRecord(message[key]);
+    const nested = asRecord(wrapped?.message);
+    if (nested) return unwrapProtobufMessage({ message: nested });
+  }
+  return message;
+}
+
 function protobufMediaKind(
   data: Record<string, unknown> | null | undefined,
 ): string | null {
-  if (!data) return null;
-  const message = data.message;
-  if (!message || typeof message !== "object") return null;
-  const msg = message as Record<string, unknown>;
+  const msg = unwrapProtobufMessage(data);
+  if (!msg) return null;
   if (msg.audioMessage || msg.pttMessage) return "ptt";
   if (msg.videoMessage) return "video";
   if (msg.imageMessage || msg.stickerMessage) return "image";
   if (msg.documentMessage) return "document";
+  if (msg.productMessage || msg.orderMessage) return "image";
   return null;
 }
 
@@ -328,6 +356,9 @@ export function wahaWebhookPayloadMediaKind(
   } | null
   | undefined,
 ): ContactMessageAttachmentKind | null {
-  if (!payload?.hasMedia) return null;
-  return parseWahaMessageMedia(payload as WahaChatMessage)?.kind ?? "file";
+  if (!payload) return null;
+  const parsed = parseWahaMessageMedia(payload as WahaChatMessage);
+  if (parsed) return parsed.kind;
+  if (payload.hasMedia) return "file";
+  return null;
 }

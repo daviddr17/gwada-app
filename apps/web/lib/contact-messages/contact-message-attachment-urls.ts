@@ -1,5 +1,6 @@
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import { parseImapAttachmentStoragePath } from "@/lib/contact-messages/imap-attachment-storage-path";
+import { parseWahaAttachmentStoragePath } from "@/lib/contact-messages/waha-attachment-storage-path";
 
 export function gwadaAttachmentDownloadUrl(params: {
   restaurantId: string;
@@ -42,7 +43,7 @@ export function emailAttachmentProxyUrl(params: {
   return `/api/contact-messages/email/attachment?${q.toString()}`;
 }
 
-/** URL für DB-Anhangzeile: IMAP-Proxy (lazy) oder Storage-Download. */
+/** URL für DB-Anhangzeile: IMAP-/WAHA-Proxy oder Storage-Download. */
 export function attachmentUrlFromStoragePath(params: {
   restaurantId: string;
   messageId: string;
@@ -55,6 +56,14 @@ export function attachmentUrlFromStoragePath(params: {
       restaurantId: params.restaurantId,
       uid: imap.uid,
       index: imap.index,
+    });
+  }
+  const waha = parseWahaAttachmentStoragePath(params.storagePath);
+  if (waha) {
+    return wahaMediaProxyUrl({
+      restaurantId: params.restaurantId,
+      chatId: waha.chatId,
+      messageId: waha.messageId,
     });
   }
   return gwadaAttachmentDownloadUrl({

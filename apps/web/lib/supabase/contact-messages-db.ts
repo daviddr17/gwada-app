@@ -8,13 +8,12 @@ import { buildContactConversationsFromRows } from "@/lib/contact-messages/build-
 import { enrichConversationPreviewAvatars } from "@/lib/contact-messages/enrich-conversation-preview-avatars";
 import { CONVERSATION_LIST_MESSAGE_ROW_LIMIT } from "@/lib/contact-messages/conversation-list-limits";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { attachmentUrlFromStoragePath } from "@/lib/contact-messages/contact-message-attachment-urls";
-import { isImapAttachmentStoragePath } from "@/lib/contact-messages/imap-attachment-storage-path";
 import {
   fetchMessageAttachmentsForRestaurant,
   groupAttachmentsByMessageId,
   type RawMessageAttachmentRow,
 } from "@/lib/contact-messages/fetch-message-attachments";
+import { mapRawMessageAttachmentRow } from "@/lib/contact-messages/map-raw-message-attachment";
 import {
   conversationThreadKeyFromRow,
 } from "@/lib/contact-messages/conversation-thread-key";
@@ -137,22 +136,9 @@ export function mapContactMessageRowFromRecord(
 ): ContactMessageRow {
   const restaurantId = raw.restaurant_id as string;
   const messageId = raw.id as string;
-  const attachments: ContactMessageAttachment[] = attachmentRows.map((a) => ({
-    id: a.id,
-    kind: a.kind === "image" ? "image" : "file",
-    fileName: a.file_name,
-    mimeType: a.mime_type,
-    byteSize: a.byte_size,
-    url: attachmentUrlFromStoragePath({
-      restaurantId,
-      messageId,
-      attachmentId: a.id,
-      storagePath: a.storage_path,
-    }),
-    ...(isImapAttachmentStoragePath(a.storage_path)
-      ? { loadOnClick: true as const }
-      : {}),
-  }));
+  const attachments = attachmentRows.map((a) =>
+    mapRawMessageAttachmentRow(a, { restaurantId, messageId }),
+  );
 
   return {
     ...(raw as ContactMessageRow),

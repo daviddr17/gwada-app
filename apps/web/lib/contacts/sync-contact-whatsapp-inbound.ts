@@ -11,6 +11,7 @@ import {
 } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
+import { persistWahaAttachmentMeta } from "@/lib/contact-messages/persist-waha-attachment-meta";
 import { sanitizeConversationLabelForStorage } from "@/lib/contact-messages/waha-chat-label";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-whatsapp-phone";
@@ -115,6 +116,28 @@ async function mirrorWahaThreadToDb(
     });
   }
 
+  const chatIdForMedia =
+    params.chatIdOverride?.trim() ||
+    (isWahaPseudoContactId(params.threadKey)
+      ? wahaChatIdFromPseudoContactId(params.threadKey)
+      : null);
+
+  const persistMediaIfNeeded = async (
+    messageId: string | undefined,
+    row: ContactMessageRow,
+  ) => {
+    const mediaKind = row.attachments?.[0]?.kind;
+    const wahaMessageId = row.waha_message_id?.trim() || row.id.replace(/^waha:/, "");
+    if (!messageId || !mediaKind || !chatIdForMedia || !wahaMessageId) return;
+    await persistWahaAttachmentMeta(admin, {
+      restaurantId: params.restaurantId,
+      messageId,
+      chatId: chatIdForMedia,
+      wahaMessageId,
+      mediaKind,
+    });
+  };
+
   let imported = 0;
   for (const m of toMirror) {
     if (!m.id.startsWith("waha:")) continue;
@@ -179,7 +202,10 @@ async function mirrorWahaThreadToDb(
         suppressNotifications: true,
         externalSeen,
       });
-      if (inserted.inserted) imported += 1;
+      if (inserted.inserted) {
+        imported += 1;
+        await persistMediaIfNeeded(inserted.messageId, m);
+      }
       continue;
     }
 
@@ -198,7 +224,10 @@ async function mirrorWahaThreadToDb(
       ),
       externalSeen,
     });
-    if (result.imported) imported += 1;
+    if (result.imported) {
+      imported += 1;
+      await persistMediaIfNeeded(result.messageId, m);
+    }
   }
 
   return { imported, error: null };

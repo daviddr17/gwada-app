@@ -9,12 +9,8 @@ import {
   conversationLabelForWahaInboundIdentity,
   resolveWahaInboundIdentity,
 } from "@/lib/contact-messages/waha-inbound-identity-server";
-import {
-  wahaWebhookPayloadMediaKind,
-} from "@/lib/contact-messages/waha-message-media";
-import {
-  whatsappMediaMirrorBody,
-} from "@/lib/notifications/message-push-preview";
+import { resolveWahaInboundMirrorContent } from "@/lib/contact-messages/waha-message-content";
+import { persistWahaAttachmentMeta } from "@/lib/contact-messages/persist-waha-attachment-meta";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
 import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
 import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
@@ -97,7 +93,9 @@ export async function handleWahaWebhook(
   body: WahaWebhookBody,
 ): Promise<WahaWebhookResult> {
   const event = body.event?.trim();
-  if (event === "message") {
+  // `message` = inbound; `message.any` = all creations including phone fromMe.
+  // Dedup via external_source_id / outbound link — safe if both fire.
+  if (event === "message" || event === "message.any") {
     return handleWahaInboundWebhook(admin, body);
   }
   if (event === "message.ack") {
@@ -165,15 +163,16 @@ export async function handleWahaInboundWebhook(
     pushName,
   });
 
-  const mediaKind = payload.hasMedia
-    ? wahaWebhookPayloadMediaKind(payload)
-    : null;
-  const bodyText = payload.body?.trim() ?? "";
-  if (!bodyText && !payload.hasMedia) {
-    return { ok: true, imported: false, reason: "empty_body" };
+  const mirrored = resolveWahaInboundMirrorContent(payload);
+  if (!mirrored.hasContent) {
+    return {
+      ok: true,
+      imported: false,
+      reason: "empty_body",
+    };
   }
-  const mirrorBody =
-    bodyText || whatsappMediaMirrorBody(mediaKind);
+  const mirrorBody = mirrored.body || "WhatsApp-Nachricht";
+  const mediaKind = mirrored.mediaKind;
 
   const scheduleAvatarSync = (linkedContactId: string | null) => {
     void syncWhatsappChatAvatarFromWaha(admin, {
@@ -185,8 +184,21 @@ export async function handleWahaInboundWebhook(
     });
   };
 
+  const persistMediaMeta = (messageId: string | undefined) => {
+    if (!messageId || !mediaKind) return;
+    void persistWahaAttachmentMeta(admin, {
+      restaurantId,
+      messageId,
+      chatId,
+      wahaMessageId: payload.id!,
+      mediaKind,
+    }).catch(() => {
+      /* Meta optional — Caption bleibt in body */
+    });
+  };
+
   if (!contactId) {
-    const { imported } = await ingestInboundContactMessage(admin, {
+    const { imported, messageId } = await ingestInboundContactMessage(admin, {
       restaurantId,
       contactId: identity.pseudoContactId,
       platform: "whatsapp",
@@ -204,13 +216,14 @@ export async function handleWahaInboundWebhook(
       source: "waha",
     });
 
+    if (imported) persistMediaMeta(messageId);
     scheduleAvatarSync(null);
 
     return { ok: true, imported };
   }
 
   const externalSourceId = `waha:${payload.id}`;
-  const { imported } = await ingestInboundContactMessage(admin, {
+  const { imported, messageId } = await ingestInboundContactMessage(admin, {
     restaurantId,
     contactId,
     platform: "whatsapp",
@@ -222,6 +235,7 @@ export async function handleWahaInboundWebhook(
     externalSeen: false,
   });
 
+  if (imported) persistMediaMeta(messageId);
   scheduleAvatarSync(contactId);
 
   return { ok: true, imported };
@@ -249,12 +263,8 @@ async function handleWahaOutboundMirrorWebhook(
     return { ok: true, imported: false, reason: "non_direct_chat" };
   }
 
-  const mediaKind = payload.hasMedia
-    ? wahaWebhookPayloadMediaKind(payload)
-    : null;
-  const bodyText = payload.body?.trim() ?? "";
-  const mirrorBody =
-    bodyText || whatsappMediaMirrorBody(mediaKind);
+  const mirrored = resolveWahaInboundMirrorContent(payload);
+  const mirrorBody = mirrored.body || " ";
 
   const ack =
     typeof payload.ack === "number" && Number.isFinite(payload.ack)
@@ -271,6 +281,18 @@ async function handleWahaOutboundMirrorWebhook(
     createdAt: wahaTimestampToIso(payload.timestamp),
     deliveryStatus,
   });
+
+  if (linked.imported && linked.messageId && mirrored.mediaKind) {
+    void persistWahaAttachmentMeta(admin, {
+      restaurantId,
+      messageId: linked.messageId,
+      chatId,
+      wahaMessageId: payload.id,
+      mediaKind: mirrored.mediaKind,
+    }).catch(() => {
+      /* Meta optional */
+    });
+  }
 
   await insertInboxSignalServer(admin, {
     restaurantId,

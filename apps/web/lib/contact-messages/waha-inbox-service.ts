@@ -24,6 +24,10 @@ import {
 } from "@/lib/waha/waha-message-reactions";
 import { wahaMediaProxyUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
 import {
+  extractWahaMessageDisplayText,
+  resolveWahaInboundMirrorContent,
+} from "@/lib/contact-messages/waha-message-content";
+import {
   parseWahaMessageMedia,
   wahaMessageHasDisplayableMedia,
 } from "@/lib/contact-messages/waha-message-media";
@@ -365,13 +369,21 @@ export async function fetchWahaThreadMessages(
   }
 
   const rows: ContactMessageRow[] = result.data
-    .filter(
-      (m) =>
-        !isWahaReactionEventMessage(m) &&
-        ((m.body ?? "").trim().length > 0 || wahaMessageHasDisplayableMedia(m)),
-    )
+    .filter((m) => {
+      if (isWahaReactionEventMessage(m)) return false;
+      const mirrored = resolveWahaInboundMirrorContent(m);
+      return (
+        mirrored.hasContent ||
+        (m.body ?? "").trim().length > 0 ||
+        wahaMessageHasDisplayableMedia(m)
+      );
+    })
     .map((m: WahaChatMessage) => {
-      const body = (m.body ?? "").trim();
+      const mirrored = resolveWahaInboundMirrorContent(m);
+      const body =
+        mirrored.body ||
+        extractWahaMessageDisplayText(m) ||
+        (m.body ?? "").trim();
       const media = parseWahaMessageMedia(m);
       const reactions = mergeReactionsOntoRow(
         m.id,
@@ -408,7 +420,36 @@ export async function fetchWahaThreadMessages(
                 }),
               },
             ]
-          : undefined,
+          : mirrored.mediaKind
+            ? [
+                {
+                  id: "0",
+                  kind: mirrored.mediaKind,
+                  fileName:
+                    mirrored.mediaKind === "image"
+                      ? "Bild"
+                      : mirrored.mediaKind === "video"
+                        ? "Video"
+                        : mirrored.mediaKind === "voice"
+                          ? "Sprachnachricht"
+                          : "Datei",
+                  mimeType:
+                    mirrored.mediaKind === "image"
+                      ? "image/jpeg"
+                      : mirrored.mediaKind === "video"
+                        ? "video/mp4"
+                        : mirrored.mediaKind === "voice"
+                          ? "audio/ogg; codecs=opus"
+                          : "application/octet-stream",
+                  durationSeconds: null,
+                  url: wahaMediaProxyUrl({
+                    restaurantId: params.restaurantId,
+                    chatId,
+                    messageId: m.id,
+                  }),
+                },
+              ]
+            : undefined,
       };
     })
     .sort((a, b) => a.created_at.localeCompare(b.created_at));

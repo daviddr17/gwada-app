@@ -62,7 +62,7 @@ export function wahaLastMessagePreview(last: WahaLastMessageLike | null | undefi
 
   const media = parseWahaMessageMedia(last as WahaChatMessage);
   const mirrored = resolveWahaInboundMirrorContent(last);
-  const attachmentKind = media?.kind ?? mirrored.mediaKind;
+  const attachmentKind = media?.kind ?? mirrored.mediaKind ?? undefined;
 
   const body =
     extractWahaMessageDisplayText(last) ||

@@ -91,16 +91,29 @@ function productDisplayText(node: Record<string, unknown> | null): string {
  * Caption / body text from WAHA top-level fields or WhatsApp protobuf `_data`.
  * Covers image+caption, extended text (link preview), catalog/product, buttons, lists.
  */
-export function extractWahaMessageDisplayText(raw: {
+type WahaDisplayTextSource = {
   body?: string | null;
   caption?: string | null;
+  hasMedia?: boolean;
+  type?: string;
   _data?: unknown;
-  media?: { caption?: string | null } | null;
-}): string {
+  media?: {
+    caption?: string | null;
+    url?: string | null;
+    mimetype?: string | null;
+    filename?: string | null;
+  } | null;
+};
+
+export function extractWahaMessageDisplayText(raw: WahaDisplayTextSource): string {
+  const mediaCaption =
+    raw.media && typeof raw.media === "object"
+      ? readStringField((raw.media as { caption?: unknown }).caption)
+      : "";
   const top =
     readStringField(raw.body) ||
     readStringField(raw.caption) ||
-    readStringField(raw.media?.caption);
+    mediaCaption;
   if (top) return top;
 
   const data = asRecord(raw._data);
@@ -213,13 +226,9 @@ function protobufHasThumbnail(message: Record<string, unknown>): boolean {
   );
 }
 
-export function detectWahaMessageMediaKind(raw: {
-  body?: string | null;
-  hasMedia?: boolean;
-  type?: string;
-  media?: { mimetype?: string | null } | null;
-  _data?: unknown;
-}): ContactMessageAttachmentKind | null {
+export function detectWahaMessageMediaKind(
+  raw: WahaDisplayTextSource,
+): ContactMessageAttachmentKind | null {
   const parsed = parseWahaMessageMedia(raw as WahaChatMessage);
   if (parsed) return parsed.kind;
 
@@ -255,14 +264,9 @@ export type WahaInboundMirrorContent = {
  * Body + media kind for DB mirror / webhook ingest.
  * Prefers real caption/text; falls back to media label; never blank when content exists.
  */
-export function resolveWahaInboundMirrorContent(raw: {
-  body?: string | null;
-  caption?: string | null;
-  hasMedia?: boolean;
-  type?: string;
-  media?: { mimetype?: string | null; caption?: string | null } | null;
-  _data?: unknown;
-}): WahaInboundMirrorContent {
+export function resolveWahaInboundMirrorContent(
+  raw: WahaDisplayTextSource,
+): WahaInboundMirrorContent {
   const mediaKind = detectWahaMessageMediaKind(raw);
   const text = extractWahaMessageDisplayText(raw);
   if (text) {

@@ -94,8 +94,8 @@ function productDisplayText(node: Record<string, unknown> | null): string {
 type WahaDisplayTextSource = {
   body?: string | null;
   caption?: string | null;
-  hasMedia?: boolean;
-  type?: string;
+  hasMedia?: boolean | null;
+  type?: string | null;
   _data?: unknown;
   media?: {
     caption?: string | null;

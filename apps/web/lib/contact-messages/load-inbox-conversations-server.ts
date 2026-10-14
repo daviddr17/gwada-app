@@ -1,6 +1,7 @@
 import "server-only";
 
 import { fetchContactConversationsAdmin } from "@/lib/contact-messages/fetch-contact-conversations-admin";
+import { fetchMetaInboxConversations } from "@/lib/contact-messages/meta-inbox-service";
 import { enrichConversationPreviewAvatars } from "@/lib/contact-messages/enrich-conversation-preview-avatars";
 import { enrichConversationsWithFollowUps } from "@/lib/contact-messages/conversation-follow-ups-server";
 import {
@@ -19,6 +20,26 @@ export type LoadInboxConversationsServerResult = {
   channels: RestaurantChannelConnectionsPayload;
 };
 
+const LIVE_META_INBOX_PLATFORMS = ["facebook", "instagram"] as const;
+
+async function fetchLiveMetaConversations(
+  admin: SupabaseClient,
+  restaurantId: string,
+  platform: "facebook" | "instagram",
+): Promise<ContactConversationPreview[]> {
+  try {
+    const result = await fetchMetaInboxConversations(
+      admin,
+      restaurantId,
+      platform,
+    );
+    if (result.error) return [];
+    return result.data;
+  } catch {
+    return [];
+  }
+}
+
 async function fetchPlatformConversationsAdmin(
   admin: SupabaseClient,
   params: {
@@ -30,7 +51,8 @@ async function fetchPlatformConversationsAdmin(
   return enrichConversationPreviewAvatars(admin, rows);
 }
 
-/** Ein Server-Roundtrip: Kanäle auflösen + Konversationsliste aus DB (Admin). */
+/** Posteingang aus der DB, plus Live-Graph für verbundene Facebook- und Instagram-Seiten.
+ *  Webhooks erst nach dem Meta-Review. */
 export async function loadInboxConversationsServer(
   admin: SupabaseClient,
   params: {
@@ -55,9 +77,22 @@ export async function loadInboxConversationsServer(
     ),
   );
 
-  const merged = params.platform
-    ? (sources[0] ?? [])
-    : mergeInboxConversationPreviews(sources);
+  const liveMetaPlatforms = LIVE_META_INBOX_PLATFORMS.filter((platform) => {
+    if (!platforms.includes(platform)) return false;
+    return platform === "facebook"
+      ? channels.facebookConnected
+      : channels.instagramConnected;
+  });
+  const liveMetaSources = await Promise.all(
+    liveMetaPlatforms.map((platform) =>
+      fetchLiveMetaConversations(admin, params.restaurantId, platform),
+    ),
+  );
+
+  const merged = mergeInboxConversationPreviews([
+    ...sources,
+    ...liveMetaSources,
+  ]);
 
   const withReads = await enrichUnifiedInboxReadStateServer(admin, {
     restaurantId: params.restaurantId,

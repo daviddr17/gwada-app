@@ -197,7 +197,14 @@ function messagesMatchForOptimisticReplace(
   loaded: ContactMessageRow,
 ): boolean {
   if (loaded.direction !== "outbound") return false;
-  if (messageDisplayPlatform(loaded) !== "whatsapp") return false;
+  const platform = messageDisplayPlatform(loaded);
+  if (messageDisplayPlatform(optimistic) !== platform) return false;
+  if (platform === "facebook" || platform === "instagram") {
+    const optBody = optimistic.body.trim();
+    const loadedBody = loaded.body.trim();
+    return Boolean(optBody) && optBody === loadedBody;
+  }
+  if (platform !== "whatsapp") return false;
 
   const optAttachments = optimistic.attachments ?? [];
   const loadedAttachments = loaded.attachments ?? [];

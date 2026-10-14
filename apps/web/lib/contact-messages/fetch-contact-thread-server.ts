@@ -7,6 +7,8 @@ import {
 import { isEmailPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
+import { mergeMetaThreadMessages } from "@/lib/contact-messages/merge-meta-thread-messages";
+import { fetchMetaThreadMessages } from "@/lib/contact-messages/meta-inbox-service";
 import { isMetaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
 import {
   isWahaPseudoContactId,
@@ -306,6 +308,38 @@ async function loadConversationThreadSlice(
   error: string | null;
 }> {
   const { restaurantId, threadKey, pageLimit, before } = params;
+
+  if (isMetaPseudoContactId(threadKey) && !before) {
+    const tGraph = performance.now();
+    const graph = await fetchMetaThreadMessages(admin, {
+      restaurantId,
+      contactId: threadKey,
+      limit: pageLimit,
+    });
+    mark("meta-graph", Math.round(performance.now() - tGraph), {
+      fetched: graph.data.length,
+      apiLimit: pageLimit,
+      returned: graph.data.length,
+    });
+    if (!graph.error && graph.data.length > 0) {
+      const stored = await fetchContactMessagesAdmin(admin, {
+        restaurantId,
+        threadKey,
+        limit: pageLimit,
+      });
+      const messages = mergeMetaThreadMessages(
+        graph.data,
+        stored.error ? [] : stored.data,
+      );
+      return {
+        messages,
+        hasMore: false,
+        oldestCursor: messages[0]?.created_at ?? null,
+        error: null,
+      };
+    }
+  }
+
   const t0 = performance.now();
   const db = await fetchContactMessagesAdmin(admin, {
     restaurantId,

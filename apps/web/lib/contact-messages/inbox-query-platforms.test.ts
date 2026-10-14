@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { inboxQueryPlatformsForChannels } from "./inbox-query-platforms";
+import { inboxQueryPlatformsForChannels } from "./inbox-query-platforms.ts";
 
 const baseChannels = {
   whatsappEnabled: true,

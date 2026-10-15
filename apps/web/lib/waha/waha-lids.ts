@@ -46,6 +46,13 @@ export type WahaContactInfo = {
   name?: string | null;
   pushname?: string | null;
   shortName?: string | null;
+  /** WhatsApp Business verified name (engine-dependent). */
+  verifiedName?: string | null;
+  verifiedBizName?: string | null;
+  businessName?: string | null;
+  companyName?: string | null;
+  formattedTitle?: string | null;
+  notifyName?: string | null;
 };
 
 /** WhatsApp Linked ID — kein Telefon, nur interne Kennung (z. B. `31142858252478@lid`). */

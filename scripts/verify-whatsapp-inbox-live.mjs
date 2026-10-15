@@ -616,6 +616,70 @@ async function main() {
   );
 
   const sessionName = wahaSessionName(restaurant.id);
+
+  // Business display name: overview lastMessage._data.verifiedBizName
+  try {
+    const overviewUrl = `${baseUrl}/api/${encodeURIComponent(sessionName)}/chats/overview?limit=5&ids=${encodeURIComponent(SB_UNION_CHAT_ID)}`;
+    const overviewRes = await fetch(overviewUrl, {
+      headers: { Accept: "application/json", "X-Api-Key": apiKey },
+    });
+    const overviewRaw = overviewRes.ok ? await overviewRes.json() : null;
+    const overviewList = Array.isArray(overviewRaw)
+      ? overviewRaw
+      : (overviewRaw?.chats ?? []);
+    const chat = overviewList[0] ?? null;
+    const lastData =
+      chat?.lastMessage?._data && typeof chat.lastMessage._data === "object"
+        ? chat.lastMessage._data
+        : null;
+    const businessName =
+      (typeof lastData?.verifiedBizName === "string" &&
+        lastData.verifiedBizName.trim()) ||
+      (typeof chat?.name === "string" &&
+      chat.name.trim() &&
+      !/^\+?[\d\s().-]+$/.test(chat.name.trim())
+        ? chat.name.trim()
+        : "") ||
+      "";
+    console.log(
+      `RESULT sb_union_overview_name=${JSON.stringify(chat?.name ?? null)} verifiedBizName=${JSON.stringify(lastData?.verifiedBizName ?? null)} chosen=${JSON.stringify(businessName || null)}`,
+    );
+    if (businessName) {
+      const { data: labelRows } = await admin
+        .from("contact_messages")
+        .select("id, conversation_label")
+        .eq("restaurant_id", restaurant.id)
+        .eq("conversation_key", SB_UNION_CONVERSATION_KEY)
+        .limit(200);
+      const toUpdate = (labelRows ?? [])
+        .filter((row) => {
+          const current = (row.conversation_label ?? "").trim();
+          if (!current) return true;
+          if (current === businessName) return false;
+          return /^\+?[\d\s().-]+$/.test(current) || current.includes("@");
+        })
+        .map((row) => row.id);
+      if (toUpdate.length > 0) {
+        const { error: labelErr } = await admin
+          .from("contact_messages")
+          .update({ conversation_label: businessName })
+          .eq("restaurant_id", restaurant.id)
+          .in("id", toUpdate);
+        console.log(
+          `RESULT sb_union_label_backfill updated=${toUpdate.length} error=${labelErr?.message ?? "null"} label=${JSON.stringify(businessName)}`,
+        );
+      } else {
+        console.log(
+          `RESULT sb_union_label_backfill updated=0 label=${JSON.stringify(businessName)}`,
+        );
+      }
+    }
+  } catch (e) {
+    console.log(
+      `RESULT sb_union_overview_error=${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+
   const res = await fetch(
     `${baseUrl}/api/sessions/${encodeURIComponent(sessionName)}`,
     { headers: { Accept: "application/json", "X-Api-Key": apiKey } },

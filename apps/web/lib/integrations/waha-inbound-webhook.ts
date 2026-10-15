@@ -11,6 +11,7 @@ import {
 } from "@/lib/contact-messages/waha-inbound-identity-server";
 import { resolveWahaInboundMirrorContent } from "@/lib/contact-messages/waha-message-content";
 import { persistWahaAttachmentMeta } from "@/lib/contact-messages/persist-waha-attachment-meta";
+import { persistWahaConversationDisplayLabel } from "@/lib/contact-messages/persist-waha-conversation-label-server";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
 import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
 import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
@@ -40,7 +41,14 @@ export type WahaWebhookBody = {
     ackName?: string;
     pushName?: string;
     notifyName?: string;
-    _data?: { notifyName?: string; pushName?: string };
+    verifiedBizName?: string;
+    _data?: {
+      notifyName?: string;
+      pushName?: string;
+      verifiedBizName?: string;
+      verifiedName?: string;
+      businessName?: string;
+    };
   };
 };
 
@@ -143,7 +151,14 @@ export async function handleWahaInboundWebhook(
     return { ok: true, imported: false, reason: "non_direct_chat" };
   }
 
+  const businessName =
+    payload.verifiedBizName ??
+    payload._data?.verifiedBizName ??
+    payload._data?.verifiedName ??
+    payload._data?.businessName ??
+    null;
   const pushName =
+    businessName ??
     payload.pushName ??
     payload.notifyName ??
     payload._data?.notifyName ??
@@ -154,6 +169,7 @@ export async function handleWahaInboundWebhook(
     restaurantId,
     chatId,
     pushName,
+    verifiedBizName: businessName,
   });
   const conversationLabel = conversationLabelForWahaInboundIdentity(identity);
 
@@ -210,6 +226,16 @@ export async function handleWahaInboundWebhook(
       conversationLabel,
       externalSeen: false,
     });
+
+    if (conversationLabel) {
+      void persistWahaConversationDisplayLabel(admin, {
+        restaurantId,
+        conversationKey: identity.pseudoContactId,
+        label: conversationLabel,
+      }).catch(() => {
+        /* Label-Backfill optional */
+      });
+    }
 
     await insertInboxSignalServer(admin, {
       restaurantId,

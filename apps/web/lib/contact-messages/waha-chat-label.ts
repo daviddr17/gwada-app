@@ -221,6 +221,27 @@ function stringField(obj: Record<string, unknown>, key: string): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
+/**
+ * WhatsApp Business / verified names from WAHA (NOWEB: `_data.verifiedBizName`).
+ * Prefer these over pushName and never return phone/JID placeholders.
+ */
+export function extractWahaBusinessDisplayName(
+  ...sources: (Record<string, unknown> | null | undefined)[]
+): string | null {
+  const candidates: (string | null)[] = [];
+  for (const source of sources) {
+    if (!source) continue;
+    candidates.push(
+      stringField(source, "verifiedBizName"),
+      stringField(source, "verifiedName"),
+      stringField(source, "formattedTitle"),
+      stringField(source, "businessName"),
+      stringField(source, "companyName"),
+    );
+  }
+  return pickReadableName(...candidates);
+}
+
 /** Verknüpfter Gwada-Kontakt (optional mit Firma). */
 export type WahaMatchedGwadaContact = {
   name: string;
@@ -234,10 +255,7 @@ export function displayNameFromWahaContactInfo(
   if (!contact) return null;
   const raw = contact as Record<string, unknown>;
   return pickReadableName(
-    stringField(raw, "verifiedName"),
-    stringField(raw, "formattedTitle"),
-    stringField(raw, "businessName"),
-    stringField(raw, "companyName"),
+    extractWahaBusinessDisplayName(raw),
     contact.name,
     contact.pushname,
     contact.shortName,
@@ -337,14 +355,17 @@ export function displayNameFromChatOverview(
     chat._chat && typeof chat._chat === "object" && !Array.isArray(chat._chat)
       ? (chat._chat as Record<string, unknown>)
       : null;
+  const lastData =
+    chat.lastMessage?._data &&
+    typeof chat.lastMessage._data === "object" &&
+    !Array.isArray(chat.lastMessage._data)
+      ? (chat.lastMessage._data as Record<string, unknown>)
+      : null;
 
   return pickReadableName(
-    inner ? stringField(inner, "verifiedName") : null,
-    inner ? stringField(inner, "formattedTitle") : null,
+    extractWahaBusinessDisplayName(inner, lastData),
     inner ? stringField(inner, "notifyName") : null,
     inner ? stringField(inner, "pushname") : null,
-    inner ? stringField(inner, "businessName") : null,
-    inner ? stringField(inner, "companyName") : null,
     chat.name,
     inner ? stringField(inner, "name") : null,
     inner ? stringField(inner, "subject") : null,
@@ -413,7 +434,8 @@ export function wahaChatListDisplayName(params: {
     iso,
   );
   if (phoneLabel) {
-    return { label: phoneLabel, needsApiResolve: false };
+    // Phone is a usable fallback, but still try WAHA business/verified names.
+    return { label: phoneLabel, needsApiResolve: true };
   }
 
   return { label: "WhatsApp", needsApiResolve: true };

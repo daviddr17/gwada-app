@@ -38,6 +38,8 @@ export async function resolveWahaInboundIdentity(
     restaurantId: string;
     chatId: string;
     pushName?: string | null;
+    /** WAHA/NOWEB business name (`verifiedBizName`) — preferred over pushName. */
+    verifiedBizName?: string | null;
     defaultCountryIso2?: string;
   },
 ): Promise<WahaInboundIdentity> {
@@ -58,8 +60,10 @@ export async function resolveWahaInboundIdentity(
     ? phoneDisplayFromParse(phoneRes.phoneForParse, iso)
     : null;
 
-  const pushReadable = pickReadableName(params.pushName);
-  let displayLabel = pushReadable;
+  let displayLabel = pickReadableName(
+    params.verifiedBizName,
+    params.pushName,
+  );
 
   if (!displayLabel) {
     const config = await getWahaServerConfigForRestaurantAdmin(

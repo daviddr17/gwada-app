@@ -7,6 +7,7 @@ import {
   metaPlatformFromPseudoContactId,
 } from "@/lib/contact-messages/meta-pseudo-contact";
 import { isWahaPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
+import { needsWahaDisplayNameResolve } from "@/lib/contact-messages/waha-chat-label";
 import { pickConversationUnreadHint } from "@/lib/contact-messages/conversation-read-state";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 
@@ -24,9 +25,19 @@ function mergePreviewFields(
   newer: ContactConversationPreview,
   older: ContactConversationPreview,
 ): ContactConversationPreview {
+  const newerName = newer.contact_name?.trim() || "";
+  const olderName = older.contact_name?.trim() || "";
+  // Prefer a real name over a phone/JID placeholder when sources disagree.
+  const preferOlderName =
+    Boolean(newerName) &&
+    Boolean(olderName) &&
+    needsWahaDisplayNameResolve(newerName) &&
+    !needsWahaDisplayNameResolve(olderName);
   return {
     ...newer,
-    contact_name: newer.contact_name?.trim() || older.contact_name,
+    contact_name: preferOlderName
+      ? olderName
+      : newerName || older.contact_name,
     message_count: Math.max(newer.message_count, older.message_count),
     unread_count: Math.max(newer.unread_count, older.unread_count),
     is_unread: newer.is_unread || older.is_unread,

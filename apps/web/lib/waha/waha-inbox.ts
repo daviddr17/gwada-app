@@ -107,12 +107,19 @@ export async function wahaGetChatsOverview(params: {
   config: WahaServerConfig;
   restaurantId: string;
   limit?: number;
+  /** Optional: only these chat ids / phone numbers (WAHA `ids` query). */
+  ids?: string[];
 }): Promise<WahaFetchJson<WahaChatOverviewItem[]>> {
   const session = wahaSessionNameForRestaurant(params.restaurantId);
   const limit = params.limit ?? 80;
+  const qs = new URLSearchParams({ limit: String(limit) });
+  for (const id of params.ids ?? []) {
+    const trimmed = id.trim();
+    if (trimmed) qs.append("ids", trimmed);
+  }
   const result = await wahaJsonGet<WahaChatOverviewItem[] | { chats?: WahaChatOverviewItem[] }>(
     params.config,
-    `/api/${encodeURIComponent(session)}/chats/overview?limit=${limit}`,
+    `/api/${encodeURIComponent(session)}/chats/overview?${qs.toString()}`,
   );
   if (!result.ok) return result;
   const raw = result.data;

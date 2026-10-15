@@ -7,7 +7,11 @@ import {
 import {
   conversationThreadKeyFromRow,
 } from "@/lib/contact-messages/conversation-thread-key";
-import { displayNameForPseudoConversation } from "@/lib/contact-messages/waha-chat-label";
+import {
+  displayNameForPseudoConversation,
+  needsWahaDisplayNameResolve,
+  pickReadableName,
+} from "@/lib/contact-messages/waha-chat-label";
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
 import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
 import { previewBodyAndKindFromWhatsappMirror } from "@/lib/contact-messages/whatsapp-mirror-preview";
@@ -93,8 +97,6 @@ export function buildContactConversationsFromRows(params: {
       lastInboundByThread.set(threadKey, msgPlatform);
     }
 
-    if (previews.has(threadKey)) continue;
-
     const contactRaw = raw.contacts;
     const contact = Array.isArray(contactRaw)
       ? (contactRaw[0] as {
@@ -118,6 +120,19 @@ export function buildContactConversationsFromRows(params: {
             storedLabel,
           })
         : storedLabel || "Chat";
+
+    const existingPreview = previews.get(threadKey);
+    if (existingPreview) {
+      // Newer rows win for preview body; upgrade phone-like titles from older labels.
+      if (
+        !contact &&
+        needsWahaDisplayNameResolve(existingPreview.contact_name) &&
+        pickReadableName(storedLabel)
+      ) {
+        existingPreview.contact_name = pickReadableName(storedLabel)!;
+      }
+      continue;
+    }
 
     const mirrored =
       ext.startsWith("waha:") || msgPlatform === "whatsapp"

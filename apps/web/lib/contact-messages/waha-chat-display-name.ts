@@ -3,6 +3,7 @@ import "server-only";
 import {
   extractPhoneDigitsFromWahaChat,
   extractPhoneDigitsFromWahaOverview,
+  extractWahaBusinessDisplayName,
   formatDigitsAsWhatsAppPhone,
   isBareWhatsAppPlaceholderName,
   pickWahaChatReadableTitle,
@@ -10,7 +11,11 @@ import {
 } from "@/lib/contact-messages/waha-chat-label";
 import { resolveWahaChatPhone } from "@/lib/contact-messages/resolve-waha-chat-phone";
 import type { WahaServerConfig } from "@/lib/waha/waha-config";
-import type { WahaChatOverviewItem } from "@/lib/waha/waha-inbox";
+import {
+  wahaGetChatMessages,
+  wahaGetChatsOverview,
+  type WahaChatOverviewItem,
+} from "@/lib/waha/waha-inbox";
 import {
   wahaGetContactByChatId,
   type WahaContactInfo,
@@ -31,6 +36,44 @@ function formatContactNumber(
   const digits = (number ?? "").replace(/\D/g, "");
   if (digits.length < 8) return null;
   return formatDigitsAsWhatsAppPhone(digits, defaultCountryIso2);
+}
+
+function businessNameFromMessages(
+  messages: Array<{ _data?: Record<string, unknown> | null }>,
+): string | null {
+  for (const message of messages) {
+    const data =
+      message._data && typeof message._data === "object"
+        ? message._data
+        : null;
+    const name = extractWahaBusinessDisplayName(data);
+    if (name) return name;
+  }
+  return null;
+}
+
+async function loadOverviewChatForDisplayName(params: {
+  config: WahaServerConfig;
+  restaurantId: string;
+  chatId: string;
+}): Promise<WahaChatOverviewItem | null> {
+  const overview = await wahaGetChatsOverview({
+    config: params.config,
+    restaurantId: params.restaurantId,
+    limit: 5,
+    ids: [params.chatId],
+  });
+  if (!overview.ok || overview.data.length === 0) return null;
+  const exact = overview.data.find(
+    (chat) =>
+      (chat.id ?? "").trim() === params.chatId ||
+      (chat._chat &&
+        typeof chat._chat === "object" &&
+        "id" in chat._chat &&
+        String((chat._chat as { id?: string }).id ?? "").trim() ===
+          params.chatId),
+  );
+  return exact ?? overview.data[0] ?? null;
 }
 
 export async function resolveWahaChatDisplayName(params: {
@@ -55,20 +98,41 @@ export async function resolveWahaChatDisplayName(params: {
       })
     ).data;
 
+  let overviewChat = params.overviewChat ?? null;
+  if (!overviewChat) {
+    overviewChat = await loadOverviewChatForDisplayName({
+      config: params.config,
+      restaurantId: params.restaurantId,
+      chatId: params.chatId,
+    });
+  }
+
   const readableTitle = pickWahaChatReadableTitle({
-    overviewName: params.overviewName,
-    overviewChat: params.overviewChat,
+    overviewName: params.overviewName ?? overviewChat?.name,
+    overviewChat,
     wahaContact: contact,
   });
   if (readableTitle) return readableTitle;
 
+  const fromMessagesApi = await wahaGetChatMessages({
+    config: params.config,
+    restaurantId: params.restaurantId,
+    chatId: params.chatId,
+    limit: 20,
+    downloadMedia: false,
+  });
+  if (fromMessagesApi.ok) {
+    const fromHistory = businessNameFromMessages(fromMessagesApi.data);
+    if (fromHistory) return fromHistory;
+  }
+
   const digits =
-    (params.overviewChat
-      ? extractPhoneDigitsFromWahaOverview(params.overviewChat, params.lookupMaps)
+    (overviewChat
+      ? extractPhoneDigitsFromWahaOverview(overviewChat, params.lookupMaps)
       : null) ??
     extractPhoneDigitsFromWahaChat(
       params.chatId,
-      params.overviewName ?? params.overviewChat?.name,
+      params.overviewName ?? overviewChat?.name,
     );
   if (digits) {
     const fromDigits = formatDigitsAsWhatsAppPhone(digits, iso);

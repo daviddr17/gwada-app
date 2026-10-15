@@ -1,6 +1,8 @@
 import "server-only";
 
+import { persistWahaConversationDisplayLabel } from "@/lib/contact-messages/persist-waha-conversation-label-server";
 import { fetchWahaInboxConversations } from "@/lib/contact-messages/waha-inbox-service";
+import { pickReadableName } from "@/lib/contact-messages/waha-chat-label";
 import { isWahaPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { emailAddressFromPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
@@ -94,7 +96,7 @@ async function syncWhatsappInboxHistoryOnConnect(
   }
 
   const conv = await fetchWahaInboxConversations(admin, restaurantId, {
-    skipDisplayNameResolve: true,
+    skipDisplayNameResolve: false,
     overviewLimit: INBOX_CONNECT_HISTORY_THREAD_LIMIT,
   });
   if (conv.error) return 0;
@@ -104,12 +106,21 @@ async function syncWhatsappInboxHistoryOnConnect(
     const threadKey = preview.contact_id;
     if (!threadKey || threadKey.startsWith("email:")) continue;
 
+    const readableLabel = pickReadableName(preview.contact_name);
+    if (readableLabel && isWahaPseudoContactId(threadKey)) {
+      await persistWahaConversationDisplayLabel(admin, {
+        restaurantId,
+        conversationKey: threadKey,
+        label: readableLabel,
+      });
+    }
+
     const result = isWahaPseudoContactId(threadKey)
       ? await syncPseudoWhatsappThread(admin, {
           restaurantId,
           conversationKey: threadKey,
           maxMessages: WHATSAPP_MESSAGES_PER_THREAD_ON_CONNECT,
-          conversationLabel: preview.contact_name,
+          conversationLabel: readableLabel ?? preview.contact_name,
           silent: true,
           markChannelSeen: true,
         })

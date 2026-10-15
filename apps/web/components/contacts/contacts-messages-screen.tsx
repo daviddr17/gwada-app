@@ -124,7 +124,9 @@ import {
   isUnifiedInboxCacheFresh,
   patchUnifiedInboxCacheConversation,
   peekUnifiedInboxCache,
+  setUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-cache";
+import { resolveWahaInboxDisplayNamesClient } from "@/lib/contact-messages/resolve-waha-inbox-display-names-client";
 import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
 import {
   getUnifiedInboxRefreshInflight,
@@ -139,7 +141,6 @@ import {
   markUnifiedInboxConversationReadClient,
 } from "@/lib/contact-messages/unified-inbox-client";
 import {
-  fetchWahaDisplayNameClient,
   fetchWahaResolvedPhoneClient,
   markConversationReadClient,
   markConversationUnreadClient,
@@ -942,6 +943,23 @@ export function ContactsMessagesScreen({
     [navigateNachrichten, searchParams],
   );
 
+  const applyWahaBusinessDisplayNames = useCallback(
+    async (list: ContactConversationPreview[]) => {
+      if (!restaurantId || list.length === 0) return;
+      const { conversations: next, changed } =
+        await resolveWahaInboxDisplayNamesClient({
+          restaurantId,
+          conversations: list,
+        });
+      if (!changed || !activeRef.current) return;
+      setConversations(next);
+      if (isUnifiedInboxFilter(inboxFilter)) {
+        setUnifiedInboxCache(restaurantId, next, { complete: true });
+      }
+    },
+    [restaurantId, inboxFilter],
+  );
+
   const loadConversations = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
     if (!restaurantId) {
       setConversations([]);
@@ -955,6 +973,7 @@ export function ContactsMessagesScreen({
         if (cached) {
           setConversations(cached);
           setLoadingList(false);
+          void applyWahaBusinessDisplayNames(cached);
           // Frischer Cache: kein Force-Refetch — Background-Poll / Realtime reichen.
           if (!isUnifiedInboxCacheFresh(restaurantId)) {
             void loadConversations({ silent: true, force: true });
@@ -969,6 +988,7 @@ export function ContactsMessagesScreen({
           if (data) {
             setConversations(data);
             setLoadingList(false);
+            void applyWahaBusinessDisplayNames(data);
             return;
           }
         }
@@ -983,6 +1003,7 @@ export function ContactsMessagesScreen({
       });
       if (error && activeRef.current) toast.error(error.message);
       setConversations(data);
+      void applyWahaBusinessDisplayNames(data);
     } else if (
       (inboxFilter === "whatsapp" && !whatsappConnected) ||
       (inboxFilter === "email" && !emailConnected) ||
@@ -1001,6 +1022,9 @@ export function ContactsMessagesScreen({
         setConversations([]);
       } else {
         setConversations(data);
+        if (platform === "whatsapp") {
+          void applyWahaBusinessDisplayNames(data);
+        }
       }
     }
 
@@ -1012,6 +1036,7 @@ export function ContactsMessagesScreen({
     emailConnected,
     facebookConnected,
     instagramConnected,
+    applyWahaBusinessDisplayNames,
   ]);
 
   const refreshInbox = useCallback(async () => {
@@ -1021,7 +1046,10 @@ export function ContactsMessagesScreen({
       if (isUnifiedInboxFilter(inboxFilter)) {
         await refreshUnifiedInboxCache({ restaurantId }, { force: true });
         const cached = peekUnifiedInboxCache(restaurantId);
-        if (cached) setConversations(cached);
+        if (cached) {
+          setConversations(cached);
+          void applyWahaBusinessDisplayNames(cached);
+        }
       } else {
         await loadConversations({ silent: true, force: true });
       }
@@ -1036,6 +1064,7 @@ export function ContactsMessagesScreen({
     facebookConnected,
     instagramConnected,
     loadConversations,
+    applyWahaBusinessDisplayNames,
   ]);
 
   const patchConversationReadState = useCallback(

@@ -51,7 +51,9 @@ import { DatePickerField, formScheduleTimeInputFullWidthClassName } from "@/comp
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
+import { ReservationProtocolSection } from "@/components/reservations/reservation-protocol-section";
 import { ReservationStatusLabel } from "@/components/reservations/reservation-status-label";
+import { fetchDisplayReservationProtocolEntries } from "@/lib/display/display-reservation-protocol-client";
 import {
   COUNTRIES_REFERENCE_FALLBACK,
   type CountryReference,
@@ -904,6 +906,19 @@ export function DisplayReservationEditDrawer({
                         />
                       </div>
                     </DrawerFormSection>
+
+                    {detail ? (
+                      <DrawerFormSection
+                        title="Protokoll"
+                        className="bg-muted/35"
+                      >
+                        <ReservationProtocolSection
+                          restaurantId={detail.restaurant_id}
+                          reservationId={detail.id}
+                          loadEntries={fetchDisplayReservationProtocolEntries}
+                        />
+                      </DrawerFormSection>
+                    ) : null}
                   </>
                 )}
               </div>

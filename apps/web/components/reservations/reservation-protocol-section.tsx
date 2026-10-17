@@ -19,15 +19,23 @@ const whenFmt = new Intl.DateTimeFormat("de-DE", {
   minute: "2-digit",
 });
 
+export type ReservationProtocolLoadEntries = (
+  restaurantId: string,
+  reservationId: string,
+) => Promise<{ data: RestaurantReservationLogEntry[]; error: string | null }>;
+
 export function ReservationProtocolSection({
   restaurantId,
   reservationId,
   refreshKey,
+  loadEntries,
 }: {
   restaurantId: string;
   reservationId: string;
   /** Erhöhen nach Speichern, damit das Protokoll neu lädt. */
   refreshKey?: number;
+  /** Optional: z. B. Display-API statt Browser-Supabase. */
+  loadEntries?: ReservationProtocolLoadEntries;
 }) {
   const [entries, setEntries] = useState<RestaurantReservationLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,14 +43,16 @@ export function ReservationProtocolSection({
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const result = await fetchReservationLogEntries(restaurantId, reservationId);
+    const result = loadEntries
+      ? await loadEntries(restaurantId, reservationId)
+      : await fetchReservationLogEntries(restaurantId, reservationId);
     setLoading(false);
     if (result.error) {
       setEntries([]);
       return;
     }
     setEntries(result.data);
-  }, [restaurantId, reservationId]);
+  }, [restaurantId, reservationId, loadEntries]);
 
   useEffect(() => {
     void reload();

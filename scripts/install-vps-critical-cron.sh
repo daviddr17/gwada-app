@@ -96,6 +96,16 @@ cleaned="$(printf '%s\n' "${existing}" | sed "/${marker_begin}/,/${marker_end}/d
 printf '%s\n%s\n' "${cleaned}" "${block}" | crontab -
 echo "✓ VPS crontab installiert (alle Live-Crons, inkl. News-Publish und Billing)"
 crontab -l | sed -n "/${marker_begin}/,/${marker_end}/p" | sed 's/CRON_SECRET=[^ ]*/CRON_SECRET=***/g'
+
+# One-shot: FB/IG-Historie sofort nachziehen (Connect-Import läuft nur bei neuem OAuth).
+# Täglicher Cron bleibt 04:00 UTC; dieser Lauf füllt die DB für schon verbundene Seiten.
+if [[ "${GWADA_META_INBOX_SYNC_ONESHOT:-1}" == "1" ]]; then
+  echo "One-shot meta-inbox-sync…"
+  CRON_BASE_URL="${base_url}" CRON_SECRET="${secret}" "${wrapper}" /api/cron/meta-inbox-sync 600 \
+    >> "${log_dir}/meta-inbox-sync.log" 2>&1 \
+    && echo "✓ One-shot meta-inbox-sync OK" \
+    || echo "⚠ One-shot meta-inbox-sync fehlgeschlagen (siehe ${log_dir}/meta-inbox-sync.log)" >&2
+fi
 REMOTE
 
 echo "✓ Host-Cron auf VPS aktiv"

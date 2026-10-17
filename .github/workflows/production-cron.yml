@@ -24,7 +24,10 @@ on:
           - reservation-whatsapp-slo
           - waha-session-recover
   repository_dispatch:
-    types: [production-cron, production-cron-reservation-outbox]
+    types:
+      - production-cron
+      - production-cron-reservation-outbox
+      - production-cron-meta-inbox-sync
 
 env:
   CRON_BASE_URL: https://gwada.app
@@ -100,7 +103,9 @@ jobs:
 
   meta-inbox-sync:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'meta-inbox-sync')
+    if: |
+      (github.event_name == 'repository_dispatch' && github.event.action == 'production-cron-meta-inbox-sync') ||
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'meta-inbox-sync'))
     steps:
       - name: Call meta-inbox-sync
         env:

@@ -31,6 +31,10 @@ type MetaMessagingEvent = {
   };
 };
 
+/**
+ * Nach Meta App Review auf `true` setzen → Inbound wie WAHA realtime in die DB.
+ * Bis dahin: Connect-Historie + täglicher Cron `meta-inbox-sync`.
+ */
 export function metaWebhookInboundEnabled(): boolean {
   return process.env.META_WEBHOOK_INBOUND_ENABLED?.trim() === "true";
 }

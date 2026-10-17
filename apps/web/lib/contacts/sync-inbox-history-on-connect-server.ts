@@ -16,6 +16,11 @@ import {
   syncContactWhatsappInbound,
   syncPseudoWhatsappThread,
 } from "@/lib/contacts/sync-contact-whatsapp-inbound";
+import {
+  META_CONNECT_HISTORY_THREAD_LIMIT,
+  META_MESSAGES_PER_THREAD,
+  syncRestaurantMetaInbox,
+} from "@/lib/contacts/sync-restaurant-meta-inbox";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
 import {
   fetchImapRecentEnvelopes,
@@ -252,6 +257,49 @@ async function syncEmailInboxHistoryOnConnect(
   return imported;
 }
 
+async function restaurantAlreadyHasMetaMirror(
+  admin: SupabaseClient,
+  restaurantId: string,
+  platform: "facebook" | "instagram",
+): Promise<boolean> {
+  const { data } = await admin
+    .from("contact_messages")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .eq("platform", platform)
+    .like("external_source_id", `meta:${platform}:%`)
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
+async function syncMetaInboxHistoryOnConnect(
+  admin: SupabaseClient,
+  restaurantId: string,
+  platforms: Array<"facebook" | "instagram">,
+): Promise<{ facebookImported: number; instagramImported: number }> {
+  const toSync: Array<"facebook" | "instagram"> = [];
+  for (const platform of platforms) {
+    if (await restaurantAlreadyHasMetaMirror(admin, restaurantId, platform)) {
+      continue;
+    }
+    toSync.push(platform);
+  }
+  if (toSync.length === 0) {
+    return { facebookImported: 0, instagramImported: 0 };
+  }
+
+  const result = await syncRestaurantMetaInbox(admin, restaurantId, {
+    platforms: toSync,
+    threadLimit: META_CONNECT_HISTORY_THREAD_LIMIT,
+    messagesPerThread: META_MESSAGES_PER_THREAD,
+    silent: true,
+  });
+  return {
+    facebookImported: result.facebookImported,
+    instagramImported: result.instagramImported,
+  };
+}
+
 /**
  * Nach erfolgreichem Verbinden (Integrationen): letzte Chats je Kanal in contact_messages.
  * Kein notification_events — historischer Import.
@@ -262,26 +310,52 @@ export async function syncInboxHistoryOnConnect(
     restaurantId: string;
     whatsapp?: boolean;
     email?: boolean;
+    facebook?: boolean;
+    instagram?: boolean;
   },
 ): Promise<{
   whatsappImported: number;
   emailImported: number;
+  facebookImported: number;
+  instagramImported: number;
   error: string | null;
 }> {
-  const [whatsappImported, emailImported] = await Promise.all([
+  const metaPlatforms: Array<"facebook" | "instagram"> = [];
+  if (params.facebook) metaPlatforms.push("facebook");
+  if (params.instagram) metaPlatforms.push("instagram");
+
+  const [whatsappImported, emailImported, meta] = await Promise.all([
     params.whatsapp
       ? syncWhatsappInboxHistoryOnConnect(admin, params.restaurantId)
       : Promise.resolve(0),
     params.email
       ? syncEmailInboxHistoryOnConnect(admin, params.restaurantId)
       : Promise.resolve(0),
+    metaPlatforms.length
+      ? syncMetaInboxHistoryOnConnect(
+          admin,
+          params.restaurantId,
+          metaPlatforms,
+        )
+      : Promise.resolve({ facebookImported: 0, instagramImported: 0 }),
   ]);
 
-  if (whatsappImported + emailImported > 0) {
+  const total =
+    whatsappImported +
+    emailImported +
+    meta.facebookImported +
+    meta.instagramImported;
+  if (total > 0) {
     console.info(
-      `[contact-inbox] history-on-connect ${params.restaurantId.slice(0, 8)}… wa=${whatsappImported} em=${emailImported}`,
+      `[contact-inbox] history-on-connect ${params.restaurantId.slice(0, 8)}… wa=${whatsappImported} em=${emailImported} fb=${meta.facebookImported} ig=${meta.instagramImported}`,
     );
   }
 
-  return { whatsappImported, emailImported, error: null };
+  return {
+    whatsappImported,
+    emailImported,
+    facebookImported: meta.facebookImported,
+    instagramImported: meta.instagramImported,
+    error: null,
+  };
 }

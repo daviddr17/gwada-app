@@ -200,6 +200,7 @@ test("lists broken OAuth integrations and overdue newsletter rows", () => {
   assert.equal(newsletter.overdue, 1);
   assert.equal(newsletter.failed, 1);
   assert.equal(cronJobLabel("contact-inbox-sync"), "Kontakt-Inbox");
+  assert.equal(cronJobLabel("meta-inbox-sync"), "Meta-Inbox (FB/IG)");
 });
 
 test("lists WAHA sessions that are not working", () => {

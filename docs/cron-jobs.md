@@ -27,6 +27,7 @@ Logs: `/var/log/gwada-cron/*.log` auf dem VPS.
 | `*/2` | `notification-deliver` |
 | `*/10` | `news-feed-sync`, `reviews-feed-sync`, `accounting-lexoffice-sync` |
 | `0 6 * * *` | `billing-past-due` |
+| `0 4 * * *` | `meta-inbox-sync` (Facebook/Instagram DMs → DB) |
 | `15 * * * *` | `notification-digests` |
 | `0 7 * * 1` | `social-suggestions` |
 
@@ -62,6 +63,9 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
 
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
   https://gwada.app/api/cron/contact-inbox-sync
+
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+  https://gwada.app/api/cron/meta-inbox-sync
 
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
   https://gwada.app/api/cron/accounting-lexoffice-sync

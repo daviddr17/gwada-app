@@ -7,7 +7,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-/** Meta Webhook — GET für Verifikation, POST für Events. Pull-Inbox bleibt parallel aktiv. */
+/**
+ * Meta Webhook — GET für Verifikation, POST für Events.
+ * Inbound-Schreiben nur wenn META_WEBHOOK_INBOUND_ENABLED=true (nach App Review).
+ * Parallel: täglicher Pull via /api/cron/meta-inbox-sync.
+ */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const mode = url.searchParams.get("hub.mode");

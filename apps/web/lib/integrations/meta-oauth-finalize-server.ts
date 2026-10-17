@@ -5,6 +5,7 @@ import {
   FACEBOOK_OAUTH_SCOPE_IDS,
   INSTAGRAM_OAUTH_SCOPE_IDS,
 } from "@/lib/constants/integration-oauth-scopes";
+import { syncInboxHistoryOnConnect } from "@/lib/contacts/sync-inbox-history-on-connect-server";
 import type { MetaPageAccount } from "@/lib/integrations/meta-oauth-shared";
 import {
   oauthConfigFromJson,
@@ -31,7 +32,7 @@ export async function finalizeFacebookIntegration(
   }
 
   const now = new Date().toISOString();
-  return upsertRestaurantOAuthIntegration(
+  const result = await upsertRestaurantOAuthIntegration(
     admin,
     restaurantId,
     "facebook",
@@ -53,6 +54,15 @@ export async function finalizeFacebookIntegration(
     oauthConfigFromJson<MetaOAuthIntegrationConfig>,
     mergeMetaConfig,
   );
+  if (!result.error) {
+    void syncInboxHistoryOnConnect(admin, {
+      restaurantId,
+      facebook: true,
+    }).catch((e) => {
+      console.warn("[contact-inbox] history-on-connect facebook", e);
+    });
+  }
+  return result;
 }
 
 export async function finalizeInstagramIntegration(
@@ -69,7 +79,7 @@ export async function finalizeInstagramIntegration(
 
   const displayName = ig.username ? `@${ig.username}` : page.name;
   const now = new Date().toISOString();
-  return upsertRestaurantOAuthIntegration(
+  const result = await upsertRestaurantOAuthIntegration(
     admin,
     restaurantId,
     "instagram",
@@ -93,4 +103,13 @@ export async function finalizeInstagramIntegration(
     oauthConfigFromJson<MetaOAuthIntegrationConfig>,
     mergeMetaConfig,
   );
+  if (!result.error) {
+    void syncInboxHistoryOnConnect(admin, {
+      restaurantId,
+      instagram: true,
+    }).catch((e) => {
+      console.warn("[contact-inbox] history-on-connect instagram", e);
+    });
+  }
+  return result;
 }

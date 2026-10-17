@@ -14,6 +14,8 @@ export const CRON_LAG_MS: Record<string, number> = {
   "accounting-lexoffice-sync": 25 * 60 * 1000,
   "news-publish": 12 * 60 * 1000,
   "billing-past-due": 26 * 60 * 60 * 1000,
+  /** Täglich 04:00 UTC — Facebook/Instagram Messaging-Reconcile. */
+  "meta-inbox-sync": 26 * 60 * 60 * 1000,
   /** Wöchentlich Mo 07:00 UTC — nicht wie ein 5-Minuten-Job behandeln. */
   "social-suggestions": 8 * 24 * 60 * 60 * 1000,
 };
@@ -46,6 +48,7 @@ export const CRON_JOB_LABELS: Record<string, string> = {
   "accounting-lexoffice-sync": "Lexoffice",
   "news-publish": "News-Publish",
   "billing-past-due": "Abo-Abgleich",
+  "meta-inbox-sync": "Meta-Inbox (FB/IG)",
   "social-suggestions": "Social-Vorschläge",
 };
 

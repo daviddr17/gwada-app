@@ -16,6 +16,7 @@ on:
           - reviews-feed-sync
           - staff-shift-notifications
           - contact-inbox-sync
+          - meta-inbox-sync
           - accounting-lexoffice-sync
           - social-suggestions
           - reservation-whatsapp
@@ -96,6 +97,22 @@ jobs:
           curl -sfS --max-time 120 --retry 3 --retry-all-errors --retry-delay 8 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/contact-inbox-sync"
+
+  meta-inbox-sync:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'meta-inbox-sync')
+    steps:
+      - name: Call meta-inbox-sync
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set — skipped."
+            exit 0
+          fi
+          curl -sfS --max-time 600 --retry 2 --retry-all-errors --retry-delay 10 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_BASE_URL/api/cron/meta-inbox-sync"
 
   waha-session-recover:
     runs-on: ubuntu-latest

@@ -40,6 +40,7 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   staff_contract_signed: { kind: "staffProfile" },
   staff_document_assigned: { kind: "staffProfile" },
   staff_display_time_request: { kind: "module", prefix: "staff" },
+  staff_profile_change_request: { kind: "module", prefix: "staff" },
   staff_invite_accepted: { kind: "module", prefix: "staff" },
   staff_invite_declined: { kind: "module", prefix: "staff" },
   staff_display_clock_in: { kind: "module", prefix: "staff" },

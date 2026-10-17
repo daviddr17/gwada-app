@@ -16,6 +16,7 @@ import { loadStaffMessagesNotificationItems } from "@/lib/notifications/notifica
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
 import { loadStaffDocumentAssignedNotificationItems } from "@/lib/notifications/notification-staff-document-server";
 import { loadStaffDisplayTimeRequestNotificationItems } from "@/lib/notifications/notification-staff-display-time-request-server";
+import { loadStaffProfileChangeRequestNotificationItems } from "@/lib/notifications/notification-staff-profile-change-request-server";
 import { loadStaffDisplayClockNotificationItems } from "@/lib/notifications/notification-staff-display-clock-server";
 import {
   loadStaffInviteResponseNotificationItems,
@@ -619,6 +620,22 @@ const MODULE_BUILDERS: Record<
         limit: BELL_ITEMS_PER_MODULE,
       },
     );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_profile_change_request: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_profile_change_request;
+    const { items, totalCount } =
+      await loadStaffProfileChangeRequestNotificationItems(ctx.sb, {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        limit: BELL_ITEMS_PER_MODULE,
+      });
     return {
       id: def.id,
       count: totalCount,

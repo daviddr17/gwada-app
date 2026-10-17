@@ -382,6 +382,15 @@ function plainNotificationPayloadSummary(
     return range ? `${typeLabel} · ${range}` : typeLabel;
   }
 
+  if (module === "staff_profile_change_request") {
+    const count =
+      typeof payload.changeCount === "number" ? payload.changeCount : null;
+    if (count != null && count > 0) {
+      return `${count} Feld${count === 1 ? "" : "er"} · vom Display`;
+    }
+    return "Profiländerung · vom Display";
+  }
+
   if (
     module === "staff_invite_accepted" ||
     module === "staff_invite_declined"

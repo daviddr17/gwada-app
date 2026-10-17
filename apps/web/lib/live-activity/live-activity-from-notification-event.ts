@@ -626,6 +626,17 @@ function timeRequestFeedDescription(payload: Record<string, unknown>): string | 
   return range ? `${typeLabel} · ${range}` : typeLabel;
 }
 
+function profileChangeFeedDescription(
+  payload: Record<string, unknown>,
+): string | null {
+  const count =
+    typeof payload.changeCount === "number" ? payload.changeCount : null;
+  if (count != null && count > 0) {
+    return `${count} Feld${count === 1 ? "" : "er"} · vom Display`;
+  }
+  return "Profiländerung · vom Display";
+}
+
 function inviteFeedDescription(payload: Record<string, unknown>): string | null {
   const staff = pickString(payload.staffName) ?? "Mitarbeiter";
   const position = pickString(payload.positionName);
@@ -712,6 +723,8 @@ function feedDescriptionForModule(
       return pickString(payload.documentTitle) ?? "Neues Dokument";
     case "staff_display_time_request":
       return timeRequestFeedDescription(payload);
+    case "staff_profile_change_request":
+      return profileChangeFeedDescription(payload);
     case "staff_invite_accepted":
     case "staff_invite_declined":
       return inviteFeedDescription(payload);

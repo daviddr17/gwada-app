@@ -27,6 +27,7 @@ export const LIVE_ACTIVITY_FEED_MODULES = [
   "staff_contract_signed",
   "staff_document_assigned",
   "staff_display_time_request",
+  "staff_profile_change_request",
   "staff_invite_accepted",
   "staff_invite_declined",
   "staff_permissions_granted",

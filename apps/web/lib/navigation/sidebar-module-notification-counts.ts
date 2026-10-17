@@ -31,6 +31,7 @@ const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
   ],
   mitarbeiter: [
     "staff_display_time_request",
+    "staff_profile_change_request",
     "staff_display_clock_in",
     "staff_display_clock_out",
     "staff_display_break_start",

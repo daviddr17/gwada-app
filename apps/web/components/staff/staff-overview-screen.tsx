@@ -17,6 +17,7 @@ import type { StaffLivePresenceSheetMode } from "@/components/staff/staff-overvi
 import { StaffOverviewWageSheet } from "@/components/staff/staff-overview-wage-sheet";
 import { StaffOverviewTable } from "@/components/staff/staff-overview-table";
 import { StaffDisplayTimeRequestsPanel } from "@/components/staff/staff-display-time-requests-panel";
+import { StaffProfileChangeRequestsPanel } from "@/components/staff/staff-profile-change-requests-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker";
@@ -237,7 +238,10 @@ export function StaffOverviewScreen({ active = true }: { active?: boolean }) {
   return (
     <div className="w-full space-y-6 pb-16">
       {canReviewTimeRequests ? (
-        <StaffDisplayTimeRequestsPanel restaurantId={restaurantId} />
+        <>
+          <StaffProfileChangeRequestsPanel restaurantId={restaurantId} />
+          <StaffDisplayTimeRequestsPanel restaurantId={restaurantId} />
+        </>
       ) : null}
 
       <Card className="border-border/50 shadow-card">

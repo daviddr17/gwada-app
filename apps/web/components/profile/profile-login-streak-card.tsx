@@ -50,10 +50,10 @@ export function ProfileLoginStreakCard() {
 
   return (
     <Card className="border-border/50 shadow-card">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-orange-500/15 text-orange-600 dark:text-orange-300">
-            <Flame className="size-4" aria-hidden />
+          <span className="flex size-7 items-center justify-center rounded-md bg-accent/15 text-accent">
+            <Flame className="size-3.5" aria-hidden />
           </span>
           Login-Streak
         </CardTitle>
@@ -61,19 +61,19 @@ export function ProfileLoginStreakCard() {
           Tage, an denen du in Gwada aktiv warst.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {loading ? (
-          <div className="space-y-3" aria-busy="true">
-            <Skeleton className="h-10 w-40 rounded-lg" />
-            <Skeleton className="h-28 w-full rounded-xl" />
+          <div className="space-y-2" aria-busy="true">
+            <Skeleton className="h-8 w-32 rounded-lg" />
+            <Skeleton className="h-14 w-48 rounded-lg" />
           </div>
         ) : error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
         ) : summary ? (
           <>
-            <div className="flex flex-wrap items-end gap-4">
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
               <div>
-                <p className="text-2xl font-semibold tabular-nums tracking-tight">
+                <p className="text-xl font-semibold tabular-nums tracking-tight">
                   {summary.currentStreak}
                   <span className="ml-1 text-sm font-medium text-muted-foreground">
                     {summary.currentStreak === 1 ? "Tag" : "Tage"}
@@ -98,51 +98,53 @@ export function ProfileLoginStreakCard() {
             </div>
 
             {columns.length > 0 ? (
-              <div
-                className="grid w-full gap-x-1 gap-y-1"
-                style={{
-                  gridTemplateColumns: `1.75rem repeat(${columns.length}, minmax(0, 1fr))`,
-                }}
-                role="img"
-                aria-label="Aktivitäts-Heatmap der letzten Wochen"
-              >
-                {WEEKDAY_LABELS.map((label, rowIndex) => (
-                  <Fragment key={label}>
-                    <span
-                      className={cn(
-                        "flex items-center justify-end pr-1 text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground",
-                        rowIndex % 2 === 0 && "invisible",
-                      )}
-                    >
-                      {label}
-                    </span>
-                    {columns.map((week, weekIndex) => {
-                      const cell = week[rowIndex]!;
-                      const empty = !cell.day;
-                      return (
-                        <span
-                          key={`${weekIndex}-${rowIndex}`}
-                          title={
-                            empty
-                              ? undefined
-                              : cell.active
-                                ? `${cell.day} · aktiv`
-                                : cell.day
-                          }
-                          className={cn(
-                            "aspect-square h-auto w-full min-w-0 rounded-[3px] sm:rounded-sm",
-                            empty
-                              ? "bg-transparent"
-                              : cell.active
-                                ? "bg-orange-500 shadow-[0_0_0_1px_color-mix(in_oklch,var(--color-orange-500)_35%,transparent)]"
-                                : "bg-muted/70 ring-1 ring-border/40",
-                          )}
-                          aria-hidden={empty}
-                        />
-                      );
-                    })}
-                  </Fragment>
-                ))}
+              <div className="overflow-x-auto">
+                <div
+                  className="inline-grid gap-[2px]"
+                  style={{
+                    gridTemplateColumns: `1.25rem repeat(${columns.length}, 0.5rem)`,
+                  }}
+                  role="img"
+                  aria-label="Aktivitäts-Heatmap der letzten Wochen"
+                >
+                  {WEEKDAY_LABELS.map((label, rowIndex) => (
+                    <Fragment key={label}>
+                      <span
+                        className={cn(
+                          "flex h-2 items-center justify-end pr-0.5 text-[9px] font-medium leading-none text-muted-foreground",
+                          rowIndex % 2 === 0 && "invisible",
+                        )}
+                      >
+                        {label}
+                      </span>
+                      {columns.map((week, weekIndex) => {
+                        const cell = week[rowIndex]!;
+                        const empty = !cell.day;
+                        return (
+                          <span
+                            key={`${weekIndex}-${rowIndex}`}
+                            title={
+                              empty
+                                ? undefined
+                                : cell.active
+                                  ? `${cell.day} · aktiv`
+                                  : cell.day
+                            }
+                            className={cn(
+                              "size-2 rounded-[2px]",
+                              empty
+                                ? "bg-transparent"
+                                : cell.active
+                                  ? "bg-accent shadow-[0_0_0_1px_color-mix(in_oklch,var(--accent)_35%,transparent)]"
+                                  : "bg-muted/70 ring-1 ring-border/40",
+                            )}
+                            aria-hidden={empty}
+                          />
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </div>
               </div>
             ) : null}
 

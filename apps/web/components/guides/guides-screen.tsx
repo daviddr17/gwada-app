@@ -246,7 +246,7 @@ export function GuidesScreen() {
                     key={guide.id}
                     className="border-b border-border/40 last:border-0"
                   >
-                    <ModuleTableStickyBodyCell>
+                    <ModuleTableStickyBodyCell className="max-w-[14rem] px-4 py-3">
                       <TableCellTruncateTooltip text={guide.title} />
                     </ModuleTableStickyBodyCell>
                     <td className="hidden max-w-[14rem] px-4 py-3 sm:table-cell">

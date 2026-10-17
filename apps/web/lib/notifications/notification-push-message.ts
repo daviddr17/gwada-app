@@ -729,6 +729,21 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "staff_profile_change_request": {
+      const changeCount = typeof p.changeCount === "number" ? p.changeCount : null;
+      return buildPushMessage({
+        prefix,
+        headline: c.profileChange,
+        subject: `${prefix}${c.profileChangeSubject}`,
+        href,
+        details: detailLines([
+          changeCount != null && changeCount > 0
+            ? `${changeCount} Feld${changeCount === 1 ? "" : "er"}`
+            : null,
+          c.pleaseApprove,
+        ]),
+      });
+    }
     case "staff_display_clock_in":
     case "staff_display_clock_out":
     case "staff_display_break_start":

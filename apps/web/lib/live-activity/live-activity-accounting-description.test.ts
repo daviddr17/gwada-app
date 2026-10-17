@@ -302,6 +302,16 @@ test("übrige Feed-Zeilen sind Klartext ohne IDs", () => {
       description: "Arbeitszeit · 18:00–20:00",
     },
     {
+      module: "staff_profile_change_request",
+      payload: {
+        requestId: "abababab-abab-abab-abab-abababababab",
+        staffId: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+        changeCount: 3,
+      },
+      title: "Profiländerung",
+      description: "3 Felder · vom Display",
+    },
+    {
       module: "staff_invite_accepted",
       payload: {
         inviteId: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",

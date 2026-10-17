@@ -84,6 +84,10 @@ import {
   dismissStaffDisplayTimeRequestNotification,
 } from "@/lib/notifications/notification-staff-display-time-request-server";
 import {
+  dismissAllStaffProfileChangeRequestNotifications,
+  dismissStaffProfileChangeRequestNotification,
+} from "@/lib/notifications/notification-staff-profile-change-request-server";
+import {
   dismissAllStaffDisplayClockNotifications,
   dismissStaffDisplayClockNotification,
   isDisplayClockNotificationModule,
@@ -499,6 +503,24 @@ export async function markNotificationReadServer(
       const requestId = itemId ?? meta?.requestId;
       if (!requestId) return { ok: false, error: "invalid_request" };
       const result = await dismissStaffDisplayTimeRequestNotification(sb, {
+        restaurantId,
+        userId,
+        requestId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "staff_profile_change_request": {
+      if (!itemId) {
+        const all = await dismissAllStaffProfileChangeRequestNotifications(sb, {
+          restaurantId,
+          userId,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const requestId = itemId ?? meta?.requestId;
+      if (!requestId) return { ok: false, error: "invalid_request" };
+      const result = await dismissStaffProfileChangeRequestNotification(sb, {
         restaurantId,
         userId,
         requestId,

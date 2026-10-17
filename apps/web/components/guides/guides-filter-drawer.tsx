@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
@@ -12,22 +13,33 @@ import {
 } from "@/components/ui/drawer-filter-sheet";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import type { RestaurantGuideCategoryRow } from "@/lib/types/guides";
 
 const selectClass = appSelectTriggerAccentCn(staffDrawerFieldClassName);
 
 export type GuidesActiveFilter = "all" | "active" | "inactive";
+
+/** `"all"` = keine Kategorie-Filterung; `"none"` = ohne Kategorie. */
+export type GuidesCategoryFilter = "all" | "none" | string;
 
 type GuidesFilterDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   filterActive: GuidesActiveFilter;
   onFilterActiveChange: (value: GuidesActiveFilter) => void;
+  filterCategory: GuidesCategoryFilter;
+  onFilterCategoryChange: (value: GuidesCategoryFilter) => void;
+  categories: RestaurantGuideCategoryRow[];
 };
 
 export function countGuidesActiveFilters(input: {
   filterActive: GuidesActiveFilter;
+  filterCategory: GuidesCategoryFilter;
 }): number {
-  return input.filterActive === "all" ? 0 : 1;
+  let n = 0;
+  if (input.filterActive !== "all") n += 1;
+  if (input.filterCategory !== "all") n += 1;
+  return n;
 }
 
 const ACTIVE_OPTIONS: { value: GuidesActiveFilter; label: string }[] = [
@@ -41,7 +53,19 @@ export function GuidesFilterDrawer({
   onOpenChange,
   filterActive,
   onFilterActiveChange,
+  filterCategory,
+  onFilterCategoryChange,
+  categories,
 }: GuidesFilterDrawerProps) {
+  const categoryOptions = useMemo(
+    () => [
+      { value: "all", label: "Alle Kategorien" },
+      { value: "none", label: "Ohne Kategorie" },
+      ...categories.map((c) => ({ value: c.id, label: c.name })),
+    ],
+    [categories],
+  );
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent className={drawerContentClassName("filter")}>
@@ -58,10 +82,23 @@ export function GuidesFilterDrawer({
                 className={selectClass}
               />
             </DrawerFilterField>
+            <DrawerFilterField label="Kategorie">
+              <SearchableSelect
+                value={filterCategory}
+                onValueChange={(v) =>
+                  onFilterCategoryChange((v as GuidesCategoryFilter) || "all")
+                }
+                options={categoryOptions}
+                className={selectClass}
+              />
+            </DrawerFilterField>
           </DrawerFilterZone>
         </div>
         <DrawerFilterFooter
-          onReset={() => onFilterActiveChange("all")}
+          onReset={() => {
+            onFilterActiveChange("all");
+            onFilterCategoryChange("all");
+          }}
           onDone={() => onOpenChange(false)}
         />
       </DrawerContent>

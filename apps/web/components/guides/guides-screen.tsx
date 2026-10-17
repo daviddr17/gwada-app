@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Filter, Pencil, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
+import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
+import { CategoryDrawer } from "@/components/menu/category-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +13,7 @@ import {
   GuidesFilterDrawer,
   countGuidesActiveFilters,
   type GuidesActiveFilter,
+  type GuidesCategoryFilter,
 } from "@/components/guides/guides-filter-drawer";
 import { GuideFormDrawer } from "@/components/guides/guide-form-drawer";
 import { GuidesTableSkeleton } from "@/components/guides/guides-skeleton";
@@ -29,15 +32,23 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
   hasModuleCreate,
+  hasModuleDelete,
   hasModuleRead,
   hasModuleUpdate,
 } from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import {
+  deleteGuideCategory,
+  fetchGuideCategoriesForRestaurant,
   fetchGuidesForRestaurant,
+  reorderGuideCategories,
   setGuideActive,
+  upsertGuideCategory,
 } from "@/lib/supabase/guides-db";
-import type { RestaurantGuideRow } from "@/lib/types/guides";
+import type {
+  RestaurantGuideCategoryRow,
+  RestaurantGuideRow,
+} from "@/lib/types/guides";
 import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
@@ -63,40 +74,75 @@ export function GuidesScreen() {
   const canRead = hasModuleRead(has, "guides");
   const canCreate = hasModuleCreate(has, "guides");
   const canUpdate = hasModuleUpdate(has, "guides");
+  const canDelete = hasModuleDelete(has, "guides");
 
   const [guides, setGuides] = useState<RestaurantGuideRow[]>([]);
+  const [categories, setCategories] = useState<RestaurantGuideCategoryRow[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterActive, setFilterActive] = useState<GuidesActiveFilter>("all");
+  const [filterCategory, setFilterCategory] =
+    useState<GuidesCategoryFilter>("all");
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<RestaurantGuideRow | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [categoryFormOpen, setCategoryFormOpen] = useState(false);
+  const [editingCategory, setEditingCategory] =
+    useState<RestaurantGuideCategoryRow | null>(null);
 
   const showSkeleton = useDeferredSkeleton(
     (loading || permissionsLoading) && guides.length === 0,
   );
 
+  const loadCategories = useCallback(async () => {
+    if (!restaurantId) return;
+    const result = await fetchGuideCategoriesForRestaurant(restaurantId, {
+      includeInactive: true,
+    });
+    if (result.error) {
+      toast.error(result.error);
+      setCategories([]);
+    } else {
+      setCategories(result.data);
+    }
+  }, [restaurantId]);
+
   const load = useCallback(async () => {
     if (!restaurantId) return;
     setLoading(true);
-    const result = await fetchGuidesForRestaurant(restaurantId);
-    if (result.error) {
-      toast.error(result.error);
+    const [guidesResult] = await Promise.all([
+      fetchGuidesForRestaurant(restaurantId),
+      loadCategories(),
+    ]);
+    if (guidesResult.error) {
+      toast.error(guidesResult.error);
       setGuides([]);
     } else {
-      setGuides(result.data);
+      setGuides(guidesResult.data);
     }
     setLoading(false);
-  }, [restaurantId]);
+  }, [restaurantId, loadCategories]);
 
   useEffect(() => {
     if (!ready || !restaurantId || !canRead) return;
     void load();
   }, [ready, restaurantId, canRead, load]);
 
-  const activeFilterCount = countGuidesActiveFilters({ filterActive });
+  const categoryNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of categories) map.set(c.id, c.name);
+    return map;
+  }, [categories]);
+
+  const activeFilterCount = countGuidesActiveFilters({
+    filterActive,
+    filterCategory,
+  });
 
   const filtered = useMemo(() => {
     let rows = guides;
@@ -105,20 +151,28 @@ export function GuidesScreen() {
     } else if (filterActive === "inactive") {
       rows = rows.filter((g) => !g.is_active);
     }
+    if (filterCategory === "none") {
+      rows = rows.filter((g) => !g.category_id);
+    } else if (filterCategory !== "all") {
+      rows = rows.filter((g) => g.category_id === filterCategory);
+    }
     const q = search.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
         (g) =>
           g.title.toLowerCase().includes(q) ||
-          (g.short_description ?? "").toLowerCase().includes(q),
+          (g.short_description ?? "").toLowerCase().includes(q) ||
+          (g.category_id
+            ? (categoryNameById.get(g.category_id) ?? "").toLowerCase().includes(q)
+            : false),
       );
     }
     return rows;
-  }, [guides, filterActive, search]);
+  }, [guides, filterActive, filterCategory, search, categoryNameById]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, filterActive]);
+  }, [search, filterActive, filterCategory]);
 
   const totalPages = totalPagesFromCount(filtered.length, LIST_PAGE_SIZE_DEFAULT);
   const currentPage = clampListPage(page, totalPages);
@@ -126,6 +180,16 @@ export function GuidesScreen() {
     const start = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
     return filtered.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
   }, [filtered, currentPage]);
+
+  const manageItems = useMemo(
+    () =>
+      categories.map((c) => ({
+        id: c.id,
+        name: c.name,
+        active: c.is_active,
+      })),
+    [categories],
+  );
 
   async function handleToggleActive(guide: RestaurantGuideRow, next: boolean) {
     if (!restaurantId || !canUpdate) return;
@@ -185,6 +249,20 @@ export function GuidesScreen() {
         </div>
       </div>
 
+      {canCreate || canUpdate ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-full"
+            onClick={() => setManageOpen(true)}
+          >
+            Kategorien
+          </Button>
+        </div>
+      ) : null}
+
       {canCreate ? (
         <Button
           type="button"
@@ -222,8 +300,12 @@ export function GuidesScreen() {
                   stickyIdentityColumn
                 />
                 <ModuleTableStaticColumnHeader
-                  label="Beschreibung"
+                  label="Kategorie"
                   className="hidden sm:table-cell"
+                />
+                <ModuleTableStaticColumnHeader
+                  label="Beschreibung"
+                  className="hidden md:table-cell"
                 />
                 <ModuleTableStaticColumnHeader label="Schritte" />
                 <ModuleTableStaticColumnHeader label="Aktiv" />
@@ -234,7 +316,7 @@ export function GuidesScreen() {
               {paginated.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-10 text-center text-muted-foreground"
                   >
                     Keine Anleitungen gefunden.
@@ -249,7 +331,16 @@ export function GuidesScreen() {
                     <ModuleTableStickyBodyCell>
                       <TableCellTruncateTooltip text={guide.title} />
                     </ModuleTableStickyBodyCell>
-                    <td className="hidden max-w-[14rem] px-4 py-3 sm:table-cell">
+                    <td className="hidden max-w-[10rem] px-4 py-3 sm:table-cell">
+                      <TableCellTruncateTooltip
+                        text={
+                          guide.category_id
+                            ? (categoryNameById.get(guide.category_id) ?? "—")
+                            : "—"
+                        }
+                      />
+                    </td>
+                    <td className="hidden max-w-[14rem] px-4 py-3 md:table-cell">
                       <TableCellTruncateTooltip
                         text={guide.short_description?.trim() || "—"}
                       />
@@ -293,6 +384,9 @@ export function GuidesScreen() {
         onOpenChange={setFilterOpen}
         filterActive={filterActive}
         onFilterActiveChange={setFilterActive}
+        filterCategory={filterCategory}
+        onFilterCategoryChange={setFilterCategory}
+        categories={categories}
       />
 
       <GuideFormDrawer
@@ -300,7 +394,120 @@ export function GuidesScreen() {
         onOpenChange={setFormOpen}
         restaurantId={restaurantId}
         guide={editing}
+        categories={categories}
         onSaved={() => void load()}
+      />
+
+      <CategoriesManageDrawer
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        categories={manageItems}
+        copy={{
+          title: "Anleitungs-Kategorien",
+          description:
+            "Reihenfolge per Ziehen ändern. Inaktive Kategorien stehen bei neuen Anleitungen nicht zur Auswahl.",
+          newButton: "Neue Kategorie",
+        }}
+        onReorder={async (next) => {
+          const { error } = await reorderGuideCategories(
+            restaurantId,
+            next.map((n) => n.id),
+          );
+          if (error) {
+            toast.error(error);
+            return;
+          }
+          await loadCategories();
+        }}
+        onEdit={(row) => {
+          const found = categories.find((c) => c.id === row.id) ?? null;
+          setEditingCategory(found);
+          setCategoryFormOpen(true);
+        }}
+        onNew={() => {
+          if (!canCreate) {
+            toast.error("Keine Berechtigung zum Anlegen.");
+            return;
+          }
+          setEditingCategory(null);
+          setCategoryFormOpen(true);
+        }}
+      />
+
+      <CategoryDrawer
+        open={categoryFormOpen}
+        onOpenChange={setCategoryFormOpen}
+        mode={editingCategory ? "edit" : "create"}
+        initial={
+          editingCategory
+            ? {
+                id: editingCategory.id,
+                name: editingCategory.name,
+                active: editingCategory.is_active,
+              }
+            : null
+        }
+        labels={{
+          titleCreate: "Neue Kategorie",
+          titleEdit: "Kategorie bearbeiten",
+          description: "Name und Sichtbarkeit für Anleitungen.",
+          namePlaceholder: "z. B. Küche",
+          activeDescription:
+            "Inaktive Kategorien stehen bei neuen Anleitungen nicht zur Auswahl.",
+          deleteLabel: "Kategorie löschen",
+          deleteConfirmTitle: "Kategorie wirklich löschen?",
+        }}
+        onSave={async (payload) => {
+          if (payload.id) {
+            if (!canUpdate) {
+              toast.error("Keine Berechtigung zum Bearbeiten.");
+              return;
+            }
+            const { error } = await upsertGuideCategory(
+              restaurantId,
+              {
+                name: payload.name,
+                is_active: payload.active !== false,
+                sort_order:
+                  categories.find((c) => c.id === payload.id)?.sort_order ?? 0,
+              },
+              payload.id,
+            );
+            if (error) {
+              toast.error(error);
+              return;
+            }
+          } else {
+            if (!canCreate) {
+              toast.error("Keine Berechtigung zum Anlegen.");
+              return;
+            }
+            const { error } = await upsertGuideCategory(restaurantId, {
+              name: payload.name,
+              is_active: payload.active !== false,
+            });
+            if (error) {
+              toast.error(error);
+              return;
+            }
+          }
+          toast.success("Kategorie gespeichert");
+          await loadCategories();
+        }}
+        onDelete={
+          editingCategory && canDelete
+            ? async (id) => {
+                const { error } = await deleteGuideCategory(restaurantId, id);
+                if (error) {
+                  toast.error(error);
+                  return;
+                }
+                toast.success("Kategorie gelöscht");
+                await loadCategories();
+                await load();
+              }
+            : undefined
+        }
       />
     </div>
   );

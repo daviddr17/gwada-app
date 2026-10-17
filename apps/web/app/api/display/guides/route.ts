@@ -20,7 +20,7 @@ export async function GET() {
   const { data: guides, error: guidesError } = await admin
     .from("restaurant_guides")
     .select(
-      "id, title, short_description, sort_order, is_active, archived_at",
+      "id, title, short_description, sort_order, is_active, archived_at, category_id",
     )
     .eq("restaurant_id", access.restaurantId)
     .eq("is_active", true)
@@ -34,6 +34,28 @@ export async function GET() {
 
   const guideRows = guides ?? [];
   const guideIds = guideRows.map((g) => g.id as string);
+  const categoryIds = [
+    ...new Set(
+      guideRows
+        .map((g) => g.category_id as string | null)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const categoryNameById = new Map<string, string>();
+  if (categoryIds.length > 0) {
+    const { data: cats, error: catsError } = await admin
+      .from("restaurant_guide_categories")
+      .select("id, name")
+      .eq("restaurant_id", access.restaurantId)
+      .in("id", categoryIds);
+    if (catsError) {
+      return NextResponse.json({ error: catsError.message }, { status: 500 });
+    }
+    for (const c of cats ?? []) {
+      categoryNameById.set(c.id as string, (c.name as string) ?? "");
+    }
+  }
 
   let steps: {
     id: string;
@@ -76,11 +98,16 @@ export async function GET() {
 
   const result: DisplayGuide[] = guideRows.map((g) => {
     const guideSteps = stepsByGuide.get(g.id as string) ?? [];
+    const categoryId = (g.category_id as string | null) ?? null;
     return {
       id: g.id as string,
       title: (g.title as string) ?? "",
       short_description: (g.short_description as string | null) ?? "",
       sort_order: Number(g.sort_order ?? 0),
+      category_id: categoryId,
+      category_name: categoryId
+        ? (categoryNameById.get(categoryId) ?? null)
+        : null,
       steps: guideSteps.map((s) => ({
         id: s.id,
         position: s.position,

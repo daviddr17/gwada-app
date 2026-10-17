@@ -14,6 +14,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { SearchableSelect } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -27,12 +28,16 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasModuleDelete } from "@/lib/permissions/module-crud-permissions";
 import { archiveGuide, upsertGuide } from "@/lib/supabase/guides-db";
 import { uploadGuideMediaClient } from "@/lib/guides/upload-guide-media-client";
+import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import type {
   GuideStepUpsertInput,
+  RestaurantGuideCategoryRow,
   RestaurantGuideRow,
 } from "@/lib/types/guides";
 import { cn } from "@/lib/utils";
+
+const categorySelectClass = appSelectTriggerAccentCn(staffDrawerFieldClassName);
 
 type StepDraft = {
   clientKey: string;
@@ -56,6 +61,7 @@ type GuideFormDrawerProps = {
   onOpenChange: (open: boolean) => void;
   restaurantId: string;
   guide: RestaurantGuideRow | null;
+  categories: RestaurantGuideCategoryRow[];
   onSaved: () => void;
 };
 
@@ -106,6 +112,7 @@ export function GuideFormDrawer({
   onOpenChange,
   restaurantId,
   guide,
+  categories,
   onSaved,
 }: GuideFormDrawerProps) {
   const { has } = useRestaurantPermissions();
@@ -115,15 +122,24 @@ export function GuideFormDrawer({
   const [title, setTitle] = useState("");
   const [shortDescription, setShortDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [steps, setSteps] = useState<StepDraft[]>([newStepDraft()]);
   const [saving, setSaving] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [pendingGuideId, setPendingGuideId] = useState<string | null>(null);
 
+  const categoryOptions = [
+    { value: "", label: "Keine Kategorie" },
+    ...categories
+      .filter((c) => c.is_active || c.id === guide?.category_id)
+      .map((c) => ({ value: c.id, label: c.name })),
+  ];
+
   useDrawerFormSeed(open, guide?.id ?? "new", () => {
     setTitle(guide?.title ?? "");
     setShortDescription(guide?.short_description ?? "");
     setIsActive(guide?.is_active ?? true);
+    setCategoryId(guide?.category_id ?? null);
     setSteps(stepsFromGuide(guide));
     setPendingGuideId(guide?.id ?? null);
     setSaving(false);
@@ -144,6 +160,7 @@ export function GuideFormDrawer({
         title: title.trim() || "Neue Anleitung",
         short_description: shortDescription.trim() || null,
         is_active: isActive,
+        category_id: categoryId,
         steps: [{ body: "", position: 0 }],
       },
       null,
@@ -256,6 +273,7 @@ export function GuideFormDrawer({
         title,
         short_description: shortDescription,
         is_active: isActive,
+        category_id: categoryId,
         steps: stepInputs,
       },
       pendingGuideId ?? guide?.id ?? null,
@@ -322,6 +340,17 @@ export function GuideFormDrawer({
                     className={cn(staffDrawerFieldClassName, "min-h-20")}
                     placeholder="Optional, erscheint in der Liste"
                     maxLength={500}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Kategorie</Label>
+                  <SearchableSelect
+                    value={categoryId ?? ""}
+                    onValueChange={(v) => setCategoryId(v || null)}
+                    options={categoryOptions}
+                    placeholder="Kategorie wählen"
+                    searchPlaceholder="Kategorie suchen…"
+                    className={categorySelectClass}
                   />
                 </div>
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 px-3 py-2.5">

@@ -2,12 +2,16 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isMissingSchemaError } from "@/lib/supabase/schema-error";
 import type {
   GuideUpsertInput,
+  RestaurantGuideCategoryRow,
   RestaurantGuideRow,
   RestaurantGuideStepRow,
 } from "@/lib/types/guides";
 
 const GUIDE_SELECT =
-  "id, restaurant_id, title, short_description, is_active, sort_order, linked_staff_todo_id, archived_at, created_by, created_at, updated_at";
+  "id, restaurant_id, title, short_description, is_active, sort_order, category_id, linked_staff_todo_id, archived_at, created_by, created_at, updated_at";
+
+const CATEGORY_SELECT =
+  "id, restaurant_id, name, sort_order, is_active, created_at, updated_at";
 
 const STEP_SELECT =
   "id, guide_id, restaurant_id, position, body, image_storage_path, image_mime, image_size_bytes, video_storage_path, video_mime, video_size_bytes, created_at, updated_at";
@@ -126,6 +130,7 @@ export async function upsertGuide(
     short_description: input.short_description?.trim() || null,
     is_active: input.is_active ?? true,
     sort_order: input.sort_order ?? 0,
+    category_id: input.category_id?.trim() || null,
     linked_staff_todo_id: input.linked_staff_todo_id ?? null,
   };
 
@@ -295,6 +300,114 @@ export async function archiveGuide(
     .from("restaurant_guides")
     .update({ archived_at: new Date().toISOString(), is_active: false })
     .eq("id", guideId)
+    .eq("restaurant_id", restaurantId);
+  return { error: mapGuideError(error) };
+}
+
+export async function fetchGuideCategoriesForRestaurant(
+  restaurantId: string,
+  options?: { includeInactive?: boolean },
+): Promise<{ data: RestaurantGuideCategoryRow[]; error: string | null }> {
+  const supabase = createSupabaseBrowserClient();
+  let query = supabase
+    .from("restaurant_guide_categories")
+    .select(CATEGORY_SELECT)
+    .eq("restaurant_id", restaurantId)
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (!options?.includeInactive) {
+    query = query.eq("is_active", true);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    return { data: [], error: mapGuideError(error) };
+  }
+  return { data: (data ?? []) as RestaurantGuideCategoryRow[], error: null };
+}
+
+export async function upsertGuideCategory(
+  restaurantId: string,
+  input: { name: string; is_active?: boolean; sort_order?: number },
+  categoryId?: string | null,
+): Promise<{ data: RestaurantGuideCategoryRow | null; error: string | null }> {
+  const supabase = createSupabaseBrowserClient();
+  const name = input.name.trim();
+  if (!name) {
+    return { data: null, error: "Name ist erforderlich." };
+  }
+
+  const payload = {
+    restaurant_id: restaurantId,
+    name,
+    is_active: input.is_active ?? true,
+    sort_order: input.sort_order ?? 0,
+  };
+
+  if (categoryId) {
+    const { data, error } = await supabase
+      .from("restaurant_guide_categories")
+      .update({
+        name: payload.name,
+        is_active: payload.is_active,
+        sort_order: payload.sort_order,
+      })
+      .eq("id", categoryId)
+      .eq("restaurant_id", restaurantId)
+      .select(CATEGORY_SELECT)
+      .single();
+    if (error) return { data: null, error: mapGuideError(error) };
+    return { data: data as RestaurantGuideCategoryRow, error: null };
+  }
+
+  const { data: existing } = await supabase
+    .from("restaurant_guide_categories")
+    .select("sort_order")
+    .eq("restaurant_id", restaurantId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextSort =
+    input.sort_order ??
+    (typeof existing?.sort_order === "number" ? existing.sort_order + 1 : 0);
+
+  const { data, error } = await supabase
+    .from("restaurant_guide_categories")
+    .insert({ ...payload, sort_order: nextSort })
+    .select(CATEGORY_SELECT)
+    .single();
+  if (error) return { data: null, error: mapGuideError(error) };
+  return { data: data as RestaurantGuideCategoryRow, error: null };
+}
+
+export async function reorderGuideCategories(
+  restaurantId: string,
+  orderedIds: string[],
+): Promise<{ error: string | null }> {
+  const supabase = createSupabaseBrowserClient();
+  for (let i = 0; i < orderedIds.length; i++) {
+    const id = orderedIds[i]!;
+    const { error } = await supabase
+      .from("restaurant_guide_categories")
+      .update({ sort_order: i })
+      .eq("id", id)
+      .eq("restaurant_id", restaurantId);
+    if (error) return { error: mapGuideError(error) };
+  }
+  return { error: null };
+}
+
+export async function deleteGuideCategory(
+  restaurantId: string,
+  categoryId: string,
+): Promise<{ error: string | null }> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("restaurant_guide_categories")
+    .delete()
+    .eq("id", categoryId)
     .eq("restaurant_id", restaurantId);
   return { error: mapGuideError(error) };
 }

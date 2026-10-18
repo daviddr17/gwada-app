@@ -37,19 +37,55 @@ SUPABASE_GO="${SUPABASE_DIR}/supabase-go"
 [[ -x "${SUPABASE_GO}" ]] || { echo "FEHLER: supabase-go neben Runner-CLI nicht gefunden." >&2; exit 1; }
 
 echo "→ Postgres auf VPS bereit halten …"
-gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" bash <<REMOTE
+gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
+  "DEV_COMPOSE_DIR=$(printf '%q' "${DEV_COMPOSE_DIR}") bash -s" <<'REMOTE'
 set -euo pipefail
 cd "${DEV_COMPOSE_DIR}"
 export COMPOSE_PROJECT_NAME=gwada-dev
+
+wait_db_ready() {
+  local attempts="${1:-90}"
+  local i
+  for i in $(seq 1 "${attempts}"); do
+    if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+dump_db_diag() {
+  echo "--- gwada-dev-db diagnose ---" >&2
+  docker compose ps db >&2 || true
+  docker ps -a --filter name=gwada-dev-db --format '{{.Names}} {{.Status}}' >&2 || true
+  docker compose logs --tail=80 db >&2 || true
+  echo "--- end diagnose ---" >&2
+}
+
 docker compose up -d db
-for i in \$(seq 1 60); do
-  docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1 && break
-  sleep 2
-done
+if ! wait_db_ready 90; then
+  echo "Postgres nicht bereit — Container-Status prüfen und einmal neu starten …" >&2
+  dump_db_diag
+  # Crash-loop / "is restarting": compose restart oft reicht; sonst recreate.
+  docker compose restart db || true
+  sleep 5
+  if ! wait_db_ready 60; then
+    echo "Restart reichte nicht — db recreate …" >&2
+    docker compose up -d --force-recreate db
+    sleep 8
+    if ! wait_db_ready 90; then
+      dump_db_diag
+      docker compose exec -T db pg_isready -U postgres
+      exit 1
+    fi
+  fi
+fi
 docker compose exec -T db pg_isready -U postgres
+
 mapfile -t NON_DB < <(docker compose config --services 2>/dev/null | grep -Ev '^(db|supavisor|pooler)$' || true)
-if [[ \${#NON_DB[@]} -gt 0 ]]; then
-  docker compose stop "\${NON_DB[@]}" 2>/dev/null || true
+if [[ ${#NON_DB[@]} -gt 0 ]]; then
+  docker compose stop "${NON_DB[@]}" 2>/dev/null || true
 fi
 REMOTE
 

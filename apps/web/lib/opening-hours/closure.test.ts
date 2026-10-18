@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  closureSpecialHoursWindow,
   isOpeningHoursClosureActiveOnDate,
   toFacebookClosureFields,
   toGoogleOpenInfo,
@@ -103,23 +102,17 @@ test("toFacebookClosureFields maps Meta temporary_status", () => {
   );
 });
 
-test("closureSpecialHoursWindow builds Google season period", () => {
-  assert.deepEqual(
-    closureSpecialHoursWindow(
-      {
-        mode: "temporary",
-        from: "2025-11-01",
-        until: "2026-03-31",
-      },
-      "2026-01-15",
-    ),
-    { start: "2026-01-15", end: "2026-03-31" },
-  );
-  assert.equal(
-    closureSpecialHoursWindow(
-      { mode: "temporary", from: null, until: null },
-      "2026-01-15",
-    ),
-    null,
-  );
+test("toGoogleOpenInfo uses status-only inside season window", () => {
+  const season = {
+    mode: "temporary" as const,
+    from: "2025-11-01",
+    until: "2026-03-31",
+  };
+  assert.deepEqual(toGoogleOpenInfo(season, "2026-01-15"), {
+    status: "CLOSED_TEMPORARILY",
+    canReopen: true,
+  });
+  assert.deepEqual(toGoogleOpenInfo(season, "2026-04-01"), {
+    status: "OPEN",
+  });
 });

@@ -8,7 +8,6 @@ import {
   toFacebookHours,
   toGoogleRegularHours,
   toGoogleSpecialHours,
-  toGoogleSpecialHoursForSync,
   weeklyHoursEqual,
 } from "@/lib/integrations/opening-hours-platform-format";
 import type { DayHours, Weekday } from "@/lib/types/restaurant";
@@ -230,46 +229,6 @@ test("fromGoogleRegularHours treats omitted proto3 midnight defaults as 00:00", 
     open: "18:00",
     close: "00:00",
   });
-});
-
-test("toGoogleSpecialHoursForSync adds season closed range with endDate", () => {
-  const payload = toGoogleSpecialHoursForSync(
-    [
-      { id: "1", date: "2026-02-14", closed: true },
-      { id: "2", date: "2026-05-01", closed: true },
-    ],
-    {
-      mode: "temporary",
-      from: "2025-11-01",
-      until: "2026-03-31",
-    },
-    "2026-01-15",
-  );
-  const season = payload.specialHourPeriods.find(
-    (p) =>
-      p.closed === true &&
-      JSON.stringify(p.startDate) ===
-        JSON.stringify({ year: 2026, month: 1, day: 15 }),
-  );
-  assert.ok(season);
-  assert.deepEqual(season?.endDate, { year: 2026, month: 3, day: 31 });
-  assert.equal(
-    payload.specialHourPeriods.some(
-      (p) =>
-        JSON.stringify(p.startDate) ===
-        JSON.stringify({ year: 2026, month: 2, day: 14 }),
-    ),
-    false,
-    "exceptions inside season window are omitted",
-  );
-  assert.equal(
-    payload.specialHourPeriods.some(
-      (p) =>
-        JSON.stringify(p.startDate) ===
-        JSON.stringify({ year: 2026, month: 5, day: 1 }),
-    ),
-    true,
-  );
 });
 
 test("toGoogleSpecialHours uses google.type.Date objects, not ISO strings", () => {

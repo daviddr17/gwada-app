@@ -114,31 +114,12 @@ export function isOpeningHoursClosureActive(
 }
 
 /**
- * Google-Sonderzeiten: ein geschlossenes Intervall für den noch laufenden
- * oder künftigen Saisonzeitraum. Ohne Bis-Datum kein Intervall (nur Status).
+ * Google Business Profile: kein mehrtägiges `specialHours`-Fenster.
+ * Bei `closed: true` zählt nur `startDate` (ein Tag); `endDate` wird ignoriert
+ * und darf ohnehin höchstens ein Tag nach `startDate` liegen.
+ * Saison = `openInfo.status` CLOSED_TEMPORARILY solange der Sync im Fenster läuft
+ * (wie Facebook `temporary_status`).
  */
-export function closureSpecialHoursWindow(
-  closure: OpeningHoursClosure,
-  todayYmd: string,
-): { start: string; end: string } | null {
-  const normalized = normalizeOpeningHoursClosure(closure);
-  if (normalized.mode !== "temporary" || !normalized.until) return null;
-  if (normalized.until < todayYmd) return null;
-  if (normalized.from && normalized.from > normalized.until) return null;
-  const start =
-    normalized.from && normalized.from > todayYmd ? normalized.from : todayYmd;
-  if (start > normalized.until) return null;
-  return { start, end: normalized.until };
-}
-
-export function dateInsideClosureWindow(
-  ymd: string,
-  window: { start: string; end: string } | null,
-): boolean {
-  if (!window) return false;
-  return ymd >= window.start && ymd <= window.end;
-}
-
 export type GoogleOpenForBusiness =
   | "OPEN"
   | "CLOSED_TEMPORARILY"

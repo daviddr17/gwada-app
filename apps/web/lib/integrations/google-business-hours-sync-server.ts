@@ -10,7 +10,7 @@ import { berlinCalendarYmd, toGoogleOpenInfo } from "@/lib/opening-hours/closure
 import {
   toGoogleKitchenMoreHours,
   toGoogleRegularHours,
-  toGoogleSpecialHoursForSync,
+  toGoogleSpecialHours,
 } from "@/lib/integrations/opening-hours-platform-format";
 import { loadOpeningHoursPayloadAdmin } from "@/lib/integrations/opening-hours-load-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -72,14 +72,14 @@ export async function syncOpeningHoursToGoogleBusiness(
   const locationName = googleLocationResourceName(locationRaw);
   const todayYmd = berlinCalendarYmd();
 
+  const futureExceptions = hoursRes.dateExceptions.filter(
+    (ex) => ex.date >= todayYmd,
+  );
+  const specialHours = toGoogleSpecialHours(futureExceptions);
+
   if (scope === "regular") {
     const regularHours = toGoogleRegularHours(hoursRes.weeklyHours);
     const openInfo = toGoogleOpenInfo(hoursRes.closure, todayYmd);
-    const specialHours = toGoogleSpecialHoursForSync(
-      hoursRes.dateExceptions,
-      hoursRes.closure,
-      todayYmd,
-    );
     const keepStoredRegularHours =
       regularHours.periods.length === 0 && hoursRes.closure.mode !== "open";
     const body: Record<string, unknown> = { openInfo, specialHours };
@@ -112,11 +112,6 @@ export async function syncOpeningHoursToGoogleBusiness(
     );
   }
 
-  const specialHours = toGoogleSpecialHoursForSync(
-    hoursRes.dateExceptions,
-    hoursRes.closure,
-    todayYmd,
-  );
   return patchGoogleLocationHours(
     restaurantId,
     locationName,

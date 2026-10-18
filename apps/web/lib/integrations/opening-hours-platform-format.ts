@@ -1,9 +1,5 @@
 import { WEEKDAY_ORDER, WEEKDAY_LABEL_DE } from "@/lib/constants/restaurant-profile";
-import {
-  closureSpecialHoursWindow,
-  dateInsideClosureWindow,
-  type OpeningHoursClosure,
-} from "@/lib/opening-hours/closure";
+import type { OpeningHoursClosure } from "@/lib/opening-hours/closure";
 import { exceptionOpenPeriods } from "@/lib/opening-hours/hours-periods";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
 
@@ -168,36 +164,6 @@ export function toGoogleSpecialHours(
   }
 
   return { specialHourPeriods };
-}
-
-/**
- * Saison-Schließung als ein Google-`specialHourPeriod` mit `endDate`.
- * Tagesausnahmen im selben Fenster entfallen, damit sich Perioden nicht überlappen.
- */
-export function toGoogleSpecialHoursForSync(
-  dateExceptions: DateHoursException[],
-  closure: OpeningHoursClosure,
-  todayYmd: string,
-): { specialHourPeriods: Array<Record<string, unknown>> } {
-  const window = closureSpecialHoursWindow(closure, todayYmd);
-  const outside = window
-    ? dateExceptions.filter((ex) => !dateInsideClosureWindow(ex.date, window))
-    : dateExceptions;
-  const base = toGoogleSpecialHours(outside.filter((ex) => ex.date >= todayYmd));
-  if (!window) return base;
-  const startDate = ymdToGoogleDate(window.start);
-  const endDate = ymdToGoogleDate(window.end);
-  if (!startDate || !endDate) return base;
-  const period: Record<string, unknown> = {
-    startDate,
-    closed: true,
-  };
-  if (window.end !== window.start) {
-    period.endDate = endDate;
-  }
-  return {
-    specialHourPeriods: [...base.specialHourPeriods, period],
-  };
 }
 
 /** Meta Page `hours`: flache Keys `{day}_{1|2}_{open|close}` → `"HH:MM"`. */

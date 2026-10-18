@@ -1,4 +1,5 @@
 import { WEEKDAY_ORDER, WEEKDAY_LABEL_DE } from "@/lib/constants/restaurant-profile";
+import type { OpeningHoursClosure } from "@/lib/opening-hours/closure";
 import { exceptionOpenPeriods } from "@/lib/opening-hours/hours-periods";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
 
@@ -62,6 +63,8 @@ export type OpeningHoursPayload = {
   dateExceptions: DateHoursException[];
   kitchenHoursEnabled: boolean;
   kitchenWeeklyHours: Record<Weekday, DayHours>;
+  /** Status-Overlay. Wochenplan bleibt in weeklyHours. */
+  closure: OpeningHoursClosure;
 };
 
 /** Google Business Profile: Küchenzeiten sind ein Eintrag in `moreHours`, nicht ein eigenes Top-Level-Feld. */

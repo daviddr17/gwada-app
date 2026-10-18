@@ -10,6 +10,11 @@ import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-s
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
+import {
+  defaultOpeningHoursClosure,
+  parseOpeningHoursClosure,
+  type OpeningHoursClosure,
+} from "@/lib/opening-hours/closure";
 import { groupExceptionRowsToDateExceptions } from "@/lib/opening-hours/group-exception-rows";
 import { timeToHHmm } from "@/lib/supabase/opening-hours-db";
 import type {
@@ -23,6 +28,7 @@ export type PublicEmbedOpeningHoursSettings = {
   embedFooterText: string | null;
   embedShowKitchenHours: boolean;
   embedShowExceptions: boolean;
+  closure: OpeningHoursClosure;
 };
 
 export type PublicOpeningHoursPayload = {
@@ -68,8 +74,8 @@ function mergeWeeklyFromRows(
     ) {
       weekly[raw.weekday] = {
         closed: raw.closed,
-        open: raw.closed ? undefined : timeToHHmm(raw.opens_at),
-        close: raw.closed ? undefined : timeToHHmm(raw.closes_at),
+        open: timeToHHmm(raw.opens_at),
+        close: timeToHHmm(raw.closes_at),
       };
     }
   }
@@ -81,12 +87,18 @@ function parseOpeningHoursSettingsRow(
     embed_footer_text?: string | null;
     embed_show_kitchen_hours?: boolean | null;
     embed_show_exceptions?: boolean | null;
+    closure_mode?: string | null;
+    closure_from?: string | null;
+    closure_until?: string | null;
   } | null,
 ): PublicEmbedOpeningHoursSettings {
   return {
     embedFooterText: settingsRow?.embed_footer_text?.trim() || null,
     embedShowKitchenHours: settingsRow?.embed_show_kitchen_hours ?? true,
     embedShowExceptions: settingsRow?.embed_show_exceptions ?? true,
+    closure: settingsRow
+      ? parseOpeningHoursClosure(settingsRow)
+      : defaultOpeningHoursClosure(),
   };
 }
 
@@ -104,7 +116,7 @@ export async function loadPublicOpeningHoursForRestaurant(
     admin
       .from("restaurant_opening_hours_settings")
       .select(
-        "embed_footer_text, embed_show_kitchen_hours, embed_show_exceptions",
+        "embed_footer_text, embed_show_kitchen_hours, embed_show_exceptions, closure_mode, closure_from, closure_until",
       )
       .eq("restaurant_id", restaurantId)
       .maybeSingle(),
@@ -143,13 +155,7 @@ export async function loadPublicOpeningHoursForRestaurant(
     kitchenHoursEnabled,
     kitchenWeeklyHours,
     dateExceptions,
-    settings: parseOpeningHoursSettingsRow(
-      settingsRes.data as {
-        embed_footer_text?: string | null;
-        embed_show_kitchen_hours?: boolean | null;
-        embed_show_exceptions?: boolean | null;
-      } | null,
-    ),
+    settings: parseOpeningHoursSettingsRow(settingsRes.data),
   };
 }
 

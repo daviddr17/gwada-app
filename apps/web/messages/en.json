@@ -301,6 +301,9 @@
       "kitchen": "Kitchen",
       "exception": "Special hours",
       "closed": "Closed",
+      "closureTemporary": "Temporarily closed",
+      "closurePermanent": "Permanently closed",
+      "closureUntil": "until {date}",
       "weekday": {
         "monday": "Monday",
         "tuesday": "Tuesday",

@@ -5,6 +5,10 @@ import {
   defaultWeeklyHours,
   WEEKDAY_ORDER,
 } from "@/lib/constants/restaurant-profile";
+import {
+  defaultOpeningHoursClosure,
+  parseOpeningHoursClosure,
+} from "@/lib/opening-hours/closure";
 import { groupExceptionRowsToDateExceptions } from "@/lib/opening-hours/group-exception-rows";
 import type { DayHours, Weekday } from "@/lib/types/restaurant";
 import type { OpeningHoursPayload } from "@/lib/integrations/opening-hours-platform-format";
@@ -46,8 +50,8 @@ function mergeWeekly(
     ) {
       weekly[raw.weekday] = {
         closed: raw.closed,
-        open: raw.closed ? undefined : timeToHHmm(raw.opens_at),
-        close: raw.closed ? undefined : timeToHHmm(raw.closes_at),
+        open: timeToHHmm(raw.opens_at),
+        close: timeToHHmm(raw.closes_at),
       };
     }
   }
@@ -58,12 +62,19 @@ export async function loadOpeningHoursPayloadAdmin(
   admin: SupabaseClient,
   restaurantId: string,
 ): Promise<OpeningHoursPayload | { error: string }> {
-  const { data, error } = await admin
-    .from("opening_hours")
-    .select(
-      "id, kind, weekday, exception_date, closed, opens_at, closes_at, note, schedule_role",
-    )
-    .eq("restaurant_id", restaurantId);
+  const [{ data, error }, settingsRes] = await Promise.all([
+    admin
+      .from("opening_hours")
+      .select(
+        "id, kind, weekday, exception_date, closed, opens_at, closes_at, note, schedule_role",
+      )
+      .eq("restaurant_id", restaurantId),
+    admin
+      .from("restaurant_opening_hours_settings")
+      .select("closure_mode, closure_from, closure_until")
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle(),
+  ]);
 
   if (error) {
     return { error: error.message };
@@ -105,5 +116,8 @@ export async function loadOpeningHoursPayloadAdmin(
     dateExceptions,
     kitchenHoursEnabled,
     kitchenWeeklyHours,
+    closure: settingsRes.error
+      ? defaultOpeningHoursClosure()
+      : parseOpeningHoursClosure(settingsRes.data),
   };
 }

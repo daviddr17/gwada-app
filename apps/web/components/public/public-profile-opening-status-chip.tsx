@@ -13,6 +13,10 @@ const openingStatusChipClassName: Record<
     "border-amber-500/50 bg-amber-500/16 text-amber-950 dark:border-amber-400/40 dark:bg-amber-400/14 dark:text-amber-50",
   closed:
     "border-border/60 bg-muted/40 text-foreground/90 dark:text-foreground/85",
+  temporary_closed:
+    "border-border/60 bg-muted/40 text-foreground/90 dark:text-foreground/85",
+  permanent_closed:
+    "border-border/60 bg-muted/40 text-foreground/90 dark:text-foreground/85",
 };
 
 const openingStatusDotClassName: Record<
@@ -22,6 +26,8 @@ const openingStatusDotClassName: Record<
   open: "bg-emerald-500",
   opens_later: "bg-amber-500 dark:bg-amber-400",
   closed: "bg-muted-foreground/55",
+  temporary_closed: "bg-muted-foreground/55",
+  permanent_closed: "bg-muted-foreground/55",
 };
 
 export function publicOpeningStatusLabelText(

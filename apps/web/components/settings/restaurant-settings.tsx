@@ -43,6 +43,7 @@ import {
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
 import { IntegrationPlatformSyncButton } from "@/components/settings/integration-platform-sync-button";
+import { OpeningHoursClosureCard } from "@/components/settings/opening-hours-closure-card";
 import { OpeningHoursExceptionCard } from "@/components/settings/opening-hours-exception-card";
 import { OpeningHoursHolidaySuggestions } from "@/components/settings/opening-hours-holiday-suggestions";
 import { OpeningHoursPlatformSyncToggles } from "@/components/settings/opening-hours-platform-sync-toggles";
@@ -59,6 +60,10 @@ import { integrationSyncErrorMessage } from "@/lib/integrations/integration-sync
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useOpeningHoursPlatformStatus } from "@/lib/hooks/use-opening-hours-platform-status";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
+import {
+  validateOpeningHoursClosure,
+  type OpeningHoursClosureMode,
+} from "@/lib/opening-hours/closure";
 import {
   defaultOpeningHoursSettingsRow,
   fetchOpeningHoursSettingsForRestaurant,
@@ -382,9 +387,24 @@ export function RestaurantSettingsPanel({
       JSON.stringify(draft.kitchenWeeklyHours) !==
         JSON.stringify(profile.kitchenWeeklyHours) ||
       openingHoursSettings.embedFooterText !==
-        savedOpeningHoursSettings.embedFooterText
+        savedOpeningHoursSettings.embedFooterText ||
+      openingHoursSettings.closureMode !==
+        savedOpeningHoursSettings.closureMode ||
+      openingHoursSettings.closureFrom !==
+        savedOpeningHoursSettings.closureFrom ||
+      openingHoursSettings.closureUntil !==
+        savedOpeningHoursSettings.closureUntil
     );
   }, [draft, profile, isReady, openingHoursSettings, savedOpeningHoursSettings]);
+
+  const updateClosureMode = useCallback((mode: OpeningHoursClosureMode) => {
+    setOpeningHoursSettings((prev) => ({
+      ...prev,
+      closureMode: mode,
+      closureFrom: mode === "temporary" ? prev.closureFrom : null,
+      closureUntil: mode === "temporary" ? prev.closureUntil : null,
+    }));
+  }, []);
 
   const addException = () => {
     setDraft((prev) => {
@@ -612,6 +632,15 @@ export function RestaurantSettingsPanel({
       setError(
         `Hinweistext: maximal ${OPENING_HOURS_EMBED_FOOTER_MAX} Zeichen.`,
       );
+      return;
+    }
+    const closureMsg = validateOpeningHoursClosure({
+      mode: openingHoursSettings.closureMode,
+      from: openingHoursSettings.closureFrom,
+      until: openingHoursSettings.closureUntil,
+    });
+    if (closureMsg) {
+      setError(closureMsg);
       return;
     }
     setError(null);
@@ -970,12 +999,35 @@ export function RestaurantSettingsPanel({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
+            <OpeningHoursClosureCard
+              mode={openingHoursSettings.closureMode}
+              from={openingHoursSettings.closureFrom}
+              until={openingHoursSettings.closureUntil}
+              onModeChange={updateClosureMode}
+              onFromChange={(ymd) =>
+                setOpeningHoursSettings((prev) => ({
+                  ...prev,
+                  closureFrom: ymd,
+                }))
+              }
+              onUntilChange={(ymd) =>
+                setOpeningHoursSettings((prev) => ({
+                  ...prev,
+                  closureUntil: ymd,
+                }))
+              }
+            />
+
+            <Separator />
+
             <div className="space-y-3">
               <h3 className="text-sm font-semibold tracking-tight text-foreground">
                 Reguläre Wochentage
               </h3>
               <p className="text-xs text-muted-foreground">
-                Standard pro Wochentag. „Geschlossen“ überschreibt Von–Bis.
+                Standard pro Wochentag. „Geschlossen“ überschreibt Von–Bis. Bei
+                Saisonpause den Wochenplan behalten und oben den
+                Schließungsstatus setzen.
               </p>
               <WeekdayHoursGrid hours={draft.weeklyHours} onDayChange={updateDay} />
               <OpeningHoursPlatformSyncStatusRow

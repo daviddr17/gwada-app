@@ -305,7 +305,10 @@
         "friday": "الجمعة",
         "saturday": "السبت",
         "sunday": "الأحد"
-      }
+      },
+      "closureTemporary": "مغلق مؤقتاً",
+      "closurePermanent": "مغلق نهائياً",
+      "closureUntil": "حتى {date}"
     },
     "eventsUi": {
       "past": "سابق",

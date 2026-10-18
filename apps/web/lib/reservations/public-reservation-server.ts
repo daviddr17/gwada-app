@@ -35,6 +35,10 @@ import {
   reservationDateTimeChanged,
   shouldRescheduleTimedOutbox,
 } from "@/lib/reservations/reservation-datetime-reschedule";
+import {
+  defaultOpeningHoursClosure,
+  parseOpeningHoursClosure,
+} from "@/lib/opening-hours/closure";
 import { groupExceptionRowsToDateExceptions } from "@/lib/opening-hours/group-exception-rows";
 import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
@@ -163,16 +167,22 @@ export async function fetchPublicEmbedRestaurant(
     return { data: null, error: "not_found", status: 404 };
   }
 
-  const [{ weeklyHours, dateExceptions }, settingsRes] = await Promise.all([
-    loadOpeningHoursAdmin(admin, row.id),
-    admin
-      .from("restaurant_reservation_settings")
-      .select(
-        `default_dwell_minutes, booking_lead_time_hours, min_minutes_before_closing, embed_form_footer_text, ${GUEST_CONTACT_REQUIREMENTS_SELECT}`,
-      )
-      .eq("restaurant_id", row.id)
-      .maybeSingle(),
-  ]);
+  const [{ weeklyHours, dateExceptions }, settingsRes, hoursSettingsRes] =
+    await Promise.all([
+      loadOpeningHoursAdmin(admin, row.id),
+      admin
+        .from("restaurant_reservation_settings")
+        .select(
+          `default_dwell_minutes, booking_lead_time_hours, min_minutes_before_closing, embed_form_footer_text, ${GUEST_CONTACT_REQUIREMENTS_SELECT}`,
+        )
+        .eq("restaurant_id", row.id)
+        .maybeSingle(),
+      admin
+        .from("restaurant_opening_hours_settings")
+        .select("closure_mode, closure_from, closure_until")
+        .eq("restaurant_id", row.id)
+        .maybeSingle(),
+    ]);
 
   const accentHex =
     normalizeHex(String(row.brand_accent_hex ?? "")) ?? DEFAULT_ACCENT_HEX;
@@ -217,6 +227,9 @@ export async function fetchPublicEmbedRestaurant(
       guestPhoneRequiredMinPartySize: contactSettings.guestPhoneRequiredMinPartySize,
       weeklyHours,
       dateExceptions,
+      openingHoursClosure: hoursSettingsRes.error
+        ? defaultOpeningHoursClosure()
+        : parseOpeningHoursClosure(hoursSettingsRes.data),
     },
     error: null,
   };

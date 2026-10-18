@@ -154,6 +154,8 @@ export function RestaurantPublicProfileHeroCard({
   const opening = getPublicOpeningStatus(
     profile.weeklyHours,
     profile.dateExceptions,
+    new Date(),
+    profile.openingHoursSettings.closure,
   );
   const initials = restaurantInitials(profile.name);
   const socialLinks = profile.socialLinks;

@@ -1,4 +1,5 @@
 import { WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
+import { isOpeningHoursClosureActive } from "@/lib/opening-hours/closure";
 import { getPublicSiteUrl } from "@/lib/public-env";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
 import type { Weekday } from "@/lib/types/restaurant";
@@ -33,18 +34,23 @@ export function buildPublicRestaurantJsonLd(
     (profile.avatarUrl && absolutePublicUrl(profile.avatarUrl)) ||
     undefined;
 
-  const openingHoursSpecification = WEEKDAY_ORDER.flatMap((day) => {
-    const hours = profile.weeklyHours[day];
-    if (!hours || hours.closed || !hours.open || !hours.close) return [];
-    return [
-      {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: WEEKDAY_SCHEMA[day],
-        opens: hours.open,
-        closes: hours.close,
-      },
-    ];
-  });
+  const closureActive = isOpeningHoursClosureActive(
+    profile.openingHoursSettings.closure,
+  );
+  const openingHoursSpecification = closureActive
+    ? []
+    : WEEKDAY_ORDER.flatMap((day) => {
+        const hours = profile.weeklyHours[day];
+        if (!hours || hours.closed || !hours.open || !hours.close) return [];
+        return [
+          {
+            "@type": "OpeningHoursSpecification",
+            dayOfWeek: WEEKDAY_SCHEMA[day],
+            opens: hours.open,
+            closes: hours.close,
+          },
+        ];
+      });
 
   const address =
     profile.addressLine1 || profile.postalCode || profile.city

@@ -305,7 +305,10 @@
         "friday": "Cuma",
         "saturday": "Cumartesi",
         "sunday": "Pazar"
-      }
+      },
+      "closureTemporary": "Geçici olarak kapalı",
+      "closurePermanent": "Kalıcı olarak kapalı",
+      "closureUntil": "{date} tarihine kadar"
     },
     "eventsUi": {
       "past": "Geçmiş",

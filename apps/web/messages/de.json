@@ -301,6 +301,9 @@
       "kitchen": "Küche",
       "exception": "Sondertermin",
       "closed": "Geschlossen",
+      "closureTemporary": "Vorübergehend geschlossen",
+      "closurePermanent": "Dauerhaft geschlossen",
+      "closureUntil": "bis {date}",
       "weekday": {
         "monday": "Montag",
         "tuesday": "Dienstag",

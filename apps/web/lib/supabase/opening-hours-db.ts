@@ -84,8 +84,8 @@ function mergeWeeklyFromRows(
     ) {
       weekly[raw.weekday] = {
         closed: raw.closed,
-        open: raw.closed ? undefined : timeToHHmm(raw.opens_at),
-        close: raw.closed ? undefined : timeToHHmm(raw.closes_at),
+        open: timeToHHmm(raw.opens_at),
+        close: timeToHHmm(raw.closes_at),
       };
     }
   }
@@ -178,8 +178,8 @@ function pushWeeklyInserts(
       weekday: day,
       exception_date: null,
       closed: h.closed,
-      opens_at: h.closed ? null : hhmmToPgTime(h.open),
-      closes_at: h.closed ? null : hhmmToPgTime(h.close),
+      opens_at: hhmmToPgTime(h.open),
+      closes_at: hhmmToPgTime(h.close),
       note: null,
       schedule_role: scheduleRole,
     });

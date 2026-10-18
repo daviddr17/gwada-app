@@ -8,6 +8,7 @@ import {
   groupUpcomingExceptionsByWeekday,
   openingHoursWeekdayRows,
 } from "@/lib/opening-hours/embed-display-utils";
+import { isOpeningHoursClosureActive } from "@/lib/opening-hours/closure";
 import type { PublicEmbedOpeningHoursSettings } from "@/lib/opening-hours/public-opening-hours-server";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
 import { cn } from "@/lib/utils";
@@ -122,9 +123,35 @@ export function PublicOpeningHoursDisplay({
     settings.embedShowKitchenHours && kitchenHoursEnabled;
 
   const footerText = settings.embedFooterText?.trim() ?? "";
+  const closure = settings.closure ?? {
+    mode: "open" as const,
+    from: null,
+    until: null,
+  };
+  const closureActive = isOpeningHoursClosureActive(closure);
 
   return (
     <div className={cn("text-foreground", className)}>
+      {closureActive ? (
+        <div
+          className="mb-4 rounded-xl border border-border/50 bg-muted/30 px-3 py-3 text-sm"
+          role="status"
+        >
+          <p className="font-medium">
+            {closure.mode === "permanent"
+              ? t("closurePermanent")
+              : t("closureTemporary")}
+          </p>
+          {closure.mode === "temporary" && closure.until ? (
+            <p className="mt-1 text-muted-foreground">
+              {t("closureUntil", {
+                date: formatExceptionDateShortDe(closure.until),
+              })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <section aria-labelledby="public-hours-business-heading">
         <h2
           id="public-hours-business-heading"
@@ -137,8 +164,10 @@ export function PublicOpeningHoursDisplay({
             <OpeningHoursWeekdayBlock
               key={row.day}
               label={row.label}
-              value={row.value}
-              exceptions={upcomingByWeekday[row.day] ?? []}
+              value={closureActive ? t("closed") : row.value}
+              exceptions={
+                closureActive ? [] : (upcomingByWeekday[row.day] ?? [])
+              }
             />
           ))}
         </dl>

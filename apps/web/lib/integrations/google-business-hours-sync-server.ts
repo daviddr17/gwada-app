@@ -6,21 +6,14 @@ import {
   googleLocationResourceName,
 } from "@/lib/integrations/google-business-access";
 import type { GoogleOpeningHoursSyncScope } from "@/lib/integrations/google-opening-hours-sync-scopes";
+import { berlinCalendarYmd, toGoogleOpenInfo } from "@/lib/opening-hours/closure";
 import {
   toGoogleKitchenMoreHours,
   toGoogleRegularHours,
-  toGoogleSpecialHours,
+  toGoogleSpecialHoursForSync,
 } from "@/lib/integrations/opening-hours-platform-format";
 import { loadOpeningHoursPayloadAdmin } from "@/lib/integrations/opening-hours-load-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { DateHoursException } from "@/lib/types/restaurant";
-
-function futureDateExceptions(
-  dateExceptions: DateHoursException[],
-  todayYmd: string,
-): DateHoursException[] {
-  return dateExceptions.filter((ex) => ex.date >= todayYmd);
-}
 
 async function patchGoogleLocationHours(
   restaurantId: string,
@@ -77,14 +70,29 @@ export async function syncOpeningHoursToGoogleBusiness(
   }
 
   const locationName = googleLocationResourceName(locationRaw);
-  const todayYmd = new Date().toISOString().slice(0, 10);
+  const todayYmd = berlinCalendarYmd();
 
   if (scope === "regular") {
+    const regularHours = toGoogleRegularHours(hoursRes.weeklyHours);
+    const openInfo = toGoogleOpenInfo(hoursRes.closure, todayYmd);
+    const specialHours = toGoogleSpecialHoursForSync(
+      hoursRes.dateExceptions,
+      hoursRes.closure,
+      todayYmd,
+    );
+    const keepStoredRegularHours =
+      regularHours.periods.length === 0 && hoursRes.closure.mode !== "open";
+    const body: Record<string, unknown> = { openInfo, specialHours };
+    const mask = ["openInfo", "specialHours"];
+    if (!keepStoredRegularHours) {
+      body.regularHours = regularHours;
+      mask.unshift("regularHours");
+    }
     return patchGoogleLocationHours(
       restaurantId,
       locationName,
-      { regularHours: toGoogleRegularHours(hoursRes.weeklyHours) },
-      "regularHours",
+      body,
+      mask.join(","),
     );
   }
 
@@ -104,8 +112,11 @@ export async function syncOpeningHoursToGoogleBusiness(
     );
   }
 
-  const future = futureDateExceptions(hoursRes.dateExceptions, todayYmd);
-  const specialHours = toGoogleSpecialHours(future);
+  const specialHours = toGoogleSpecialHoursForSync(
+    hoursRes.dateExceptions,
+    hoursRes.closure,
+    todayYmd,
+  );
   return patchGoogleLocationHours(
     restaurantId,
     locationName,

@@ -5,6 +5,11 @@ import {
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
 import {
+  defaultOpeningHoursClosure,
+  isOpeningHoursClosureActiveOnDate,
+  type OpeningHoursClosure,
+} from "@/lib/opening-hours/closure";
+import {
   dayHoursOpenPeriods,
   isMinutesWithinOpenPeriods,
 } from "@/lib/opening-hours/hours-periods";
@@ -39,6 +44,8 @@ export type PublicEmbedRestaurant = {
   guestPhoneRequiredMinPartySize: number;
   weeklyHours: Record<Weekday, DayHours>;
   dateExceptions: DateHoursException[];
+  /** Status-Overlay (Saison/dauerhaft). Wochenplan bleibt in weeklyHours. */
+  openingHoursClosure?: OpeningHoursClosure;
 };
 
 export type PublicGuestReservation = {
@@ -133,9 +140,17 @@ export function filterSlotsForMinMinutesBeforeClosing(
 }
 
 export function publicTimeSlotsForYmd(
-  config: Pick<PublicEmbedRestaurant, "weeklyHours" | "dateExceptions">,
+  config: Pick<
+    PublicEmbedRestaurant,
+    "weeklyHours" | "dateExceptions" | "openingHoursClosure"
+  >,
   dateYmd: string,
 ): string[] {
+  const closure =
+    config.openingHoursClosure ?? defaultOpeningHoursClosure();
+  if (isOpeningHoursClosureActiveOnDate(closure, dateYmd)) {
+    return [];
+  }
   const hours = resolveHoursForRestaurantCalendarDay(
     dateYmd,
     config.weeklyHours,

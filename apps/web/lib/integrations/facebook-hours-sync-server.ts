@@ -1,6 +1,10 @@
 import "server-only";
 
 import { META_GRAPH_VERSION } from "@/lib/constants/integration-oauth-scopes";
+import {
+  berlinCalendarYmd,
+  toFacebookClosureFields,
+} from "@/lib/opening-hours/closure";
 import { toFacebookHours } from "@/lib/integrations/opening-hours-platform-format";
 import { loadOpeningHoursPayloadAdmin } from "@/lib/integrations/opening-hours-load-server";
 import { facebookIntegrationConfigFromJson } from "@/lib/integrations/facebook-oauth";
@@ -35,7 +39,11 @@ export async function syncOpeningHoursToFacebook(
   }
 
   const hours = toFacebookHours(hoursRes.weeklyHours);
-  if (Object.keys(hours).length === 0) {
+  const closureFields = toFacebookClosureFields(
+    hoursRes.closure,
+    berlinCalendarYmd(),
+  );
+  if (Object.keys(hours).length === 0 && hoursRes.closure.mode === "open") {
     return { ok: false, error: "no_open_days" };
   }
 
@@ -48,7 +56,8 @@ export async function syncOpeningHoursToFacebook(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           access_token: token,
-          hours,
+          ...closureFields,
+          ...(Object.keys(hours).length > 0 ? { hours } : {}),
         }),
         cache: "no-store",
         signal: platformApiFetchSignal(),

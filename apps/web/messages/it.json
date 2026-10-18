@@ -305,7 +305,10 @@
         "friday": "Venerdì",
         "saturday": "Sabato",
         "sunday": "Domenica"
-      }
+      },
+      "closureTemporary": "Temporaneamente chiuso",
+      "closurePermanent": "Chiuso definitivamente",
+      "closureUntil": "fino al {date}"
     },
     "eventsUi": {
       "past": "Passato",

@@ -211,8 +211,8 @@ export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile
     const h = p.weeklyHours[day];
     weeklyHours[day] = {
       ...h,
-      open: h.closed ? undefined : normalizeScheduleHHmm(h.open),
-      close: h.closed ? undefined : normalizeScheduleHHmm(h.close),
+      open: normalizeScheduleHHmm(h.open),
+      close: normalizeScheduleHHmm(h.close),
     };
   }
 
@@ -221,8 +221,8 @@ export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile
     const h = p.kitchenWeeklyHours[day];
     kitchenWeeklyHours[day] = {
       ...h,
-      open: h.closed ? undefined : normalizeScheduleHHmm(h.open),
-      close: h.closed ? undefined : normalizeScheduleHHmm(h.close),
+      open: normalizeScheduleHHmm(h.open),
+      close: normalizeScheduleHHmm(h.close),
     };
   }
 

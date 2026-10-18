@@ -17,6 +17,7 @@ import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { defaultOpeningHoursClosure, type OpeningHoursClosure } from "@/lib/opening-hours/closure";
 import type { PublicEmbedOpeningHoursSettings } from "@/lib/opening-hours/public-opening-hours-server";
 import {
   fetchOpeningHoursSettingsForRestaurant,
@@ -80,6 +81,9 @@ export function OpeningHoursEmbedPanel() {
   const [embedShowKitchenHours, setEmbedShowKitchenHours] = useState(true);
   const [embedShowExceptions, setEmbedShowExceptions] = useState(true);
   const [embedFooterText, setEmbedFooterText] = useState("");
+  const [closure, setClosure] = useState<OpeningHoursClosure>(
+    defaultOpeningHoursClosure,
+  );
   const [hoursPayload, setHoursPayload] = useState<
     Awaited<ReturnType<typeof loadOpeningHoursForRestaurant>>
   >(null);
@@ -136,6 +140,11 @@ export function OpeningHoursEmbedPanel() {
       setEmbedShowKitchenHours(row.embedShowKitchenHours);
       setEmbedShowExceptions(row.embedShowExceptions);
       setEmbedFooterText(row.embedFooterText);
+      setClosure({
+        mode: row.closureMode,
+        from: row.closureFrom,
+        until: row.closureUntil,
+      });
       setHoursPayload(hours);
       setSettingsLoading(false);
     })();
@@ -175,8 +184,9 @@ export function OpeningHoursEmbedPanel() {
       embedFooterText: embedFooterText.trim() || null,
       embedShowKitchenHours,
       embedShowExceptions,
+      closure,
     }),
-    [embedFooterText, embedShowKitchenHours, embedShowExceptions],
+    [embedFooterText, embedShowKitchenHours, embedShowExceptions, closure],
   );
   const restaurantName = profile?.name?.trim() || "Restaurant";
 

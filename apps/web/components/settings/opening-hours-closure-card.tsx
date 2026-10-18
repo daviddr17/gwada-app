@@ -12,6 +12,12 @@ import {
 import type { OpeningHoursClosureMode } from "@/lib/opening-hours/closure";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 
+const CLOSURE_MODE_LABELS: Record<OpeningHoursClosureMode, string> = {
+  open: "Geöffnet (Wochenplan gilt)",
+  temporary: "Vorübergehend geschlossen",
+  permanent: "Dauerhaft geschlossen",
+};
+
 export function OpeningHoursClosureCard({
   mode,
   from,
@@ -55,14 +61,16 @@ export function OpeningHoursClosureCard({
             id="opening-hours-closure-mode"
             className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}
           >
-            <SelectValue />
+            <SelectValue>{CLOSURE_MODE_LABELS[mode]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="open">Geöffnet (Wochenplan gilt)</SelectItem>
+            <SelectItem value="open">{CLOSURE_MODE_LABELS.open}</SelectItem>
             <SelectItem value="temporary">
-              Vorübergehend geschlossen
+              {CLOSURE_MODE_LABELS.temporary}
             </SelectItem>
-            <SelectItem value="permanent">Dauerhaft geschlossen</SelectItem>
+            <SelectItem value="permanent">
+              {CLOSURE_MODE_LABELS.permanent}
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>

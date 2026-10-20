@@ -138,6 +138,11 @@ export function KioskLockedShell({
               <p className="text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl">
                 {restaurantName ?? "Willkommen"}
               </p>
+              {mode === "table" && diningTableId ? (
+                <p className="mt-3 text-lg font-medium text-muted-foreground sm:text-xl">
+                  Tisch {diningTableId}
+                </p>
+              ) : null}
               <p className="mt-4 text-xl text-muted-foreground sm:text-2xl">
                 Tippen zum Bestellen
               </p>
@@ -150,8 +155,8 @@ export function KioskLockedShell({
             </span>
             <p className="max-w-md text-sm text-muted-foreground">
               {mode === "table"
-                ? "Tisch-iPad · Bestellung geht direkt in die Küche"
-                : "Android-Counter-Kiosk · Bestellung geht direkt in die Küche"}
+                ? "Bestellung geht direkt in die Küche"
+                : "Bestellung geht direkt an die Theke"}
             </p>
           </button>
         </div>

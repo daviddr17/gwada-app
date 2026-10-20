@@ -47,6 +47,8 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/api/")) return true;
   if (pathname.startsWith("/embed/")) return true;
   if (pathname.startsWith("/display/")) return true;
+  if (pathname.startsWith("/order/") || pathname === "/order") return true;
+  if (pathname.startsWith("/kiosk/") || pathname === "/kiosk") return true;
   if (pathname.startsWith("/invitation/")) return true;
   if (pathname.startsWith("/review/")) return true;
   if (pathname.startsWith("/newsletter/")) return true;
@@ -118,6 +120,10 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/data-deletion/") ||
     pathname.startsWith("/embed/") ||
     pathname.startsWith("/display/") ||
+    pathname.startsWith("/order/") ||
+    pathname === "/order" ||
+    pathname.startsWith("/kiosk/") ||
+    pathname === "/kiosk" ||
     pathname.startsWith("/api/display/") ||
     pathname.startsWith("/invitation/") ||
     pathname.startsWith("/review/") ||

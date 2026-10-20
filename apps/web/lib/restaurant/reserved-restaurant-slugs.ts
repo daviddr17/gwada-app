@@ -11,6 +11,8 @@ export const RESERVED_RESTAURANT_SLUGS = new Set([
   "einladung",
   "invitation",
   "embed",
+  "order",
+  "kiosk",
   "nachrichten",
   "messages",
   "sb",

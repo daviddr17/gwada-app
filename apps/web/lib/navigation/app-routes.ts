@@ -40,7 +40,8 @@ export const APP_ROUTES = {
     settingsKitchen: "/dashboard/pos/settings/kitchen",
     settingsInventoryVoid: "/dashboard/pos/settings/inventory-void",
     settingsGiftVouchers: "/dashboard/pos/settings/gift-vouchers",
-    settingsOnlineOrdering: "/dashboard/pos/settings/online-ordering",
+    /** Online & Kiosk lives under Restaurant-Einstellungen (not POS Coming-soon). */
+    settingsOnlineOrdering: "/dashboard/settings/online-ordering",
     settingsDevicesRights: "/dashboard/pos/settings/device-permissions",
     settingsDevices: "/dashboard/pos/settings/devices",
   },
@@ -139,6 +140,8 @@ export const APP_ROUTES = {
     openingHours: "/dashboard/settings/opening-hours",
     openingHoursEmbed: "/dashboard/settings/opening-hours/embed",
     integrations: "/dashboard/settings/integrations",
+    /** Online-Bestellung / Gast-Kiosk — reachable without native POS. */
+    onlineOrdering: "/dashboard/settings/online-ordering",
     displays: "/dashboard/settings/displays",
     api: "/dashboard/settings/api",
     billing: "/dashboard/settings/billing",

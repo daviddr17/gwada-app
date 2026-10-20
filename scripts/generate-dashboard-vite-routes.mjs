@@ -236,7 +236,8 @@ const EXTRA_ROUTE_ENTRIES = [
     redirectTarget: "/dashboard/tasks",
   },
   {
-    route: "/dashboard/pos/settings/online-ordering",
+    // Online & Kiosk under Restaurant-Einstellungen — not POS Coming-soon.
+    route: "/dashboard/settings/online-ordering",
     pageBehavior: "render",
     imports: [
       {
@@ -244,6 +245,11 @@ const EXTRA_ROUTE_ENTRIES = [
         from: "@/components/pos/pos-settings-online-ordering-screen",
       },
     ],
+  },
+  {
+    route: "/dashboard/pos/settings/online-ordering",
+    pageBehavior: "redirect",
+    redirectTarget: "/dashboard/settings/online-ordering",
   },
 ];
 

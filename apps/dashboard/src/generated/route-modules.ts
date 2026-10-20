@@ -133,7 +133,7 @@ const Lazy__dashboard_staff_work_hours_payroll = staffLazy(() => import("@/compo
 const Lazy__dashboard_tasks_mine = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-meine-screen").then((m) => ({ default: m.AufgabenMeineScreen as ComponentType }))));
 const Lazy__dashboard_tasks_messages = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-nachrichten-screen").then((m) => ({ default: m.AufgabenNachrichtenScreen as ComponentType }))));
 const Lazy__dashboard_tasks_guides = lazy(moduleSubpageLazy("checklisten", () => import("@/components/guides/guides-screen").then((m) => ({ default: m.GuidesScreen as ComponentType }))));
-const Lazy__dashboard_pos_settings_online_ordering = posLazy(() => import("@/components/pos/pos-settings-online-ordering-screen").then((m) => ({ default: m.PosSettingsOnlineOrderingScreen as ComponentType })));
+const Lazy__dashboard_settings_online_ordering = settingsLazy(() => import("@/components/pos/pos-settings-online-ordering-screen").then((m) => ({ default: m.PosSettingsOnlineOrderingScreen as ComponentType })));
 
 export type DashboardRouteEntry = {
   path: string;
@@ -274,5 +274,6 @@ export const DASHBOARD_ROUTE_ENTRIES: DashboardRouteEntry[] = [
   { path: "/tasks/messages", fullPath: "/dashboard/tasks/messages", Lazy: Lazy__dashboard_tasks_messages },
   { path: "/tasks/guides", fullPath: "/dashboard/tasks/guides", Lazy: Lazy__dashboard_tasks_guides },
   { path: "/tasks/eigenkontrolle", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
-  { path: "/pos/settings/online-ordering", fullPath: "/dashboard/pos/settings/online-ordering", Lazy: Lazy__dashboard_pos_settings_online_ordering },
+  { path: "/settings/online-ordering", fullPath: "/dashboard/settings/online-ordering", Lazy: Lazy__dashboard_settings_online_ordering },
+  { path: "/pos/settings/online-ordering", fullPath: "/dashboard/settings/online-ordering", redirect: "/dashboard/settings/online-ordering" },
 ];

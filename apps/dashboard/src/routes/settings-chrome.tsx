@@ -35,6 +35,11 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "prefix",
   },
   {
+    href: APP_ROUTES.settings.onlineOrdering,
+    label: "Online & Kiosk",
+    matchMode: "prefix",
+  },
+  {
     href: APP_ROUTES.settings.displays,
     label: "Displays",
     matchMode: "prefix",

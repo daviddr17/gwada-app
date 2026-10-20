@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { RegisterModuleSecondarySubnav } from "@/lib/contexts/app-module-chrome-context";
-import { POS_SETTINGS_SECONDARY_NAV } from "@/components/pos/pos-settings-secondary-nav";
 import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
@@ -123,10 +121,6 @@ export function PosSettingsOnlineOrderingScreen() {
 
   return (
     <>
-      <RegisterModuleSecondarySubnav
-        ariaLabel="POS-Einstellungen"
-        items={POS_SETTINGS_SECONDARY_NAV}
-      />
       {showSkeleton || !draft ? (
         <div className="space-y-4" aria-busy>
           <Skeleton className="h-40 w-full rounded-xl" />

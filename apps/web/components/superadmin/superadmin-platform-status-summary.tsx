@@ -36,12 +36,10 @@ const INTEGRATION_ALERT_LABELS: Record<PlatformIntegrationKey, string> = {
   weather: "Wetter",
   openai: "Assistent (OpenAI / Grok)",
   fiskaly: "Fiskaly",
-  stripe: "Stripe",
   lexoffice: "Lexoffice",
   tripadvisor: "TripAdvisor",
   apple_business_connect: "Apple Business Connect",
   mollie: "Mollie",
-  adyen: "Adyen",
 };
 
 type PlatformAlert = {

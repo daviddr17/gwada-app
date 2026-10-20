@@ -8,17 +8,24 @@ import {
   type BillingPlanId,
 } from "@/lib/billing/plan-catalog";
 import {
-  createStripeClient,
-  planPriceSlot,
-  posPriceSlot,
-  resolvePriceId,
-} from "@/lib/billing/stripe-server";
-import { syncStripeSubscriptionToDb } from "@/lib/billing/sync-stripe-subscription";
+  billingSubscriptionDescription,
+  billingSubscriptionInterval,
+  getMollieBillingAuth,
+  mollieBillingAmount,
+} from "@/lib/billing/mollie-server";
+import { syncMollieSubscriptionToDb } from "@/lib/billing/sync-mollie-subscription";
 import {
   ensureRestaurantSubscriptionRow,
   loadRestaurantEntitlements,
   upsertRestaurantSubscriptionAdmin,
 } from "@/lib/billing/subscription-db";
+import { getPublicSiteUrl } from "@/lib/public-env";
+import {
+  mollieCancelSubscription,
+  mollieCreateCustomer,
+  mollieCreatePayment,
+  mollieGetSubscription,
+} from "@/lib/mollie/mollie-payments";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type CheckoutRequest = {
@@ -30,6 +37,14 @@ export type CheckoutRequest = {
   cancelUrl: string;
   customerEmail?: string | null;
 };
+
+function billingWebhookUrl(reqOrigin?: string): string {
+  const path = "/api/billing/mollie/webhook";
+  const site = getPublicSiteUrl();
+  if (site) return `${site}${path}`;
+  if (reqOrigin) return `${reqOrigin}${path}`;
+  return path;
+}
 
 export async function createBillingCheckoutSession(
   input: CheckoutRequest,
@@ -47,89 +62,39 @@ export async function createBillingCheckoutSession(
     return { ok: false, error: "invalid_plan", status: 400 };
   }
 
-  const client = await createStripeClient();
+  const client = await getMollieBillingAuth();
   if (!client) {
-    return { ok: false, error: "stripe_not_configured", status: 503 };
+    return { ok: false, error: "mollie_not_configured", status: 503 };
   }
-  const { stripe, config } = client;
-
-  const planSlot = planPriceSlot(input.planId, input.interval);
-  const planPriceId = resolvePriceId(config, planSlot);
-  if (!planPriceId) {
-    return { ok: false, error: "price_not_configured", status: 503 };
-  }
-
-  const lineItems: { price: string; quantity: number }[] = [
-    { price: planPriceId, quantity: 1 },
-  ];
-
-  if (input.includePos) {
-    const posPriceId = resolvePriceId(config, posPriceSlot(input.interval));
-    if (!posPriceId) {
-      return { ok: false, error: "pos_price_not_configured", status: 503 };
-    }
-    lineItems.push({ price: posPriceId, quantity: 1 });
-  }
+  const { auth, config } = client;
 
   await ensureRestaurantSubscriptionRow(input.restaurantId);
   const entitlements = await loadRestaurantEntitlements(input.restaurantId);
   const blockingStatuses = ["active", "trialing", "past_due", "unpaid"];
   if (
-    entitlements.stripeSubscriptionId &&
-    entitlements.source === "stripe" &&
+    entitlements.mollieSubscriptionId &&
+    entitlements.mollieCustomerId &&
+    entitlements.source === "mollie" &&
     blockingStatuses.includes(entitlements.status)
   ) {
     if (!entitlements.pastDueGraceExpired) {
       return { ok: false, error: "use_plan_change", status: 409 };
     }
-    try {
-      const current = await stripe.subscriptions.retrieve(
-        entitlements.stripeSubscriptionId,
+    const current = await mollieGetSubscription(
+      auth,
+      entitlements.mollieCustomerId,
+      entitlements.mollieSubscriptionId,
+    );
+    if (current.ok && current.data.status !== "canceled") {
+      const canceled = await mollieCancelSubscription(
+        auth,
+        entitlements.mollieCustomerId,
+        entitlements.mollieSubscriptionId,
       );
-      if (current.status !== "canceled") {
-        const canceled = await stripe.subscriptions.cancel(current.id);
-        const synced = await syncStripeSubscriptionToDb(
-          config,
-          canceled,
-          input.restaurantId,
-        );
-        if (!synced.ok) {
-          console.warn("checkout cancel expired sub", synced.error);
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!/already been canceled|No such subscription/i.test(msg)) {
-        console.warn("checkout cancel expired sub", msg);
-        return { ok: false, error: "cancel_failed", status: 500 };
+      if (canceled.ok) {
+        await syncMollieSubscriptionToDb(canceled.data, input.restaurantId);
       }
     }
-  }
-
-  let customerId = entitlements.stripeCustomerId;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: input.customerEmail ?? undefined,
-      metadata: { restaurant_id: input.restaurantId },
-    });
-    customerId = customer.id;
-    await upsertRestaurantSubscriptionAdmin({
-      restaurantId: input.restaurantId,
-      planId: entitlements.planId,
-      interval: entitlements.interval,
-      status: entitlements.status,
-      source:
-        entitlements.source === "stripe" ||
-        entitlements.source === "manual" ||
-        entitlements.source === "legacy" ||
-        entitlements.source === "complimentary"
-          ? entitlements.source
-          : "manual",
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: entitlements.stripeSubscriptionId,
-      cancelAtPeriodEnd: entitlements.cancelAtPeriodEnd,
-      currentPeriodEnd: entitlements.currentPeriodEnd,
-    });
   }
 
   const admin = createSupabaseAdminClient();
@@ -141,61 +106,108 @@ export async function createBillingCheckoutSession(
         .maybeSingle()
     : { data: null };
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    client_reference_id: input.restaurantId,
-    success_url: input.successUrl,
-    cancel_url: input.cancelUrl,
-    allow_promotion_codes: true,
-    billing_address_collection: "required",
-    tax_id_collection: { enabled: true },
-    line_items: lineItems,
-    subscription_data: {
-      metadata: {
-        restaurant_id: input.restaurantId,
-        plan_id: input.planId,
-        interval: input.interval,
-        include_pos: input.includePos ? "1" : "0",
-      },
-    },
+  const restaurantName =
+    typeof restaurant?.name === "string" ? restaurant.name : null;
+
+  let customerId = entitlements.mollieCustomerId;
+  if (!customerId) {
+    const customer = await mollieCreateCustomer(auth, {
+      name: restaurantName || "Gwada Restaurant",
+      email: input.customerEmail,
+      metadata: { restaurant_id: input.restaurantId },
+    });
+    if (!customer.ok) {
+      return {
+        ok: false,
+        error: customer.detail || "customer_create_failed",
+        status: 502,
+      };
+    }
+    customerId = customer.data.id;
+    await upsertRestaurantSubscriptionAdmin({
+      restaurantId: input.restaurantId,
+      planId: entitlements.planId,
+      interval: entitlements.interval,
+      status: entitlements.status,
+      source:
+        entitlements.source === "mollie" ||
+        entitlements.source === "manual" ||
+        entitlements.source === "legacy" ||
+        entitlements.source === "complimentary"
+          ? entitlements.source
+          : "manual",
+      mollieCustomerId: customerId,
+      mollieSubscriptionId: entitlements.mollieSubscriptionId,
+    });
+  }
+
+  const amount = mollieBillingAmount(
+    input.planId,
+    input.interval,
+    Boolean(input.includePos),
+  );
+  const description = billingSubscriptionDescription({
+    planId: input.planId,
+    interval: input.interval,
+    includePos: Boolean(input.includePos),
+    restaurantName,
+  });
+
+  const payment = await mollieCreatePayment(auth, {
+    amount,
+    customerId,
+    sequenceType: "first",
+    description,
+    redirectUrl: input.successUrl,
+    cancelUrl: input.cancelUrl,
+    webhookUrl: billingWebhookUrl(),
+    ...(config.profile_id ? { profileId: config.profile_id } : {}),
     metadata: {
       restaurant_id: input.restaurantId,
       plan_id: input.planId,
       interval: input.interval,
       include_pos: input.includePos ? "1" : "0",
-      restaurant_name:
-        typeof restaurant?.name === "string" ? restaurant.name : "",
+      purpose: "billing_first",
+      restaurant_name: restaurantName ?? "",
     },
   });
 
-  if (!session.url) {
+  if (!payment.ok) {
+    return {
+      ok: false,
+      error: payment.detail || "payment_create_failed",
+      status: 502,
+    };
+  }
+
+  const checkoutUrl = payment.data._links?.checkout?.href;
+  if (!checkoutUrl) {
     return { ok: false, error: "checkout_url_missing", status: 500 };
   }
-  return { ok: true, url: session.url };
+
+  await upsertRestaurantSubscriptionAdmin({
+    restaurantId: input.restaurantId,
+    planId: input.planId,
+    interval: input.interval,
+    status: "incomplete",
+    source: "mollie",
+    mollieCustomerId: customerId,
+  });
+
+  return { ok: true, url: checkoutUrl };
 }
 
-export async function createBillingPortalSession(input: {
+/**
+ * Mollie has no Stripe Customer Portal. In-app cancel / plan change only.
+ */
+export async function createBillingPortalSession(_input: {
   restaurantId: string;
   returnUrl: string;
 }): Promise<
   | { ok: true; url: string }
   | { ok: false; error: string; status: number }
 > {
-  const client = await createStripeClient();
-  if (!client) {
-    return { ok: false, error: "stripe_not_configured", status: 503 };
-  }
-  const entitlements = await loadRestaurantEntitlements(input.restaurantId);
-  if (!entitlements.stripeCustomerId) {
-    return { ok: false, error: "no_customer", status: 400 };
-  }
-
-  const configuration = client.config.portal_configuration_id?.trim();
-  const session = await client.stripe.billingPortal.sessions.create({
-    customer: entitlements.stripeCustomerId,
-    return_url: input.returnUrl,
-    ...(configuration ? { configuration } : {}),
-  });
-  return { ok: true, url: session.url };
+  return { ok: false, error: "mollie_no_portal", status: 501 };
 }
+
+export { billingSubscriptionInterval };

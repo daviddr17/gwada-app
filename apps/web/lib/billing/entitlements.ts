@@ -16,14 +16,18 @@ export type RestaurantEntitlements = {
   interval: BillingInterval;
   status: string;
   source: string;
-  /** When false, plan gates are not enforced (Stripe off / misconfigured). */
+  /** When false, plan gates are not enforced (Mollie billing off / misconfigured). */
   enforcing: boolean;
   addons: BillingAddonId[];
   features: BillingFeatureKey[];
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
+  /** @deprecated Stripe removed — kept null for older UI callers during transition. */
   stripeCustomerId: string | null;
+  /** @deprecated Stripe removed */
   stripeSubscriptionId: string | null;
+  mollieCustomerId: string | null;
+  mollieSubscriptionId: string | null;
   /** First failed/unpaid charge of this cycle. */
   pastDueSince: string | null;
   /** pastDueSince + 7 days. */
@@ -71,24 +75,38 @@ export function isPaidPlanActive(entitlements: RestaurantEntitlements): boolean 
   );
 }
 
-/** Stripe-Abo, das in-app gekündigt oder im Portal bearbeitet werden kann. */
-export function hasManagedStripeSubscription(
+/** Mollie-Abo, das in-app gekündigt oder geändert werden kann. */
+export function hasManagedMollieSubscription(
   entitlements: RestaurantEntitlements,
 ): boolean {
-  if (!entitlements.stripeSubscriptionId) return false;
-  if (entitlements.source !== "stripe") return false;
+  if (!entitlements.mollieSubscriptionId) return false;
+  if (entitlements.source !== "mollie") return false;
   if (entitlements.pastDueGraceExpired) return false;
-  return ["active", "trialing", "past_due", "unpaid"].includes(
+  return ["active", "trialing", "past_due", "unpaid", "incomplete"].includes(
     entitlements.status,
   );
 }
 
+/** @deprecated use hasManagedMollieSubscription */
+export function hasManagedStripeSubscription(
+  entitlements: RestaurantEntitlements,
+): boolean {
+  return hasManagedMollieSubscription(entitlements);
+}
+
 /** In-App-Planwechsel nur bei zahlendem, nicht im Verzug befindlichem Abo. */
-export function canChangeStripePlan(
+export function canChangeMolliePlan(
   entitlements: RestaurantEntitlements,
 ): boolean {
   return (
-    hasManagedStripeSubscription(entitlements) &&
+    hasManagedMollieSubscription(entitlements) &&
     isBillingHealthyStatus(entitlements.status)
   );
+}
+
+/** @deprecated use canChangeMolliePlan */
+export function canChangeStripePlan(
+  entitlements: RestaurantEntitlements,
+): boolean {
+  return canChangeMolliePlan(entitlements);
 }

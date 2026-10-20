@@ -128,14 +128,6 @@ export function authorizeMollieRestaurantRoute(restaurantIdRaw: string | null) {
   });
 }
 
-export function authorizeAdyenRestaurantRoute(restaurantIdRaw: string | null) {
-  return authorizeRestaurantOAuthRoute({
-    restaurantIdRaw,
-    permission: "integrations.adyen",
-    assertPlatform: async () => ({ ok: true as const }),
-  });
-}
-
 export function authorizeOpeningHoursSettingsRoute(
   restaurantIdRaw: string | null,
 ) {

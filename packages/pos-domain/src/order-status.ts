@@ -1,14 +1,21 @@
-/** Kitchen / POS order lifecycle (Gwada Staff). */
+/** Kitchen / POS order lifecycle (Gwada Staff + guest online/kiosk). */
 export const POS_ORDER_STATUSES = [
   "pending_payment",
   "received",
   "preparing",
   "ready",
+  "out_for_delivery",
   "delivered",
   "cancelled",
 ] as const;
 
 export type PosOrderStatus = (typeof POS_ORDER_STATUSES)[number];
+
+export const POS_ORDER_CHANNELS = ["pos", "online", "kiosk", "table"] as const;
+export type PosOrderChannel = (typeof POS_ORDER_CHANNELS)[number];
+
+export const POS_FULFILLMENT_TYPES = ["dine_in", "pickup", "delivery"] as const;
+export type PosFulfillmentType = (typeof POS_FULFILLMENT_TYPES)[number];
 
 export const POS_PAYMENT_STATUSES = ["open", "paid", "failed", "refunded"] as const;
 export type PosPaymentStatus = (typeof POS_PAYMENT_STATUSES)[number];
@@ -24,7 +31,8 @@ const ALLOWED_TRANSITIONS: Readonly<Record<PosOrderStatus, readonly PosOrderStat
   pending_payment: ["received", "cancelled"],
   received: ["preparing", "cancelled"],
   preparing: ["ready", "cancelled"],
-  ready: ["delivered", "cancelled"],
+  ready: ["delivered", "out_for_delivery", "cancelled"],
+  out_for_delivery: ["delivered", "cancelled"],
   delivered: [],
   cancelled: [],
 };

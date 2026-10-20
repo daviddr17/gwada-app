@@ -235,6 +235,16 @@ const EXTRA_ROUTE_ENTRIES = [
     pageBehavior: "redirect",
     redirectTarget: "/dashboard/tasks",
   },
+  {
+    route: "/dashboard/pos/settings/online-ordering",
+    pageBehavior: "render",
+    imports: [
+      {
+        component: "PosSettingsOnlineOrderingScreen",
+        from: "@/components/pos/pos-settings-online-ordering-screen",
+      },
+    ],
+  },
 ];
 
 

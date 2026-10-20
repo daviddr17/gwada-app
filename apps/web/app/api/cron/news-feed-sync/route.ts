@@ -29,7 +29,7 @@ export async function GET(req: Request) {
         jobName: "billing-past-due",
         ok: billing.failed === 0,
         payload: {
-          stripeListed: billing.stripeListed,
+          mollieListed: billing.mollieListed,
           synced: billing.synced,
           failed: billing.failed,
         },

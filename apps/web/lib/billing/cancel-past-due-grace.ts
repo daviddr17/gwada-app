@@ -1,21 +1,25 @@
 import "server-only";
 
-import { createStripeClient } from "@/lib/billing/stripe-server";
-import { syncStripeSubscriptionToDb } from "@/lib/billing/sync-stripe-subscription";
-import { listStripeSubscriptionsPastDueGraceExpired } from "@/lib/billing/subscription-db";
+import { getMollieBillingAuth } from "@/lib/billing/mollie-server";
+import { syncMollieSubscriptionToDb } from "@/lib/billing/sync-mollie-subscription";
+import { listMollieSubscriptionsPastDueGraceExpired } from "@/lib/billing/subscription-db";
+import {
+  mollieCancelSubscription,
+  mollieGetSubscription,
+} from "@/lib/mollie/mollie-payments";
 
-export async function cancelStripeSubscriptionsPastDueGraceExpired(): Promise<{
+export async function cancelMollieSubscriptionsPastDueGraceExpired(): Promise<{
   scanned: number;
   canceled: number;
   recovered: number;
   failed: number;
 }> {
-  const due = await listStripeSubscriptionsPastDueGraceExpired();
+  const due = await listMollieSubscriptionsPastDueGraceExpired();
   if (due.length === 0) {
     return { scanned: 0, canceled: 0, recovered: 0, failed: 0 };
   }
 
-  const client = await createStripeClient();
+  const client = await getMollieBillingAuth();
   if (!client) {
     return { scanned: due.length, canceled: 0, recovered: 0, failed: due.length };
   }
@@ -24,57 +28,50 @@ export async function cancelStripeSubscriptionsPastDueGraceExpired(): Promise<{
   let recovered = 0;
   let failed = 0;
   for (const row of due) {
+    if (!row.mollieCustomerId) {
+      failed += 1;
+      continue;
+    }
     try {
-      const current = await client.stripe.subscriptions.retrieve(
-        row.stripeSubscriptionId,
-        { expand: ["items.data.price", "latest_invoice"] },
+      const current = await mollieGetSubscription(
+        client.auth,
+        row.mollieCustomerId,
+        row.mollieSubscriptionId,
       );
-      if (current.status === "active" || current.status === "trialing") {
-        const synced = await syncStripeSubscriptionToDb(
-          client.config,
-          current,
-          row.restaurantId,
-        );
-        if (!synced.ok) {
-          failed += 1;
-          console.warn(
-            "billing past-due recover sync",
-            row.restaurantId,
-            synced.error,
-          );
-        } else {
-          recovered += 1;
-        }
+      if (!current.ok) {
+        failed += 1;
         continue;
       }
-      if (current.status === "canceled") {
-        const synced = await syncStripeSubscriptionToDb(
-          client.config,
-          current,
+      if (current.data.status === "active") {
+        const synced = await syncMollieSubscriptionToDb(
+          current.data,
+          row.restaurantId,
+        );
+        if (!synced.ok) failed += 1;
+        else recovered += 1;
+        continue;
+      }
+      if (current.data.status === "canceled") {
+        const synced = await syncMollieSubscriptionToDb(
+          current.data,
           row.restaurantId,
         );
         if (synced.ok) canceled += 1;
         else failed += 1;
         continue;
       }
-      const sub = await client.stripe.subscriptions.cancel(
-        row.stripeSubscriptionId,
+      const sub = await mollieCancelSubscription(
+        client.auth,
+        row.mollieCustomerId,
+        row.mollieSubscriptionId,
       );
-      const synced = await syncStripeSubscriptionToDb(
-        client.config,
-        sub,
-        row.restaurantId,
-      );
-      if (!synced.ok) {
+      if (!sub.ok) {
         failed += 1;
-        console.warn(
-          "billing past-due cancel sync",
-          row.restaurantId,
-          synced.error,
-        );
         continue;
       }
-      canceled += 1;
+      const synced = await syncMollieSubscriptionToDb(sub.data, row.restaurantId);
+      if (!synced.ok) failed += 1;
+      else canceled += 1;
     } catch (err) {
       failed += 1;
       console.warn(
@@ -87,3 +84,7 @@ export async function cancelStripeSubscriptionsPastDueGraceExpired(): Promise<{
 
   return { scanned: due.length, canceled, recovered, failed };
 }
+
+/** @deprecated */
+export const cancelStripeSubscriptionsPastDueGraceExpired =
+  cancelMollieSubscriptionsPastDueGraceExpired;

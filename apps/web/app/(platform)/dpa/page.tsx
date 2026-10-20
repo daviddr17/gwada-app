@@ -142,7 +142,7 @@ export default function AvvPage() {
       <ul>
         <li>Hosting / Datenbank / Objektspeicher</li>
         <li>E-Mail-Zustellung</li>
-        <li>Zahlungsabwicklung (Stripe)</li>
+        <li>Zahlungsabwicklung (Mollie)</li>
         <li>WhatsApp-/Messaging-Gateway (WAHA-Infrastruktur)</li>
         <li>Optional: Meta, Google, TripAdvisor, Fiskaly, Lexware und ähnliche
           Integrationen — nur bei Aktivierung durch den Verantwortlichen</li>

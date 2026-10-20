@@ -96,6 +96,8 @@ export function SuperadminSubscriptionsScreen() {
           r.source,
           r.stripe_customer_id,
           r.stripe_subscription_id,
+          r.mollie_customer_id,
+          r.mollie_subscription_id,
           r.notes,
         ]
           .filter(Boolean)
@@ -110,14 +112,14 @@ export function SuperadminSubscriptionsScreen() {
   return (
     <div className="space-y-6 pt-2">
       <p className="text-sm text-muted-foreground">
-        Alle Restaurant-Abos (Stripe, Legacy, Complimentary). MRR-Schätzung
+        Alle Restaurant-Abos (Mollie, Legacy, Complimentary). MRR-Schätzung
         nutzt die Katalogpreise.
       </p>
 
       <SuperadminSearchToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Restaurant, Plan, Stripe-ID…"
+        searchPlaceholder="Restaurant, Plan, Mollie-ID…"
         filterLabel="Plan"
         filterValue={planFilter}
         filterOptions={[
@@ -236,15 +238,15 @@ export function SuperadminSubscriptionsScreen() {
             sortValue: () => 0,
             cell: (r) => (
               <div className="flex items-center justify-end gap-1">
-                {r.stripe_customer_id ? (
+                {r.mollie_customer_id ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    title="Stripe-Kunde"
+                    title="Mollie-Kunde"
                     render={
                       <a
-                        href={`https://dashboard.stripe.com/customers/${r.stripe_customer_id}`}
+                        href={`https://my.mollie.com/dashboard/customers/${r.mollie_customer_id}`}
                         target="_blank"
                         rel="noreferrer"
                       />

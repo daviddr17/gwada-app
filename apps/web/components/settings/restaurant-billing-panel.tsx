@@ -24,8 +24,8 @@ import {
 import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { formatBillingDate } from "@/lib/billing/billing-status-labels";
 import {
-  canChangeStripePlan,
-  hasManagedStripeSubscription,
+  canChangeMolliePlan,
+  hasManagedMollieSubscription,
 } from "@/lib/billing/entitlements";
 import { isBillingDunningStatus } from "@/lib/billing/past-due-grace";
 import {
@@ -77,7 +77,6 @@ export function RestaurantBillingPanel() {
 
   const [yearly, setYearly] = useState(true);
   const [busyPlan, setBusyPlan] = useState<string | null>(null);
-  const [portalBusy, setPortalBusy] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [invoiceReload, setInvoiceReload] = useState(0);
 
@@ -103,12 +102,12 @@ export function RestaurantBillingPanel() {
   }, [entitlements?.interval]);
 
   const currentPlan = entitlements?.planId ?? "free";
-  const managedStripe = Boolean(
-    entitlements && hasManagedStripeSubscription(entitlements),
+  const managedMollie = Boolean(
+    entitlements && hasManagedMollieSubscription(entitlements),
   );
   const dunningOpen = Boolean(
     entitlements &&
-      entitlements.source === "stripe" &&
+      entitlements.source === "mollie" &&
       (isBillingDunningStatus(entitlements.status) ||
         entitlements.pastDueGraceExpired),
   );
@@ -158,14 +157,12 @@ export function RestaurantBillingPanel() {
       const data = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !data.url) {
         toast.error(
-          data.error === "stripe_not_configured"
-            ? "Stripe ist noch nicht freigeschaltet. Bitte Superadmin."
-            : data.error === "price_not_configured"
-              ? "Stripe-Preise fehlen noch in den Integrationen."
-              : data.error === "use_plan_change"
-                ? "Bestehendes Abo bitte über Wechseln anpassen."
-                : data.error === "payment_required"
-                  ? "Zuerst die ausstehende Zahlung im Kundenportal klären."
+          data.error === "mollie_not_configured"
+            ? "Mollie-Billing ist noch nicht freigeschaltet. Bitte Superadmin."
+            : data.error === "use_plan_change"
+              ? "Bestehendes Abo bitte über Wechseln anpassen."
+              : data.error === "payment_required"
+                ? "Zuerst die ausstehende Zahlung klären oder den Plan erneut wählen."
                 : "Checkout konnte nicht gestartet werden.",
         );
         return;
@@ -188,11 +185,11 @@ export function RestaurantBillingPanel() {
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         toast.error(
-          data.error === "price_not_configured"
-            ? "Stripe-Preise fehlen noch in den Integrationen."
-            : data.error === "payment_required"
-              ? "Zuerst die ausstehende Zahlung im Kundenportal klären."
-            : "Planwechsel fehlgeschlagen.",
+          data.error === "payment_required"
+            ? "Zuerst die ausstehende Zahlung klären oder den Plan erneut wählen."
+            : data.error === "mollie_not_configured"
+              ? "Mollie-Billing ist noch nicht freigeschaltet. Bitte Superadmin."
+              : "Planwechsel fehlgeschlagen.",
         );
         return;
       }
@@ -234,35 +231,11 @@ export function RestaurantBillingPanel() {
   }
 
   async function choosePaidPlan(planId: Exclude<BillingPlanId, "free">) {
-    if (entitlements && canChangeStripePlan(entitlements)) {
+    if (entitlements && canChangeMolliePlan(entitlements)) {
       await changePlan(planId);
       return;
     }
     await startCheckout(planId);
-  }
-
-  async function openPortal() {
-    if (!restaurantId || !canManage) return;
-    setPortalBusy(true);
-    try {
-      const res = await fetch("/api/billing/portal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantId }),
-      });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !data.url) {
-        toast.error(
-          data.error === "no_customer"
-            ? "Noch kein Stripe-Kunde — zuerst einen Plan wählen."
-            : "Kundenportal nicht verfügbar.",
-        );
-        return;
-      }
-      window.location.assign(data.url);
-    } finally {
-      setPortalBusy(false);
-    }
   }
 
   if (!workspaceReady) {
@@ -329,7 +302,7 @@ export function RestaurantBillingPanel() {
             Andere Tools rechnen pro Mitarbeiter und Reservierung. Gwada nicht:
             unbegrenzte Reservierungen und Speisen in jedem Plan; Nutzer unbegrenzt
             ab Pro (Free: 1 Login, Basic: 3). Ihr upgradet für Module, nicht für Volumen.
-            {entitlements?.currentPeriodEnd && managedStripe ? (
+            {entitlements?.currentPeriodEnd && managedMollie ? (
               <>
                 {" "}
                 Laufzeit bis {formatBillingDate(entitlements.currentPeriodEnd)}
@@ -361,21 +334,25 @@ export function RestaurantBillingPanel() {
               ? "Zahlung seit 7 Tagen ausstehend — Paid-Module sind auf Free. Zahlungsmittel aktualisieren (offene Rechnung) oder den Plan erneut wählen."
               : `Zahlung ausstehend — Paid-Module bleiben bis ${formatBillingDate(entitlements?.pastDueAccessEndsAt)} aktiv (maximal 7 Tage). Danach Free.`}
           </p>
-          {entitlements?.stripeCustomerId ? (
+          {managedMollie ? (
             <Button
               type="button"
               variant="outline"
               className="shrink-0 rounded-full"
-              disabled={portalBusy}
-              onClick={() => void openPortal()}
+              disabled={Boolean(busyPlan)}
+              onClick={() =>
+                void choosePaidPlan(
+                  currentPlan === "free" ? "basic" : (currentPlan as "basic" | "pro"),
+                )
+              }
             >
-              Zahlungsmittel aktualisieren
+              Zahlung erneut starten
             </Button>
           ) : null}
         </div>
       ) : null}
 
-      {managedStripe && entitlements?.cancelAtPeriodEnd ? (
+      {managedMollie && entitlements?.cancelAtPeriodEnd ? (
         <div className="flex flex-col gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm">
             Abo endet am {formatBillingDate(entitlements.currentPeriodEnd)} — bis
@@ -397,7 +374,7 @@ export function RestaurantBillingPanel() {
       {lockedManual ? (
         <p className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
           Dieser Betrieb ist {entitlements?.source === "legacy" ? "im Bestandsschutz" : "komplimentär"}{" "}
-          freigeschaltet — Planwechsel läuft nicht über Stripe.
+          freigeschaltet — Planwechsel läuft nicht über Mollie-Checkout.
         </p>
       ) : null}
 
@@ -433,20 +410,20 @@ export function RestaurantBillingPanel() {
           </Label>
         </div>
 
-        {entitlements?.stripeCustomerId ? (
+        {managedMollie ? (
           <Button
             type="button"
             variant="outline"
             className="rounded-full"
-            disabled={portalBusy}
-            onClick={() => void openPortal()}
+            disabled={cancelBusy || entitlements?.cancelAtPeriodEnd}
+            onClick={() => void setCancelAtPeriodEnd(true)}
           >
-            {portalBusy ? (
+            {cancelBusy ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <CreditCard className="size-4" />
             )}
-            Zahlungsmittel & Kündigung
+            Abo kündigen
           </Button>
         ) : null}
       </div>
@@ -536,7 +513,7 @@ export function RestaurantBillingPanel() {
                 </ul>
                 <div className="mt-auto pt-2">
                   {planId === "free" ? (
-                    managedStripe &&
+                    managedMollie &&
                     !entitlements?.cancelAtPeriodEnd &&
                     !isCurrent ? (
                       <Button
@@ -595,7 +572,7 @@ export function RestaurantBillingPanel() {
                         ? "Aktueller Plan"
                         : planChangeBlocked
                           ? "Zahlung klären"
-                          : managedStripe
+                          : managedMollie
                             ? "Wechseln"
                             : plan.cta}
                     </Button>
@@ -637,7 +614,7 @@ export function RestaurantBillingPanel() {
 
       <RestaurantBillingInvoices
         restaurantId={restaurantId}
-        hasStripeCustomer={Boolean(entitlements?.stripeCustomerId)}
+        hasStripeCustomer={Boolean(entitlements?.mollieCustomerId)}
         reloadToken={invoiceReload}
       />
 

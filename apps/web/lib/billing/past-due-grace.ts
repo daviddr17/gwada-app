@@ -17,10 +17,7 @@ export function isBillingHealthyStatus(
   return status === "active" || status === "trialing";
 }
 
-/**
- * Stripe-Status in den DB-Status. Unbekannte Werte nicht als `active` tarnen
- * (`incomplete_expired` wäre sonst ein bezahltes Abo ohne Zahlung).
- */
+/** @deprecated Stripe removed — kept for older tests. */
 export function mapStripeSubscriptionStatus(stripeStatus: string): string {
   switch (stripeStatus) {
     case "active":
@@ -36,6 +33,10 @@ export function mapStripeSubscriptionStatus(stripeStatus: string): string {
     default:
       return stripeStatus;
   }
+}
+
+export function isManagedBillingSource(source: string | null | undefined): boolean {
+  return source === "mollie" || source === "stripe";
 }
 
 export function pastDueAccessEndsAt(
@@ -88,8 +89,8 @@ export function nextPastDueSince(input: {
 /**
  * Paid-Plan-Features (Basic/Pro/Add-ons).
  * - Legacy/Kulanz: immer ja (Plan steht in der Zeile).
- * - Stripe active/trialing: ja.
- * - Stripe past_due/unpaid: ja bis 7 Tage nach erster Failed-Charge.
+ * - Mollie active/trialing: ja.
+ * - Mollie past_due/unpaid: ja bis 7 Tage nach erster Failed-Charge.
  * - incomplete / canceled: nein (nie bezahlt bzw. beendet).
  */
 export function shouldGrantPaidPlanFeatures(input: {
@@ -98,7 +99,7 @@ export function shouldGrantPaidPlanFeatures(input: {
   pastDueSince: string | null;
   now?: Date;
 }): boolean {
-  if (input.source !== "stripe") return true;
+  if (!isManagedBillingSource(input.source)) return true;
   if (isBillingHealthyStatus(input.status)) return true;
   if (input.status === "paused") return true;
   if (isBillingDunningStatus(input.status)) {
@@ -114,12 +115,13 @@ export function isPastDueAccessLocked(input: {
   now?: Date;
 }): boolean {
   return (
-    input.source === "stripe" &&
+    isManagedBillingSource(input.source) &&
     isBillingDunningStatus(input.status) &&
     isPastDueGraceExpired(input.pastDueSince, input.now)
   );
 }
 
+/** @deprecated */
 export function isStripeSubscriptionInvoice(input: {
   subscriptionId: string | null;
   amountDue: number;
@@ -127,7 +129,7 @@ export function isStripeSubscriptionInvoice(input: {
   return Boolean(input.subscriptionId) && input.amountDue > 0;
 }
 
-/** Daily Stripe-Cancel-Fenster: 06:00–06:19 UTC (ein 10-Minuten-Cron trifft es einmal). */
+/** Daily Mollie-Cancel-Fenster: 06:00–06:19 UTC (ein 10-Minuten-Cron trifft es einmal). */
 export function isBillingPastDueSweepDue(now: Date = new Date()): boolean {
   const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
   return minutes >= 6 * 60 && minutes < 6 * 60 + 20;

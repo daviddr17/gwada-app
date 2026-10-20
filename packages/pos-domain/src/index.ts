@@ -1,4 +1,6 @@
 export {
+  POS_FULFILLMENT_TYPES,
+  POS_ORDER_CHANNELS,
   POS_ORDER_STATUSES,
   POS_PAYMENT_METHODS,
   POS_PAYMENT_STATUSES,
@@ -6,6 +8,8 @@ export {
   canTransitionPosOrderStatus,
   derivePosPaymentState,
   isPosOrderTerminal,
+  type PosFulfillmentType,
+  type PosOrderChannel,
   type PosOrderStatus,
   type PosPaymentMethod,
   type PosPaymentState,

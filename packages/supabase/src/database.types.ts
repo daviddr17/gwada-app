@@ -2222,58 +2222,109 @@ export type Database = {
       }
       pos_orders: {
         Row: {
+          accepted_at: string | null
+          channel: Database["public"]["Enums"]["pos_order_channel"]
           closed_at: string | null
+          completed_at: string | null
           created_at: string
           created_by_profile_id: string | null
           currency: string
+          delivery_address: string | null
+          delivery_city: string | null
+          delivery_fee_cents: number
+          delivery_notes: string | null
+          delivery_postal_code: string | null
+          dining_table_id: string | null
           discount_cents: number
           fiskaly_failed_at: string | null
+          fulfillment_type: Database["public"]["Enums"]["pos_fulfillment_type"]
+          guest_email: string | null
+          guest_name: string | null
+          guest_payment_id: string | null
+          guest_phone: string | null
+          guest_status_token: string | null
           id: string
           notes: string | null
           order_number: number
+          out_for_delivery_at: string | null
+          ready_at: string | null
           receipt_url: string | null
           restaurant_id: string
           status: Database["public"]["Enums"]["pos_order_status"]
           subtotal_cents: number
-          table_session_id: string
+          table_session_id: string | null
           tip_cents: number
           total_cents: number
           updated_at: string
         }
         Insert: {
+          accepted_at?: string | null
+          channel?: Database["public"]["Enums"]["pos_order_channel"]
           closed_at?: string | null
+          completed_at?: string | null
           created_at?: string
           created_by_profile_id?: string | null
           currency?: string
+          delivery_address?: string | null
+          delivery_city?: string | null
+          delivery_fee_cents?: number
+          delivery_notes?: string | null
+          delivery_postal_code?: string | null
+          dining_table_id?: string | null
           discount_cents?: number
           fiskaly_failed_at?: string | null
+          fulfillment_type?: Database["public"]["Enums"]["pos_fulfillment_type"]
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_payment_id?: string | null
+          guest_phone?: string | null
+          guest_status_token?: string | null
           id?: string
           notes?: string | null
-          order_number: number
+          order_number?: number
+          out_for_delivery_at?: string | null
+          ready_at?: string | null
           receipt_url?: string | null
           restaurant_id: string
           status?: Database["public"]["Enums"]["pos_order_status"]
           subtotal_cents?: number
-          table_session_id: string
+          table_session_id?: string | null
           tip_cents?: number
           total_cents?: number
           updated_at?: string
         }
         Update: {
+          accepted_at?: string | null
+          channel?: Database["public"]["Enums"]["pos_order_channel"]
           closed_at?: string | null
+          completed_at?: string | null
           created_at?: string
           created_by_profile_id?: string | null
           currency?: string
+          delivery_address?: string | null
+          delivery_city?: string | null
+          delivery_fee_cents?: number
+          delivery_notes?: string | null
+          delivery_postal_code?: string | null
+          dining_table_id?: string | null
           discount_cents?: number
           fiskaly_failed_at?: string | null
+          fulfillment_type?: Database["public"]["Enums"]["pos_fulfillment_type"]
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_payment_id?: string | null
+          guest_phone?: string | null
+          guest_status_token?: string | null
           id?: string
           notes?: string | null
           order_number?: number
+          out_for_delivery_at?: string | null
+          ready_at?: string | null
           receipt_url?: string | null
           restaurant_id?: string
           status?: Database["public"]["Enums"]["pos_order_status"]
           subtotal_cents?: number
-          table_session_id?: string
+          table_session_id?: string | null
           tip_cents?: number
           total_cents?: number
           updated_at?: string
@@ -5251,8 +5302,11 @@ export type Database = {
         | "received"
         | "preparing"
         | "ready"
+        | "out_for_delivery"
         | "delivered"
         | "cancelled"
+      pos_order_channel: "pos" | "online" | "kiosk" | "table"
+      pos_fulfillment_type: "dine_in" | "pickup" | "delivery"
       pos_payment_method: "cash" | "card" | "paypal" | "terminal"
       pos_payment_status: "open" | "paid" | "failed" | "refunded"
       pos_table_session_status: "open" | "closed"
@@ -5432,9 +5486,12 @@ export const Constants = {
         "received",
         "preparing",
         "ready",
+        "out_for_delivery",
         "delivered",
         "cancelled",
       ],
+      pos_order_channel: ["pos", "online", "kiosk", "table"],
+      pos_fulfillment_type: ["dine_in", "pickup", "delivery"],
       pos_payment_method: ["cash", "card", "paypal", "terminal"],
       pos_payment_status: ["open", "paid", "failed", "refunded"],
       pos_table_session_status: ["open", "closed"],

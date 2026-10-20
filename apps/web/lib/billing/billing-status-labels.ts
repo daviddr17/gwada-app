@@ -55,8 +55,10 @@ export function billingStatusLabel(status: string | null | undefined): string {
 
 export function billingSourceLabel(source: string | null | undefined): string {
   switch (source) {
+    case "mollie":
+      return "Mollie";
     case "stripe":
-      return "Stripe";
+      return "Stripe (alt)";
     case "manual":
       return "Manuell";
     case "legacy":

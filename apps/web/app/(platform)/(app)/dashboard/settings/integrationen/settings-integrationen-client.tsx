@@ -11,7 +11,6 @@ import { TripadvisorIntegrationCard } from "@/components/settings/tripadvisor-in
 import { IntegrationenSettingsSkeleton } from "@/components/settings/integrationen-settings-skeleton";
 import { WhatsappIntegrationCard } from "@/components/settings/whatsapp-integration-card";
 import { MollieIntegrationCard } from "@/components/settings/mollie-integration-card";
-import { AdyenIntegrationCard } from "@/components/settings/adyen-integration-card";
 import { AssistantIntegrationCard } from "@/components/settings/assistant-integration-card";
 import {
   SettingsIntegrationSaveProvider,
@@ -73,9 +72,6 @@ function IntegrationenContent() {
       <div className="space-y-6">
         <Suspense fallback={null}>
           <MollieIntegrationCard />
-        </Suspense>
-        <Suspense fallback={null}>
-          <AdyenIntegrationCard />
         </Suspense>
         <AssistantIntegrationCard />
         {!anyEnabled ? (

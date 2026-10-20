@@ -18,7 +18,7 @@ export type PosRestaurantPaymentMethodRow = {
 
 /** Client-/Pay-DTO inkl. ob die Art jetzt kassierbar ist. */
 export type PosRestaurantPaymentMethodDto = PosRestaurantPaymentMethodRow & {
-  /** false z. B. für Unbar-Platzhalter (Mollie/Adyen folgt). */
+  /** false wenn kein Terminal / Mollie Connect fehlt. */
   collectable: boolean;
   /** TSE/DSFinV-K: Bar vs Unbar. */
   fiscalClass: "cash" | "non_cash";
@@ -33,17 +33,16 @@ export function posPaymentMethodFiscalClass(
 /** Mapping auf bestehendes pos_payment_method Enum für Pipeline/TSE. */
 export function posPaymentMethodEnumForKind(
   kind: PosRestaurantPaymentMethodKind,
-): "cash" | "card" | "voucher" {
+): "cash" | "card" | "terminal" {
   if (kind === "cash") return "cash";
-  if (kind === "voucher") return "voucher";
-  // unbar + custom → Unbar (Placeholder bis Adyen/Mollie)
+  if (kind === "unbar") return "terminal";
   return "card";
 }
 
 export function isPosPaymentMethodCollectable(
   kind: PosRestaurantPaymentMethodKind,
 ): boolean {
-  // Unbar: Anbindung Zahlungsdienstleister folgt
-  if (kind === "unbar") return false;
+  // Unbar → Mollie Terminals API; Kassieren braucht verbundene Terminals.
+  if (kind === "unbar") return true;
   return true;
 }

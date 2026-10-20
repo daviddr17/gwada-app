@@ -33,7 +33,7 @@ export default function DatenloeschungPage() {
         </li>
         <li>
           Beenden Sie ggf. ein kostenpflichtiges Abo über die
-          Abo-/Stripe-Verwaltung in den Einstellungen.
+          Abo-/Mollie-Verwaltung in den Einstellungen.
         </li>
         <li>
           Beantragen Sie die Löschung Ihres Kontos bzw. Workspaces per E-Mail
@@ -91,7 +91,7 @@ export default function DatenloeschungPage() {
       <p>
         Für WhatsApp-Sessions und sonstige Integrationen beenden Sie die
         Verbindung in den jeweiligen Moduleinstellungen oder fordern die
-        Löschung wie in Abschnitt 1 an. Externe Anbieter (Meta, Google, Stripe
+        Löschung wie in Abschnitt 1 an. Externe Anbieter (Meta, Google, Mollie
         usw.) können eigene Löschwege vorsehen.
       </p>
 

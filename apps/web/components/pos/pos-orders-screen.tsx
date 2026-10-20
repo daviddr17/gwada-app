@@ -7,6 +7,7 @@ import {
   countPosDateRangeFilters,
   PosListFilterDrawer,
 } from "@/components/pos/pos-list-filter-drawer";
+import { PosDeliveryTrackButton } from "@/components/pos/pos-delivery-track-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,12 +46,20 @@ const STATUS_OPTIONS = [
 ] as const;
 
 const STATUS_LABEL: Record<string, string> = {
-  pending_payment: "Offen",
-  received: "Eingegangen",
+  pending_payment: "Zahlung ausstehend",
+  received: "Angenommen",
   preparing: "In Zubereitung",
-  ready: "Fertig",
+  ready: "Fertig / Abholbereit",
+  out_for_delivery: "In Lieferung",
   delivered: "Abgeschlossen",
   cancelled: "Storniert",
+};
+
+const CHANNEL_LABEL: Record<string, string> = {
+  pos: "Kasse",
+  online: "Online",
+  kiosk: "Kiosk",
+  table: "Tisch",
 };
 
 function formatCents(cents: number): string {
@@ -317,6 +326,7 @@ export function PosOrdersScreen() {
                   onSort={toggleSort}
                   align="right"
                 />
+                <th className="px-3 py-2 text-left font-medium">Aktion</th>
               </tr>
             </thead>
             <tbody>
@@ -324,11 +334,37 @@ export function PosOrdersScreen() {
                 <tr key={order.id} className="border-t border-border/40">
                   <td className="px-3 py-2.5 text-muted-foreground tabular-nums">
                     {formatDateTime(order.createdAt)}
+                    {order.slotStartAt ? (
+                      <span className="mt-0.5 block text-xs">
+                        Slot{" "}
+                        {new Date(order.slotStartAt).toLocaleTimeString(
+                          "de-DE",
+                          { hour: "2-digit", minute: "2-digit" },
+                        )}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2.5 tabular-nums font-medium">
                     #{order.orderNumber}
                   </td>
-                  <td className="px-3 py-2.5">{order.tableLabel}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span>{order.tableLabel}</span>
+                      {order.channel && order.channel !== "pos" ? (
+                        <Badge variant="secondary" className="font-normal">
+                          {CHANNEL_LABEL[order.channel] ?? order.channel}
+                          {order.fulfillmentType &&
+                          order.fulfillmentType !== "dine_in"
+                            ? ` · ${
+                                order.fulfillmentType === "delivery"
+                                  ? "Lieferung"
+                                  : "Abholung"
+                              }`
+                            : ""}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5">
                     <Badge variant="outline">
                       {STATUS_LABEL[order.status] ?? order.status}
@@ -342,6 +378,17 @@ export function PosOrdersScreen() {
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-medium">
                     {formatCents(order.totalCents + order.tipCents)}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {restaurantId ? (
+                      <PosDeliveryTrackButton
+                        restaurantId={restaurantId}
+                        orderId={order.id}
+                        fulfillmentType={order.fulfillmentType}
+                        status={order.status}
+                        trackingActive={order.deliveryTrackingActive}
+                      />
+                    ) : null}
                   </td>
                 </tr>
               ))}

@@ -1,7 +1,5 @@
 import "server-only";
 
-import { createStripeClient } from "@/lib/billing/stripe-server";
-import { syncStripeInvoiceToDb } from "@/lib/billing/sync-stripe-invoice";
 import { loadRestaurantEntitlements } from "@/lib/billing/subscription-db";
 import type { RestaurantBillingInvoiceDto } from "@/lib/billing/restaurant-invoice-types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -48,28 +46,16 @@ export async function listRestaurantBillingInvoices(
   return (data ?? []).map((row) => mapRow(row as Record<string, unknown>));
 }
 
-export async function refreshRestaurantBillingInvoicesFromStripe(
+/** Mollie has no invoice list like Stripe — DB rows from webhooks are source of truth. */
+export async function refreshRestaurantBillingInvoicesFromMollie(
   restaurantId: string,
 ): Promise<{ synced: number; failed: number }> {
   const entitlements = await loadRestaurantEntitlements(restaurantId);
-  const customerId = entitlements.stripeCustomerId;
-  if (!customerId) return { synced: 0, failed: 0 };
-
-  const client = await createStripeClient();
-  if (!client) return { synced: 0, failed: 0 };
-
-  let synced = 0;
-  let failed = 0;
-  const list = await client.stripe.invoices.list({
-    customer: customerId,
-    limit: 40,
-  });
-  for (const invoice of list.data) {
-    const result = await syncStripeInvoiceToDb(invoice, {
-      restaurantIdHint: restaurantId,
-    });
-    if (result.ok) synced += 1;
-    else failed += 1;
-  }
-  return { synced, failed };
+  if (!entitlements.mollieCustomerId) return { synced: 0, failed: 0 };
+  const rows = await listRestaurantBillingInvoices(restaurantId);
+  return { synced: rows.length, failed: 0 };
 }
+
+/** @deprecated */
+export const refreshRestaurantBillingInvoicesFromStripe =
+  refreshRestaurantBillingInvoicesFromMollie;

@@ -59,9 +59,12 @@ export function SuperadminSubscriptionEditDrawer({
 
   async function save() {
     if (!row) return;
-    if (row.source === "stripe" && row.stripe_subscription_id) {
+    if (
+      (row.source === "mollie" || row.source === "stripe") &&
+      (row.stripe_subscription_id || row.mollie_subscription_id)
+    ) {
       toast.error(
-        "Stripe-Abos bitte im Stripe-Dashboard ändern — hier nur manuell/legacy/complimentary.",
+        "Mollie-Abos bitte im Mollie-Dashboard ändern — hier nur manuell/legacy/complimentary.",
       );
       return;
     }
@@ -98,7 +101,8 @@ export function SuperadminSubscriptionEditDrawer({
   }
 
   const stripeLocked = Boolean(
-    row?.source === "stripe" && row.stripe_subscription_id,
+    (row?.source === "mollie" || row?.source === "stripe") &&
+      (row.stripe_subscription_id || row.mollie_subscription_id),
   );
 
   return (
@@ -108,15 +112,15 @@ export function SuperadminSubscriptionEditDrawer({
           <DrawerTitle>Abo bearbeiten</DrawerTitle>
           <DrawerDescription>
             {row?.restaurant_name ?? "Restaurant"} — manuell / Legacy /
-            Complimentary. Stripe-live-Abos bleiben im Stripe-Dashboard.
+            Complimentary. Mollie-live-Abos bleiben im Mollie-Dashboard.
           </DrawerDescription>
         </DrawerHeader>
 
         <div className="space-y-4 overflow-y-auto px-4 pb-2">
           {stripeLocked ? (
             <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
-              Dieses Abo kommt von Stripe und ist hier schreibgeschützt.
-              Complimentary/Legacy nur ohne aktives Stripe-Subscription.
+              Dieses Abo kommt von Mollie und ist hier schreibgeschützt.
+              Complimentary/Legacy nur ohne aktives Mollie-Subscription.
             </p>
           ) : null}
 

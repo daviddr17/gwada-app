@@ -38,7 +38,7 @@ export function PaymentAccountConnectCard({
   deniedMessage,
   noRestaurantMessage,
 }: {
-  provider: "mollie" | "adyen";
+  provider: "mollie";
   title: string;
   description: string;
   icon: ReactNode;

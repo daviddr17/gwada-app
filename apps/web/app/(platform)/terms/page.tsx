@@ -75,7 +75,7 @@ export default function AgbPage() {
       <p>
         Es gelten die auf der Website ausgewiesenen Preise (brutto bzw. netto
         wie angegeben) für Free-, Basic-, Pro-Pläne und optionale Add-ons
-        (z. B. POS). Abrechnung erfolgt über den Zahlungsdienstleister Stripe
+        (z. B. POS). Abrechnung erfolgt über den Zahlungsdienstleister Mollie
         im gewählten Intervall (monatlich/jährlich), sofern nicht anders
         vereinbart.
       </p>
@@ -116,7 +116,7 @@ export default function AgbPage() {
       <p>
         Der Anbieter strebt eine hohe Verfügbarkeit an, schuldet jedoch keine
         ununterbrochene Verfügbarkeit. Wartungsfenster und Störungen von
-        Drittanbietern (Hosting, Meta, WhatsApp-Gateway, Stripe usw.) können
+        Drittanbietern (Hosting, Meta, WhatsApp-Gateway, Mollie usw.) können
         die Nutzung beeinträchtigen. Support erfolgt je nach Plan (z. B.
         Community, E-Mail, priorisiert) in zumutbarer Frist.
       </p>

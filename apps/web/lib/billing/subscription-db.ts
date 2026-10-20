@@ -17,7 +17,7 @@ import {
   type BillingInterval,
   type BillingPlanId,
 } from "@/lib/billing/plan-catalog";
-import { getStripePlatform } from "@/lib/billing/stripe-server";
+import { fetchPlatformMollieBillingAdmin } from "@/lib/billing/mollie-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type SubRow = {
@@ -29,6 +29,9 @@ type SubRow = {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   stripe_price_id: string | null;
+  mollie_customer_id: string | null;
+  mollie_subscription_id: string | null;
+  mollie_mandate_id: string | null;
   current_period_start: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
@@ -80,8 +83,8 @@ export async function ensureRestaurantSubscriptionRow(
 export async function loadRestaurantEntitlements(
   restaurantId: string,
 ): Promise<RestaurantEntitlements> {
-  const platform = await getStripePlatform();
-  const enforcing = Boolean(platform.enabled && platform.secret_key);
+  const platform = await fetchPlatformMollieBillingAdmin();
+  const enforcing = Boolean(platform.enabled && platform.api_key);
 
   const admin = createSupabaseAdminClient();
   if (!admin) {
@@ -97,6 +100,8 @@ export async function loadRestaurantEntitlements(
       currentPeriodEnd: null,
       stripeCustomerId: null,
       stripeSubscriptionId: null,
+      mollieCustomerId: null,
+      mollieSubscriptionId: null,
       pastDueSince: null,
       pastDueAccessEndsAt: null,
       pastDueGraceExpired: false,
@@ -106,7 +111,7 @@ export async function loadRestaurantEntitlements(
   await ensureRestaurantSubscriptionRow(restaurantId);
 
   const subSelectWithGrace =
-    "restaurant_id, plan_id, interval, status, source, stripe_customer_id, stripe_subscription_id, stripe_price_id, current_period_start, current_period_end, cancel_at_period_end, trial_ends_at, past_due_since";
+    "restaurant_id, plan_id, interval, status, source, stripe_customer_id, stripe_subscription_id, stripe_price_id, mollie_customer_id, mollie_subscription_id, mollie_mandate_id, current_period_start, current_period_end, cancel_at_period_end, trial_ends_at, past_due_since";
   const subSelectBase =
     "restaurant_id, plan_id, interval, status, source, stripe_customer_id, stripe_subscription_id, stripe_price_id, current_period_start, current_period_end, cancel_at_period_end, trial_ends_at";
 
@@ -131,14 +136,23 @@ export async function loadRestaurantEntitlements(
       .eq("restaurant_id", restaurantId)
       .maybeSingle();
     row = retry.data
-      ? ({ ...(retry.data as Omit<SubRow, "past_due_since">), past_due_since: null } as SubRow)
+      ? ({
+          ...(retry.data as Omit<
+            SubRow,
+            "past_due_since" | "mollie_customer_id" | "mollie_subscription_id" | "mollie_mandate_id"
+          >),
+          past_due_since: null,
+          mollie_customer_id: null,
+          mollie_subscription_id: null,
+          mollie_mandate_id: null,
+        } as SubRow)
       : null;
   }
 
   const planId = asPlanId(row?.plan_id ?? "free");
   let pastDueSince = row?.past_due_since ?? null;
   if (
-    row?.source === "stripe" &&
+    (row?.source === "mollie" || row?.source === "stripe") &&
     isBillingDunningStatus(row.status) &&
     !pastDueSince
   ) {
@@ -163,7 +177,6 @@ export async function loadRestaurantEntitlements(
     : [];
   const featurePlanId = grantPaid ? planId : "free";
 
-  // Legacy / complimentary always keep full access even if Stripe is on.
   const effectiveEnforcing =
     enforcing &&
     row?.source !== "legacy" &&
@@ -182,6 +195,8 @@ export async function loadRestaurantEntitlements(
     currentPeriodEnd: row?.current_period_end ?? null,
     stripeCustomerId: row?.stripe_customer_id ?? null,
     stripeSubscriptionId: row?.stripe_subscription_id ?? null,
+    mollieCustomerId: row?.mollie_customer_id ?? null,
+    mollieSubscriptionId: row?.mollie_subscription_id ?? null,
     pastDueSince,
     pastDueAccessEndsAt: pastDueAccessEndsAt(pastDueSince),
     pastDueGraceExpired: graceExpired,
@@ -193,10 +208,13 @@ export async function upsertRestaurantSubscriptionAdmin(input: {
   planId: BillingPlanId;
   interval: BillingInterval;
   status: string;
-  source: "stripe" | "manual" | "legacy" | "complimentary";
+  source: "stripe" | "mollie" | "manual" | "legacy" | "complimentary";
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   stripePriceId?: string | null;
+  mollieCustomerId?: string | null;
+  mollieSubscriptionId?: string | null;
+  mollieMandateId?: string | null;
   currentPeriodStart?: string | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
@@ -206,26 +224,43 @@ export async function upsertRestaurantSubscriptionAdmin(input: {
   const admin = createSupabaseAdminClient();
   if (!admin) return { ok: false, error: "server_misconfigured" };
 
-  const { error } = await admin.from("restaurant_subscriptions").upsert(
-    {
-      restaurant_id: input.restaurantId,
-      plan_id: input.planId,
-      interval: input.interval,
-      status: input.status,
-      source: input.source,
-      stripe_customer_id: input.stripeCustomerId ?? null,
-      stripe_subscription_id: input.stripeSubscriptionId ?? null,
-      stripe_price_id: input.stripePriceId ?? null,
-      current_period_start: input.currentPeriodStart ?? null,
-      current_period_end: input.currentPeriodEnd ?? null,
-      cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
-      updated_at: new Date().toISOString(),
-      ...(input.pastDueSince !== undefined
-        ? { past_due_since: input.pastDueSince }
-        : {}),
-    },
-    { onConflict: "restaurant_id" },
-  );
+  const payload: Record<string, unknown> = {
+    restaurant_id: input.restaurantId,
+    plan_id: input.planId,
+    interval: input.interval,
+    status: input.status,
+    source: input.source,
+    current_period_start: input.currentPeriodStart ?? null,
+    current_period_end: input.currentPeriodEnd ?? null,
+    cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.stripeCustomerId !== undefined) {
+    payload.stripe_customer_id = input.stripeCustomerId;
+  }
+  if (input.stripeSubscriptionId !== undefined) {
+    payload.stripe_subscription_id = input.stripeSubscriptionId;
+  }
+  if (input.stripePriceId !== undefined) {
+    payload.stripe_price_id = input.stripePriceId;
+  }
+  if (input.mollieCustomerId !== undefined) {
+    payload.mollie_customer_id = input.mollieCustomerId;
+  }
+  if (input.mollieSubscriptionId !== undefined) {
+    payload.mollie_subscription_id = input.mollieSubscriptionId;
+  }
+  if (input.mollieMandateId !== undefined) {
+    payload.mollie_mandate_id = input.mollieMandateId;
+  }
+  if (input.pastDueSince !== undefined) {
+    payload.past_due_since = input.pastDueSince;
+  }
+
+  const { error } = await admin
+    .from("restaurant_subscriptions")
+    .upsert(payload, { onConflict: "restaurant_id" });
 
   if (error) return { ok: false, error: error.message };
   return { ok: true };
@@ -277,7 +312,7 @@ export async function clearRestaurantAddonAdmin(
     .eq("addon_id", addonId);
 }
 
-export async function findRestaurantIdByStripeCustomer(
+export async function findRestaurantIdByMollieCustomer(
   customerId: string,
 ): Promise<string | null> {
   const admin = createSupabaseAdminClient();
@@ -285,12 +320,12 @@ export async function findRestaurantIdByStripeCustomer(
   const { data } = await admin
     .from("restaurant_subscriptions")
     .select("restaurant_id")
-    .eq("stripe_customer_id", customerId)
+    .eq("mollie_customer_id", customerId)
     .maybeSingle();
   return (data?.restaurant_id as string | undefined) ?? null;
 }
 
-export async function findRestaurantIdByStripeSubscription(
+export async function findRestaurantIdByMollieSubscription(
   subscriptionId: string,
 ): Promise<string | null> {
   const admin = createSupabaseAdminClient();
@@ -298,7 +333,7 @@ export async function findRestaurantIdByStripeSubscription(
   const { data } = await admin
     .from("restaurant_subscriptions")
     .select("restaurant_id")
-    .eq("stripe_subscription_id", subscriptionId)
+    .eq("mollie_subscription_id", subscriptionId)
     .maybeSingle();
   return (data?.restaurant_id as string | undefined) ?? null;
 }
@@ -345,11 +380,11 @@ export async function clearRestaurantPastDueSince(
     .not("past_due_since", "is", null);
 }
 
-export async function listStripeLinkedSubscriptions(): Promise<
+export async function listMollieLinkedSubscriptions(): Promise<
   {
     restaurantId: string;
-    stripeSubscriptionId: string;
-    stripeCustomerId: string | null;
+    mollieSubscriptionId: string;
+    mollieCustomerId: string | null;
     interval: string;
   }[]
 > {
@@ -358,21 +393,21 @@ export async function listStripeLinkedSubscriptions(): Promise<
   const { data, error } = await admin
     .from("restaurant_subscriptions")
     .select(
-      "restaurant_id, stripe_subscription_id, stripe_customer_id, interval, source",
+      "restaurant_id, mollie_subscription_id, mollie_customer_id, interval, source",
     )
-    .eq("source", "stripe")
-    .not("stripe_subscription_id", "is", null);
+    .eq("source", "mollie")
+    .not("mollie_subscription_id", "is", null);
 
   if (error || !data) return [];
   return data.flatMap((row) => {
     const restaurantId = row.restaurant_id as string;
-    const stripeSubscriptionId = row.stripe_subscription_id as string | null;
-    if (!restaurantId || !stripeSubscriptionId) return [];
+    const mollieSubscriptionId = row.mollie_subscription_id as string | null;
+    if (!restaurantId || !mollieSubscriptionId) return [];
     return [
       {
         restaurantId,
-        stripeSubscriptionId,
-        stripeCustomerId: (row.stripe_customer_id as string | null) ?? null,
+        mollieSubscriptionId,
+        mollieCustomerId: (row.mollie_customer_id as string | null) ?? null,
         interval: (row.interval as string) ?? "month",
       },
     ];
@@ -381,30 +416,36 @@ export async function listStripeLinkedSubscriptions(): Promise<
 
 export type PastDueGraceExpiredRow = {
   restaurantId: string;
-  stripeSubscriptionId: string;
+  mollieSubscriptionId: string;
+  mollieCustomerId: string | null;
   pastDueSince: string;
 };
 
-export async function listStripeSubscriptionsPastDueGraceExpired(
+export async function listMollieSubscriptionsPastDueGraceExpired(
   now: Date = new Date(),
 ): Promise<PastDueGraceExpiredRow[]> {
   const admin = createSupabaseAdminClient();
   if (!admin) return [];
   const { data, error } = await admin
     .from("restaurant_subscriptions")
-    .select("restaurant_id, stripe_subscription_id, past_due_since, source, status")
-    .eq("source", "stripe")
+    .select(
+      "restaurant_id, mollie_subscription_id, mollie_customer_id, past_due_since, source, status",
+    )
+    .eq("source", "mollie")
     .not("past_due_since", "is", null)
-    .not("stripe_subscription_id", "is", null)
+    .not("mollie_subscription_id", "is", null)
     .neq("status", "canceled");
 
   if (error || !data) return [];
   return data.flatMap((row) => {
     const restaurantId = row.restaurant_id as string;
-    const stripeSubscriptionId = row.stripe_subscription_id as string | null;
+    const mollieSubscriptionId = row.mollie_subscription_id as string | null;
+    const mollieCustomerId = (row.mollie_customer_id as string | null) ?? null;
     const pastDueSince = row.past_due_since as string | null;
-    if (!restaurantId || !stripeSubscriptionId || !pastDueSince) return [];
+    if (!restaurantId || !mollieSubscriptionId || !pastDueSince) return [];
     if (!isPastDueGraceExpired(pastDueSince, now)) return [];
-    return [{ restaurantId, stripeSubscriptionId, pastDueSince }];
+    return [
+      { restaurantId, mollieSubscriptionId, mollieCustomerId, pastDueSince },
+    ];
   });
 }

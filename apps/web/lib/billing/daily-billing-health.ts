@@ -1,38 +1,19 @@
 import "server-only";
 
-import type Stripe from "stripe";
-import { cancelStripeSubscriptionsPastDueGraceExpired } from "@/lib/billing/cancel-past-due-grace";
-import { createStripeClient } from "@/lib/billing/stripe-server";
-import { syncStripeSubscriptionToDb } from "@/lib/billing/sync-stripe-subscription";
+import { cancelMollieSubscriptionsPastDueGraceExpired } from "@/lib/billing/cancel-past-due-grace";
+import { getMollieBillingAuth } from "@/lib/billing/mollie-server";
+import { syncMollieSubscriptionToDb } from "@/lib/billing/sync-mollie-subscription";
 import {
-  listStripeLinkedSubscriptions,
+  listMollieLinkedSubscriptions,
   upsertRestaurantSubscriptionAdmin,
 } from "@/lib/billing/subscription-db";
 import type { BillingInterval, BillingPlanId } from "@/lib/billing/plan-catalog";
+import { mollieGetSubscription } from "@/lib/mollie/mollie-payments";
 
-const SUB_EXPAND = ["items.data.price", "latest_invoice"] as const;
-const OPEN_STATUSES = [
-  "active",
-  "trialing",
-  "past_due",
-  "unpaid",
-  "incomplete",
-  "paused",
-] as const;
-
-function isStripeMissing(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: string }).code === "resource_missing"
-  );
-}
-
-async function markStripeSubscriptionMissing(input: {
+async function markMollieSubscriptionMissing(input: {
   restaurantId: string;
-  stripeSubscriptionId: string;
-  stripeCustomerId: string | null;
+  mollieSubscriptionId: string;
+  mollieCustomerId: string | null;
   interval: string;
 }): Promise<boolean> {
   const interval: BillingInterval =
@@ -42,9 +23,9 @@ async function markStripeSubscriptionMissing(input: {
     planId: "free" as BillingPlanId,
     interval,
     status: "canceled",
-    source: "stripe",
-    stripeCustomerId: input.stripeCustomerId,
-    stripeSubscriptionId: input.stripeSubscriptionId,
+    source: "mollie",
+    mollieCustomerId: input.mollieCustomerId,
+    mollieSubscriptionId: input.mollieSubscriptionId,
     cancelAtPeriodEnd: false,
     pastDueSince: null,
   });
@@ -59,30 +40,8 @@ async function markStripeSubscriptionMissing(input: {
   return true;
 }
 
-async function listOpenStripeSubscriptions(
-  stripe: Stripe,
-): Promise<Stripe.Subscription[]> {
-  const out: Stripe.Subscription[] = [];
-  for (const status of OPEN_STATUSES) {
-    let startingAfter: string | undefined;
-    for (let page = 0; page < 10; page += 1) {
-      const list = await stripe.subscriptions.list({
-        status,
-        limit: 100,
-        starting_after: startingAfter,
-        expand: ["data.items.data.price", "data.latest_invoice"],
-      });
-      out.push(...list.data);
-      if (!list.has_more || list.data.length === 0) break;
-      startingAfter = list.data[list.data.length - 1]?.id;
-      if (!startingAfter) break;
-    }
-  }
-  return out;
-}
-
 export type DailyBillingHealthStats = {
-  stripeListed: number;
+  mollieListed: number;
   dbLinked: number;
   synced: number;
   missing: number;
@@ -95,7 +54,7 @@ export type DailyBillingHealthStats = {
   };
 };
 
-/** Einmal täglich: Stripe ↔ DB abgleichen, dann 7-Tage-Cutoff. */
+/** Einmal täglich: Mollie ↔ DB abgleichen, dann 7-Tage-Cutoff. */
 export async function runDailyBillingHealthCheck(): Promise<DailyBillingHealthStats> {
   const cutoffEmpty = {
     scanned: 0,
@@ -103,13 +62,13 @@ export async function runDailyBillingHealthCheck(): Promise<DailyBillingHealthSt
     recovered: 0,
     failed: 0,
   };
-  const client = await createStripeClient();
-  const dbRows = await listStripeLinkedSubscriptions();
+  const client = await getMollieBillingAuth();
+  const dbRows = await listMollieLinkedSubscriptions();
 
   if (!client) {
-    console.warn("billing health: stripe_not_configured");
+    console.warn("billing health: mollie_not_configured");
     return {
-      stripeListed: 0,
+      mollieListed: 0,
       dbLinked: dbRows.length,
       synced: 0,
       missing: 0,
@@ -118,63 +77,53 @@ export async function runDailyBillingHealthCheck(): Promise<DailyBillingHealthSt
     };
   }
 
-  const seen = new Set<string>();
   let synced = 0;
   let failed = 0;
   let missing = 0;
 
-  const listed = await listOpenStripeSubscriptions(client.stripe);
-  for (const sub of listed) {
-    seen.add(sub.id);
-    const result = await syncStripeSubscriptionToDb(client.config, sub);
+  for (const row of dbRows) {
+    if (!row.mollieCustomerId) {
+      failed += 1;
+      continue;
+    }
+    const sub = await mollieGetSubscription(
+      client.auth,
+      row.mollieCustomerId,
+      row.mollieSubscriptionId,
+    );
+    if (!sub.ok) {
+      if (sub.status === 404) {
+        const ok = await markMollieSubscriptionMissing(row);
+        if (ok) missing += 1;
+        else failed += 1;
+      } else {
+        failed += 1;
+        console.warn(
+          "billing health retrieve",
+          row.restaurantId,
+          sub.detail,
+        );
+      }
+      continue;
+    }
+    const result = await syncMollieSubscriptionToDb(
+      sub.data,
+      row.restaurantId,
+    );
     if (result.ok) synced += 1;
     else {
       failed += 1;
-      console.warn("billing health stripe-list sync", sub.id, result.error);
-    }
-  }
-
-  for (const row of dbRows) {
-    if (seen.has(row.stripeSubscriptionId)) continue;
-    try {
-      const sub = await client.stripe.subscriptions.retrieve(
-        row.stripeSubscriptionId,
-        { expand: [...SUB_EXPAND] },
-      );
-      seen.add(sub.id);
-      const result = await syncStripeSubscriptionToDb(
-        client.config,
-        sub,
-        row.restaurantId,
-      );
-      if (result.ok) synced += 1;
-      else {
-        failed += 1;
-        console.warn(
-          "billing health db-row sync",
-          row.restaurantId,
-          result.error,
-        );
-      }
-    } catch (err) {
-      if (isStripeMissing(err)) {
-        const ok = await markStripeSubscriptionMissing(row);
-        if (ok) missing += 1;
-        else failed += 1;
-        continue;
-      }
-      failed += 1;
       console.warn(
-        "billing health retrieve",
+        "billing health db-row sync",
         row.restaurantId,
-        err instanceof Error ? err.message : err,
+        result.error,
       );
     }
   }
 
-  const cutoff = await cancelStripeSubscriptionsPastDueGraceExpired();
+  const cutoff = await cancelMollieSubscriptionsPastDueGraceExpired();
   const stats: DailyBillingHealthStats = {
-    stripeListed: listed.length,
+    mollieListed: dbRows.length,
     dbLinked: dbRows.length,
     synced,
     missing,

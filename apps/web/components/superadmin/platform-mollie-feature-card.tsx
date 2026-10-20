@@ -7,14 +7,24 @@ import {
   SuperadminIntegrationPanel,
 } from "@/components/superadmin/superadmin-integration-panel";
 import { SuperadminIntegrationStatusBadges } from "@/components/superadmin/superadmin-integration-status-badges";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SecretInput } from "@/components/ui/secret-input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { PlatformMollieConfigUi } from "@/lib/integrations/platform-mollie-config";
 import { useRegisterSuperadminIntegrationSave } from "@/lib/superadmin/integrations-save-registry";
 import { saveSuperadminPlatformIntegration } from "@/lib/superadmin/platform-integrations-api";
 import type { PlatformIntegrationRow } from "@/lib/types/platform-integration";
 import type { SuperadminIntegrationConnectionHealth } from "@/lib/types/superadmin-ops-status";
 import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
+import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 
 export function PlatformMollieFeatureCard({
   row,
@@ -31,24 +41,56 @@ export function PlatformMollieFeatureCard({
   const [enabled, setEnabled] = useState(row.enabled);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [profileId, setProfileId] = useState(ui.profile_id ?? "");
+  const [mode, setMode] = useState<"test" | "live">(ui.mode ?? "test");
+  const [applicationFeeEur, setApplicationFeeEur] = useState(
+    ui.application_fee_eur ?? "",
+  );
 
   const snapshot = useMemo(
-    () => JSON.stringify({ enabled: row.enabled }),
-    [row.enabled],
+    () =>
+      JSON.stringify({
+        enabled: row.enabled,
+        profile_id: ui.profile_id ?? "",
+        mode: ui.mode ?? "test",
+        application_fee_eur: ui.application_fee_eur ?? "",
+      }),
+    [row.enabled, ui.application_fee_eur, ui.mode, ui.profile_id],
   );
 
   const dirty = useMemo(() => {
     return (
-      JSON.stringify({ enabled }) !== snapshot ||
+      JSON.stringify({
+        enabled,
+        profile_id: profileId.trim(),
+        mode,
+        application_fee_eur: applicationFeeEur.trim(),
+      }) !== snapshot ||
       clientId.trim().length > 0 ||
-      clientSecret.trim().length > 0
+      clientSecret.trim().length > 0 ||
+      apiKey.trim().length > 0
     );
-  }, [clientId, clientSecret, enabled, snapshot]);
+  }, [
+    apiKey,
+    applicationFeeEur,
+    clientId,
+    clientSecret,
+    enabled,
+    mode,
+    profileId,
+    snapshot,
+  ]);
 
   const save = async () => {
-    const config: Record<string, unknown> = {};
+    const config: Record<string, unknown> = {
+      mode,
+      profile_id: profileId.trim(),
+      application_fee_eur: applicationFeeEur.trim(),
+    };
     if (clientId.trim()) config.client_id = clientId.trim();
     if (clientSecret.trim()) config.client_secret = clientSecret.trim();
+    if (apiKey.trim()) config.api_key = apiKey.trim();
     const { ok, error } = await saveSuperadminPlatformIntegration(
       "mollie",
       enabled,
@@ -61,26 +103,29 @@ export function PlatformMollieFeatureCard({
     toast.success("Mollie gespeichert.");
     setClientId("");
     setClientSecret("");
+    setApiKey("");
     onSaved();
   };
 
   useRegisterSuperadminIntegrationSave("mollie", dirty, save);
 
   const configured = Boolean(
-    ui.client_id_configured && ui.client_secret_configured,
+    ui.client_id_configured &&
+      ui.client_secret_configured &&
+      ui.api_key_configured,
   );
 
   return (
     <SuperadminIntegrationPanel
-      title="Mollie Connect"
-      description="Gwada ist die Plattform-App. Jedes Restaurant verbindet danach sein eigenes Mollie-Konto. Redirect: /api/integrations/mollie/callback. Client-ID und Secret nur hier."
+      title="Mollie"
+      description="Ein Anbieter für alles: Connect (Gast→Restaurant + POS) und Gwada-API-Key (Software-Abos). Secrets nur hier."
       icon={<Wallet className="size-5" />}
       accentColor={INTEGRATION_PANEL_ACCENT.mollie}
       badges={
         <SuperadminIntegrationStatusBadges
           enabled={enabled}
           configured={configured}
-          configuredLabel="Client hinterlegt"
+          configuredLabel="Connect + Billing hinterlegt"
           connection={connection}
           connectionChecking={connectionChecking}
         />
@@ -94,9 +139,47 @@ export function PlatformMollieFeatureCard({
       }
     >
       <p className="text-sm text-muted-foreground">
-        Nach dem Speichern siehst du die Werte nicht wieder, nur ob sie
-        hinterlegt sind. Gastzahlungen laufen hier noch nicht.
+        OAuth-App: Redirect{" "}
+        <code className="text-xs">/api/integrations/mollie/callback</code>.
+        Billing-Webhook:{" "}
+        <code className="text-xs">/api/billing/mollie/webhook</code>. Nach dem
+        Speichern siehst du Secrets nicht wieder.
       </p>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="platform-mollie-mode">Modus</Label>
+          <Select
+            value={mode}
+            onValueChange={(v) => setMode(v === "live" ? "live" : "test")}
+          >
+            <SelectTrigger
+              id="platform-mollie-mode"
+              className={appSelectTriggerAccentCn("h-9 w-full")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="test">Test</SelectItem>
+              <SelectItem value="live">Live</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="platform-mollie-fee">
+            Application Fee (EUR, optional)
+          </Label>
+          <Input
+            id="platform-mollie-fee"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={applicationFeeEur}
+            onChange={(e) => setApplicationFeeEur(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <p className="text-sm font-medium">Connect (Restaurants)</p>
       <div className="grid gap-4 sm:grid-cols-2">
         <SecretInput
           id="platform-mollie-client-id"
@@ -114,6 +197,27 @@ export function PlatformMollieFeatureCard({
           onChange={setClientSecret}
           placeholder="Client Secret"
         />
+      </div>
+
+      <p className="text-sm font-medium">Gwada-Billing (Restaurant → Gwada)</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SecretInput
+          id="platform-mollie-api-key"
+          label="API-Key (test_ / live_)"
+          configured={Boolean(ui.api_key_configured)}
+          value={apiKey}
+          onChange={setApiKey}
+          placeholder="test_…"
+        />
+        <div className="space-y-2">
+          <Label htmlFor="platform-mollie-profile">Profil-ID (optional)</Label>
+          <Input
+            id="platform-mollie-profile"
+            placeholder="pfl_…"
+            value={profileId}
+            onChange={(e) => setProfileId(e.target.value)}
+          />
+        </div>
       </div>
     </SuperadminIntegrationPanel>
   );

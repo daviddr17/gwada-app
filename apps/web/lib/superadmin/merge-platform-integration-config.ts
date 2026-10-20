@@ -10,7 +10,6 @@ import {
   mergeFiskalySecretFields,
   fiskalyConfigFromJson,
 } from "@/lib/integrations/platform-fiskaly-config";
-import { mergeStripeConfig } from "@/lib/integrations/platform-stripe-config";
 import {
   mergeWeatherApiKey,
   weatherConfigFromJson,
@@ -28,7 +27,6 @@ import {
   appleBusinessConnectConfigFromJson,
 } from "@/lib/integrations/platform-apple-business-connect-config";
 import { mergeMolliePlatformConfig } from "@/lib/integrations/platform-mollie-config";
-import { mergeAdyenPlatformConfig } from "@/lib/integrations/platform-adyen-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 export function mergePlatformIntegrationConfig(
@@ -113,16 +111,8 @@ export function mergePlatformIntegrationConfig(
     return merged;
   }
 
-  if (key === "stripe") {
-    return mergeStripeConfig(existing, incoming) as Record<string, unknown>;
-  }
-
   if (key === "mollie") {
     return mergeMolliePlatformConfig(existing, incoming);
-  }
-
-  if (key === "adyen") {
-    return mergeAdyenPlatformConfig(existing, incoming);
   }
 
   if (key === "fiskaly") {

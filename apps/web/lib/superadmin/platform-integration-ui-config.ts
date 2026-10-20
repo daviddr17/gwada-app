@@ -8,10 +8,6 @@ import {
   fiskalyConfigToUi,
 } from "@/lib/integrations/platform-fiskaly-config";
 import {
-  stripeConfigFromJson,
-  stripeConfigToUi,
-} from "@/lib/integrations/platform-stripe-config";
-import {
   weatherConfigFromJson,
   weatherConfigToUi,
 } from "@/lib/integrations/platform-weather-config";
@@ -31,10 +27,6 @@ import {
   mollieConfigFromJson,
   mollieConfigToUi,
 } from "@/lib/integrations/platform-mollie-config";
-import {
-  adyenConfigFromJson,
-  adyenConfigToUi,
-} from "@/lib/integrations/platform-adyen-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 /** Antwort für Superadmin-UI — niemals Klartext-Secrets. */
@@ -68,16 +60,8 @@ export function platformIntegrationConfigForUi(
     return fiskalyConfigToUi(fiskalyConfigFromJson(raw));
   }
 
-  if (key === "stripe") {
-    return stripeConfigToUi(stripeConfigFromJson(raw));
-  }
-
   if (key === "mollie") {
     return mollieConfigToUi(mollieConfigFromJson(raw));
-  }
-
-  if (key === "adyen") {
-    return adyenConfigToUi(adyenConfigFromJson(raw));
   }
 
   if (key === "email") {

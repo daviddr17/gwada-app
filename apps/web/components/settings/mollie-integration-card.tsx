@@ -10,7 +10,7 @@ export function MollieIntegrationCard() {
     <PaymentAccountConnectCard
       provider="mollie"
       title="Mollie"
-      description="Eigenes Mollie-Konto verbinden. Spätere Zahlungen können dort eingehen. Es wird nichts abgebucht."
+      description="Eigenes Mollie-Konto verbinden für Online-Gastzahlungen und POS-Terminals (Connect). Software-Abos an Gwada laufen getrennt über die Gwada-Mollie-Organisation."
       icon={<Wallet className="size-5" />}
       accentColor={INTEGRATION_PANEL_ACCENT.mollie}
       permission="integrations.mollie"

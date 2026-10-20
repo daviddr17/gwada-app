@@ -1,8 +1,8 @@
 import "server-only";
 
 import {
-  canChangeStripePlan,
-  hasManagedStripeSubscription,
+  canChangeMolliePlan,
+  hasManagedMollieSubscription,
 } from "@/lib/billing/entitlements";
 import {
   isBillingInterval,
@@ -11,13 +11,17 @@ import {
   type BillingPlanId,
 } from "@/lib/billing/plan-catalog";
 import {
-  createStripeClient,
-  isPosPriceId,
-  planPriceSlot,
-  resolvePriceId,
-} from "@/lib/billing/stripe-server";
-import { syncStripeSubscriptionToDb } from "@/lib/billing/sync-stripe-subscription";
+  billingSubscriptionDescription,
+  billingSubscriptionInterval,
+  getMollieBillingAuth,
+  mollieBillingAmount,
+} from "@/lib/billing/mollie-server";
+import { syncMollieSubscriptionToDb } from "@/lib/billing/sync-mollie-subscription";
 import { loadRestaurantEntitlements } from "@/lib/billing/subscription-db";
+import {
+  mollieCancelSubscription,
+  mollieUpdateSubscription,
+} from "@/lib/mollie/mollie-payments";
 
 export async function updateRestaurantBillingPlan(input: {
   restaurantId: string;
@@ -32,7 +36,11 @@ export async function updateRestaurantBillingPlan(input: {
   }
 
   const entitlements = await loadRestaurantEntitlements(input.restaurantId);
-  if (!canChangeStripePlan(entitlements) || !entitlements.stripeSubscriptionId) {
+  if (
+    !canChangeMolliePlan(entitlements) ||
+    !entitlements.mollieSubscriptionId ||
+    !entitlements.mollieCustomerId
+  ) {
     return {
       ok: false,
       error:
@@ -45,50 +53,46 @@ export async function updateRestaurantBillingPlan(input: {
     };
   }
 
-  const client = await createStripeClient();
+  const client = await getMollieBillingAuth();
   if (!client) {
-    return { ok: false, error: "stripe_not_configured", status: 503 };
+    return { ok: false, error: "mollie_not_configured", status: 503 };
   }
 
-  const priceId = resolvePriceId(
-    client.config,
-    planPriceSlot(input.planId, input.interval),
-  );
-  if (!priceId) {
-    return { ok: false, error: "price_not_configured", status: 503 };
-  }
-
-  const sub = await client.stripe.subscriptions.retrieve(
-    entitlements.stripeSubscriptionId,
-    { expand: ["items.data.price"] },
-  );
-  const planItem = sub.items.data.find((item) => {
-    const id = item.price?.id;
-    return Boolean(id) && !isPosPriceId(client.config, id);
+  const includePos = entitlements.addons.includes("pos");
+  const amount = mollieBillingAmount(input.planId, input.interval, includePos);
+  const description = billingSubscriptionDescription({
+    planId: input.planId,
+    interval: input.interval,
+    includePos,
   });
-  if (!planItem?.id) {
-    return { ok: false, error: "plan_item_missing", status: 500 };
-  }
 
-  if (planItem.price?.id === priceId) {
-    return { ok: true };
-  }
-
-  const updated = await client.stripe.subscriptions.update(sub.id, {
-    items: [{ id: planItem.id, price: priceId }],
-    proration_behavior: "create_prorations",
-    cancel_at_period_end: false,
-    metadata: {
-      restaurant_id: input.restaurantId,
-      plan_id: input.planId,
-      interval: input.interval,
+  const updated = await mollieUpdateSubscription(
+    client.auth,
+    entitlements.mollieCustomerId,
+    entitlements.mollieSubscriptionId,
+    {
+      amount,
+      interval: billingSubscriptionInterval(input.interval),
+      description,
+      metadata: {
+        restaurant_id: input.restaurantId,
+        plan_id: input.planId,
+        interval: input.interval,
+        include_pos: includePos ? "1" : "0",
+      },
     },
-    expand: ["items.data.price"],
-  });
+  );
 
-  const synced = await syncStripeSubscriptionToDb(
-    client.config,
-    updated,
+  if (!updated.ok) {
+    return {
+      ok: false,
+      error: updated.detail || "plan_update_failed",
+      status: 502,
+    };
+  }
+
+  const synced = await syncMollieSubscriptionToDb(
+    updated.data,
     input.restaurantId,
   );
   if (!synced.ok) {
@@ -97,31 +101,59 @@ export async function updateRestaurantBillingPlan(input: {
   return { ok: true };
 }
 
-export async function setRestaurantBillingCancelAtPeriodEnd(input: {
+export async function cancelRestaurantBillingSubscription(input: {
   restaurantId: string;
-  cancel: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const entitlements = await loadRestaurantEntitlements(input.restaurantId);
-  if (!hasManagedStripeSubscription(entitlements) || !entitlements.stripeSubscriptionId) {
+  if (
+    !hasManagedMollieSubscription(entitlements) ||
+    !entitlements.mollieSubscriptionId ||
+    !entitlements.mollieCustomerId
+  ) {
     return { ok: false, error: "no_managed_subscription", status: 409 };
   }
 
-  const client = await createStripeClient();
+  const client = await getMollieBillingAuth();
   if (!client) {
-    return { ok: false, error: "stripe_not_configured", status: 503 };
+    return { ok: false, error: "mollie_not_configured", status: 503 };
   }
 
-  const updated = await client.stripe.subscriptions.update(
-    entitlements.stripeSubscriptionId,
-    { cancel_at_period_end: input.cancel },
+  const canceled = await mollieCancelSubscription(
+    client.auth,
+    entitlements.mollieCustomerId,
+    entitlements.mollieSubscriptionId,
   );
-  const synced = await syncStripeSubscriptionToDb(
-    client.config,
-    updated,
+  if (!canceled.ok) {
+    return {
+      ok: false,
+      error: canceled.detail || "cancel_failed",
+      status: 502,
+    };
+  }
+
+  const synced = await syncMollieSubscriptionToDb(
+    canceled.data,
     input.restaurantId,
   );
   if (!synced.ok) {
     return { ok: false, error: synced.error, status: 500 };
   }
   return { ok: true };
+}
+
+/**
+ * Mollie has no Stripe-style cancel_at_period_end.
+ * cancel=true → Subscription sofort bei Mollie beenden.
+ * cancel=false → nicht unterstützt (kein Undo nach Cancel).
+ */
+export async function setRestaurantBillingCancelAtPeriodEnd(input: {
+  restaurantId: string;
+  cancel: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  if (!input.cancel) {
+    return { ok: false, error: "mollie_cancel_undo_unsupported", status: 400 };
+  }
+  return cancelRestaurantBillingSubscription({
+    restaurantId: input.restaurantId,
+  });
 }

@@ -85,10 +85,10 @@ export const einstellungenGuide: UserGuidePage = {
       heading: "Abo",
       body: "Unter Einstellungen → Abo verwaltet ihr den Gwada-Plan für genau diesen Betrieb. Nur Rollen mit der Berechtigung „Abo & Abrechnung“ (standardmäßig Inhaber und Manager) sehen den Tab.",
       items: [
-        "Plan wählen oder wechseln — erstes Abo über Stripe-Checkout, danach Wechsel in der App (mit anteiliger Abrechnung). Free: 1 registrierter Nutzer, Basic: 3, Pro: unbegrenzt",
+        "Plan wählen oder wechseln — erstes Abo über Mollie-Checkout, danach Wechsel in der App (mit anteiliger Abrechnung). Free: 1 registrierter Nutzer, Basic: 3, Pro: unbegrenzt",
         "Kündigung zum Periodenende — bis dahin bleibt der Plan aktiv, danach Free; Kündigung lässt sich zurücknehmen",
-        "Fehlgeschlagene Erneuerung: 7 Tage Karenz mit vollem Plan, danach Paid-Module auf Free. Offene Rechnung im Portal zahlen oder Plan neu wählen. Erster Checkout ohne Zahlung bleibt Free. Einmal täglich gleicht Gwada Stripe mit dem Betrieb ab.",
-        "Zahlungsmittel im Stripe-Kundenportal (Button „Zahlungsmittel & Kündigung“)",
+        "Fehlgeschlagene Erneuerung: 7 Tage Karenz mit vollem Plan, danach Paid-Module auf Free. Offene Rechnung im Portal zahlen oder Plan neu wählen. Erster Checkout ohne Zahlung bleibt Free. Einmal täglich gleicht Gwada Mollie mit dem Betrieb ab.",
+        "Zahlungsmittel im Mollie-Kundenportal (Button „Zahlungsmittel & Kündigung“)",
         "Rechnungen und PDFs in der Liste — Beleg speichern für die Buchhaltung (nicht die Gast-Rechnungen unter Buchführung)",
       ],
     },

@@ -120,7 +120,7 @@ export function SuperadminBillingInvoicesScreen() {
     <div className="space-y-6 pt-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          Stripe-Rechnungen für Gwada-Abos (Webhook + manueller Sync).
+          Mollie-Rechnungen für Gwada-Abos (Webhook + manueller Sync).
         </p>
         <Button
           type="button"
@@ -130,7 +130,7 @@ export function SuperadminBillingInvoicesScreen() {
           onClick={() => void syncFromStripe()}
         >
           <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
-          {syncing ? "Synchronisiere…" : "Von Stripe laden"}
+          {syncing ? "Synchronisiere…" : "Webhook-Stand (Mollie)"}
         </Button>
       </div>
 
@@ -154,7 +154,7 @@ export function SuperadminBillingInvoicesScreen() {
         loading={loading}
         rows={filtered}
         rowKey={(r) => r.id}
-        emptyMessage="Keine Rechnungen — Sync von Stripe oder warte auf Webhooks."
+        emptyMessage="Keine Rechnungen — Sync von Mollie oder warte auf Webhooks."
         itemLabel="Rechnungen"
         resetPageKey={`${search}\0${statusFilter}`}
         columns={[

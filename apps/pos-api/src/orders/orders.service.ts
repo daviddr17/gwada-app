@@ -402,15 +402,14 @@ export class PaymentsService {
       .update({ method: params.method })
       .eq("id", cash.paymentId);
 
-    const mollieKey = process.env.MOLLIE_API_KEY?.trim();
+    // Real Mollie Terminals/Payments run via apps/web (/api/pos/payments) with
+    // restaurant Connect OAuth — not a platform env API key.
     return {
       ok: true as const,
       paymentId: cash.paymentId,
       method: params.method,
-      checkoutUrl: mollieKey
-        ? null
-        : `pos-api://mollie-simulate/${cash.paymentId}`,
-      simulated: !mollieKey,
+      checkoutUrl: `pos-api://mollie-via-web/${cash.paymentId}`,
+      simulated: true,
       tse: cash.tse,
       fullyPaid: cash.fullyPaid,
     };

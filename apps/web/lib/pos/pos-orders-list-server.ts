@@ -27,6 +27,10 @@ export type PosOrderListItem = {
   tableSessionId: string;
   tableLabel: string;
   guestName: string | null;
+  slotStartAt: string | null;
+  deliveryTrackingActive: boolean;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
   createdAt: string;
   closedAt: string | null;
   lineCount: number;
@@ -100,7 +104,7 @@ export async function listPosOrdersInRange(
   let dataQuery = supabase
     .from("pos_orders")
     .select(
-      "id, order_number, status, channel, fulfillment_type, total_cents, tip_cents, table_session_id, guest_name, created_at, closed_at",
+      "id, order_number, status, channel, fulfillment_type, total_cents, tip_cents, table_session_id, guest_name, slot_start_at, delivery_tracking_active, delivery_lat, delivery_lng, created_at, closed_at",
     )
     .eq("restaurant_id", restaurantId)
     .gte("created_at", bounds.startAt)
@@ -260,6 +264,21 @@ export async function listPosOrdersInRange(
       tableSessionId: String(order.table_session_id ?? ""),
       tableLabel: channelTableLabel,
       guestName,
+      slotStartAt:
+        ((order as { slot_start_at?: string | null }).slot_start_at ??
+          null) as string | null,
+      deliveryTrackingActive: Boolean(
+        (order as { delivery_tracking_active?: boolean })
+          .delivery_tracking_active,
+      ),
+      deliveryLat:
+        typeof (order as { delivery_lat?: number }).delivery_lat === "number"
+          ? (order as { delivery_lat: number }).delivery_lat
+          : null,
+      deliveryLng:
+        typeof (order as { delivery_lng?: number }).delivery_lng === "number"
+          ? (order as { delivery_lng: number }).delivery_lng
+          : null,
       createdAt: String(order.created_at),
       closedAt: (order.closed_at as string | null) ?? null,
       lineCount: orderLines.length,

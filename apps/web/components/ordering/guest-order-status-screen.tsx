@@ -20,6 +20,12 @@ type OrderDto = {
   guestName: string | null;
   restaurantName: string;
   restaurantSlug: string;
+  slotStartAt: string | null;
+  slotEndAt: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  deliveryLocationUpdatedAt: string | null;
+  deliveryTrackingActive: boolean;
   lines: Array<{
     name: string;
     quantity: number;
@@ -98,8 +104,63 @@ export function GuestOrderStatusScreen({ token }: { token: string }) {
         Bestellung #{order.orderNumber}
       </h1>
       <p className="mt-2 text-lg font-medium">{order.statusLabel}</p>
+      {order.slotStartAt ? (
+        <p className="mt-1 text-sm text-muted-foreground">
+          Zeitfenster:{" "}
+          {new Date(order.slotStartAt).toLocaleString("de-DE", {
+            dateStyle: "short",
+            timeStyle: "short",
+          })}
+          {order.slotEndAt
+            ? ` – ${new Date(order.slotEndAt).toLocaleTimeString("de-DE", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}`
+            : ""}
+        </p>
+      ) : null}
       {order.message ? (
         <p className="mt-2 text-sm text-muted-foreground">{order.message}</p>
+      ) : null}
+
+      {order.fulfillmentType === "delivery" &&
+      order.deliveryLat != null &&
+      order.deliveryLng != null ? (
+        <div className="mt-6 overflow-hidden rounded-2xl border border-border/50">
+          <iframe
+            title="Lieferposition"
+            className="h-56 w-full border-0"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${
+              order.deliveryLng - 0.02
+            }%2C${order.deliveryLat - 0.015}%2C${order.deliveryLng + 0.02}%2C${
+              order.deliveryLat + 0.015
+            }&layer=mapnik&marker=${order.deliveryLat}%2C${order.deliveryLng}`}
+          />
+          <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground">
+            <span>
+              {order.deliveryTrackingActive
+                ? "Live-Standort (wird aktualisiert)"
+                : "Letzter bekannter Standort"}
+              {order.deliveryLocationUpdatedAt
+                ? ` · ${new Date(order.deliveryLocationUpdatedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`
+                : ""}
+            </span>
+            <a
+              className="underline"
+              href={`https://www.openstreetmap.org/?mlat=${order.deliveryLat}&mlon=${order.deliveryLng}#map=15/${order.deliveryLat}/${order.deliveryLng}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Karte öffnen
+            </a>
+          </div>
+        </div>
+      ) : order.status === "out_for_delivery" ? (
+        <p className="mt-4 rounded-xl border border-dashed border-border/60 px-4 py-3 text-sm text-muted-foreground">
+          Lieferung unterwegs — Standort erscheint, sobald das Team trackt.
+        </p>
       ) : null}
 
       {pendingPay && order.checkoutUrl ? (

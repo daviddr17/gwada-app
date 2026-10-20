@@ -68,7 +68,9 @@ export async function createGuestOrderCheckout(params: {
       orderNumber: number;
       statusToken: string;
       checkoutUrl: string | null;
-      guestPaymentId: string;
+      guestPaymentId: string | null;
+      molliePaymentId: string | null;
+      paymentMode: "hosted" | "terminal";
       totalCents: number;
     }
   | { ok: false; error: string; status: number }
@@ -148,6 +150,40 @@ export async function createGuestOrderCheckout(params: {
     return { ok: false, error: "invalid_total", status: 400 };
   }
 
+  let slotStartAt: string | null = null;
+  let slotEndAt: string | null = null;
+  if (
+    settings.timeslotsEnabled &&
+    (fulfillment === "pickup" || fulfillment === "delivery")
+  ) {
+    if (!params.input.slotStartAt) {
+      return { ok: false, error: "slot_required", status: 400 };
+    }
+    const { validateOrderingSlot } = await import(
+      "@/lib/ordering/ordering-timeslots-server"
+    );
+    const slot = await validateOrderingSlot({
+      supabase: admin,
+      restaurantId: restaurant.restaurantId,
+      settings,
+      fulfillmentType: fulfillment,
+      slotStartAt: params.input.slotStartAt,
+    });
+    if (!slot.ok) {
+      return { ok: false, error: slot.error, status: 400 };
+    }
+    slotStartAt = slot.slotStartAt;
+    slotEndAt = slot.slotEndAt;
+  }
+
+  const wantTerminal =
+    channel === "kiosk" &&
+    params.input.payWithTerminal !== false;
+  const terminalId =
+    params.input.mollieTerminalId?.trim() ||
+    settings.kioskMollieTerminalId ||
+    "";
+
   const statusToken = newStatusToken();
   const { firstActiveKdsStatusId } = await import(
     "@/lib/pos/pos-kds-statuses-server"
@@ -180,6 +216,8 @@ export async function createGuestOrderCheckout(params: {
       total_cents: totalCents,
       notes: params.input.notes?.trim() || null,
       created_by_profile_id: null,
+      slot_start_at: slotStartAt,
+      slot_end_at: slotEndAt,
     })
     .select("id, order_number")
     .single();
@@ -197,6 +235,52 @@ export async function createGuestOrderCheckout(params: {
     console.warn("[ordering] create lines", linesError.message);
     await admin.from("pos_orders").delete().eq("id", order.id);
     return { ok: false, error: "create_order_lines_failed", status: 500 };
+  }
+
+  // Counter kiosk: Mollie pointofsale terminal
+  if (wantTerminal) {
+    if (!terminalId.startsWith("term_")) {
+      await admin.from("pos_orders").delete().eq("id", order.id);
+      return { ok: false, error: "terminal_required", status: 400 };
+    }
+    const { createMolliePosPayment } = await import(
+      "@/lib/pos/mollie-pos-payment"
+    );
+    const terminalPay = await createMolliePosPayment({
+      restaurantId: restaurant.restaurantId,
+      amountEuros: totalCents / 100,
+      description: `Kiosk #${order.order_number} · ${restaurant.name}`,
+      terminalId,
+      posOrderId: order.id as string,
+    });
+    if (!terminalPay.ok) {
+      await admin
+        .from("pos_orders")
+        .update({
+          status: "cancelled",
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", order.id);
+      return {
+        ok: false,
+        error: terminalPay.error,
+        status: terminalPay.status,
+      };
+    }
+    if (terminalPay.status === "paid") {
+      await markGuestOrderPaidByOrderId(order.id as string);
+    }
+    return {
+      ok: true,
+      orderId: order.id as string,
+      orderNumber: order.order_number as number,
+      statusToken,
+      checkoutUrl: null,
+      guestPaymentId: null,
+      molliePaymentId: terminalPay.molliePaymentId,
+      paymentMode: "terminal",
+      totalCents,
+    };
   }
 
   const redirectTemplate =
@@ -251,6 +335,8 @@ export async function createGuestOrderCheckout(params: {
     statusToken,
     checkoutUrl: payment.checkoutUrl,
     guestPaymentId: payment.id,
+    molliePaymentId: payment.molliePaymentId,
+    paymentMode: "hosted",
     totalCents,
   };
 }
@@ -350,30 +436,16 @@ async function priceGuestLines(params: {
   return { ok: true, subtotalCents, lineRows };
 }
 
-export async function markGuestOrderPaidFromPayment(
-  paymentId: string,
+export async function markGuestOrderPaidByOrderId(
+  orderId: string,
+  guestPaymentId?: string | null,
 ): Promise<{ updated: boolean }> {
   const admin = createSupabaseAdminClient();
   if (!admin) return { updated: false };
 
-  const { data: payment } = await admin
-    .from("restaurant_guest_payments")
-    .select("id, status, pos_order_id, metadata")
-    .eq("mollie_payment_id", paymentId)
-    .maybeSingle();
-
-  if (!payment || payment.status !== "paid") return { updated: false };
-
-  let orderId = (payment.pos_order_id as string | null) ?? null;
-  if (!orderId) {
-    const meta = payment.metadata as Record<string, string> | null;
-    orderId = meta?.order_id ?? null;
-  }
-  if (!orderId) return { updated: false };
-
   const { data: order } = await admin
     .from("pos_orders")
-    .select("id, status, restaurant_id")
+    .select("id, status")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -382,13 +454,15 @@ export async function markGuestOrderPaidFromPayment(
   }
 
   const now = new Date().toISOString();
+  const patch: Record<string, unknown> = {
+    status: "received",
+    accepted_at: now,
+  };
+  if (guestPaymentId) patch.guest_payment_id = guestPaymentId;
+
   const { error } = await admin
     .from("pos_orders")
-    .update({
-      status: "received",
-      accepted_at: now,
-      guest_payment_id: payment.id,
-    })
+    .update(patch)
     .eq("id", orderId)
     .eq("status", "pending_payment");
 
@@ -397,7 +471,49 @@ export async function markGuestOrderPaidFromPayment(
     return { updated: false };
   }
 
+  void import("@/lib/ordering/guest-order-notify-server").then((m) =>
+    m.notifyGuestOrderStatusChange({ orderId, status: "received" }),
+  );
+
   return { updated: true };
+}
+
+export async function markGuestOrderPaidFromPayment(
+  paymentId: string,
+): Promise<{ updated: boolean }> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { updated: false };
+
+  // Guest hosted payment
+  const { data: payment } = await admin
+    .from("restaurant_guest_payments")
+    .select("id, status, pos_order_id, metadata")
+    .eq("mollie_payment_id", paymentId)
+    .maybeSingle();
+
+  if (payment?.status === "paid") {
+    let orderId = (payment.pos_order_id as string | null) ?? null;
+    if (!orderId) {
+      const meta = payment.metadata as Record<string, string> | null;
+      orderId = meta?.order_id ?? null;
+    }
+    if (orderId) {
+      return markGuestOrderPaidByOrderId(orderId, payment.id as string);
+    }
+  }
+
+  // Kiosk terminal: pos_payments row with metadata.pos_order_id
+  const { data: posPay } = await admin
+    .from("pos_payments")
+    .select("id, status, order_id")
+    .eq("mollie_payment_id", paymentId)
+    .maybeSingle();
+
+  if (posPay?.status === "paid" && posPay.order_id) {
+    return markGuestOrderPaidByOrderId(posPay.order_id as string);
+  }
+
+  return { updated: false };
 }
 
 export type GuestOrderStatusDto = {
@@ -416,6 +532,12 @@ export type GuestOrderStatusDto = {
   readyAt: string | null;
   outForDeliveryAt: string | null;
   completedAt: string | null;
+  slotStartAt: string | null;
+  slotEndAt: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  deliveryLocationUpdatedAt: string | null;
+  deliveryTrackingActive: boolean;
   lines: Array<{
     name: string;
     quantity: number;
@@ -447,7 +569,9 @@ export async function loadGuestOrderStatusByToken(
       `
       id, order_number, status, channel, fulfillment_type, total_cents,
       delivery_fee_cents, guest_name, created_at, accepted_at, ready_at,
-      out_for_delivery_at, completed_at, guest_payment_id, restaurant_id
+      out_for_delivery_at, completed_at, guest_payment_id, restaurant_id,
+      slot_start_at, slot_end_at, delivery_lat, delivery_lng,
+      delivery_location_updated_at, delivery_tracking_active
     `,
     )
     .eq("guest_status_token", trimmed)
@@ -504,6 +628,15 @@ export async function loadGuestOrderStatusByToken(
       readyAt: (order.ready_at as string | null) ?? null,
       outForDeliveryAt: (order.out_for_delivery_at as string | null) ?? null,
       completedAt: (order.completed_at as string | null) ?? null,
+      slotStartAt: (order.slot_start_at as string | null) ?? null,
+      slotEndAt: (order.slot_end_at as string | null) ?? null,
+      deliveryLat:
+        typeof order.delivery_lat === "number" ? order.delivery_lat : null,
+      deliveryLng:
+        typeof order.delivery_lng === "number" ? order.delivery_lng : null,
+      deliveryLocationUpdatedAt:
+        (order.delivery_location_updated_at as string | null) ?? null,
+      deliveryTrackingActive: Boolean(order.delivery_tracking_active),
       lines: (lines ?? []).map((l) => ({
         name: l.name as string,
         quantity: Number(l.quantity) || 0,

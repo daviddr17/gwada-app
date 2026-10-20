@@ -258,32 +258,135 @@ export function PosSettingsOnlineOrderingScreen() {
           </Card>
 
           <Card className="border-border/50 shadow-card">
+            <CardContent className="space-y-4 pt-6">
+              <p className="font-medium">Gast-Benachrichtigungen</p>
+              <ToggleRow
+                label="WhatsApp (WAHA)"
+                description="Statuswechsel an Gast-Telefon (wenn hinterlegt)."
+                checked={draft.notifyWhatsappEnabled}
+                onCheckedChange={(v) =>
+                  setDraft({ ...draft, notifyWhatsappEnabled: v })
+                }
+              />
+              <ToggleRow
+                label="E-Mail"
+                description="Statuswechsel an Gast-E-Mail (Restaurant-/Plattform-SMTP)."
+                checked={draft.notifyEmailEnabled}
+                onCheckedChange={(v) =>
+                  setDraft({ ...draft, notifyEmailEnabled: v })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Status-URL bleibt immer verfügbar. Benachrichtigt wird u. a. bei
+                Angenommen, Zubereitung, Abholbereit, In Lieferung, Geliefert,
+                Storniert.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 shadow-card">
+            <CardContent className="space-y-4 pt-6">
+              <ToggleRow
+                label="Zeitslots"
+                description="Gast wählt Abhol-/Lieferfenster; Kapazität pro Slot."
+                checked={draft.timeslotsEnabled}
+                onCheckedChange={(v) =>
+                  setDraft({ ...draft, timeslotsEnabled: v })
+                }
+              />
+              <div className="grid gap-3 sm:grid-cols-3">
+                <NumberField
+                  label="Intervall (Min.)"
+                  value={draft.slotIntervalMinutes}
+                  onChange={(n) =>
+                    setDraft({
+                      ...draft,
+                      slotIntervalMinutes: Math.min(120, Math.max(5, n)),
+                    })
+                  }
+                />
+                <NumberField
+                  label="Kapazität / Slot"
+                  value={draft.slotCapacity}
+                  onChange={(n) =>
+                    setDraft({
+                      ...draft,
+                      slotCapacity: Math.min(200, Math.max(1, n)),
+                    })
+                  }
+                />
+                <NumberField
+                  label="Horizont (Std.)"
+                  value={draft.slotHorizonHours}
+                  onChange={(n) =>
+                    setDraft({
+                      ...draft,
+                      slotHorizonHours: Math.min(168, Math.max(1, n)),
+                    })
+                  }
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 shadow-card">
+            <CardContent className="space-y-4 pt-6">
+              <p className="font-medium">Kiosk-Terminal (Mollie POS)</p>
+              <div className="space-y-1.5">
+                <Label>Terminal-ID (term_…)</Label>
+                <Input
+                  value={draft.kioskMollieTerminalId ?? ""}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      kioskMollieTerminalId: e.target.value.trim() || null,
+                    })
+                  }
+                  placeholder="term_…"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Counter-Kiosk zahlt per Mollie{" "}
+                  <code>pointofsale</code>. Liste unter POS-Geräte / Mollie
+                  Terminals. Ohne ID: Fallback auf Hosted Checkout (Fehler am
+                  Counter).
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 shadow-card">
             <CardContent className="space-y-3 pt-6 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">Geräte einrichten</p>
+              <p className="font-medium text-foreground">
+                Kiosk-Gerät einrichten (MDM)
+              </p>
               <ul className="list-inside list-disc space-y-1">
                 <li>
-                  Counter (Android): URL{" "}
+                  Counter (Android Lock Task): URL{" "}
                   <code className="text-foreground">/kiosk/{`{slug}`}</code>{" "}
-                  im Lock-Task-/Kiosk-Browser (Sunmi, PAX, Elo, …).
+                  (Sunmi, PAX, Elo, …).
                 </li>
                 <li>
-                  Tisch (iPad):{" "}
+                  Tisch (iPad Single App Mode):{" "}
                   <code className="text-foreground">
                     /kiosk/{`{slug}`}/table/{`{tableId}`}
-                  </code>{" "}
-                  + Single App Mode / Guided Access.
+                  </code>
+                  .
                 </li>
                 <li>
                   Online:{" "}
                   <code className="text-foreground">/order/{`{slug}`}</code>
                 </li>
                 <li>
-                  Staff-Exit am Kiosk: 5× auf „Gwada Kiosk“ tippen → Display-PIN.
+                  Staff-Exit: 5× „Gwada Kiosk“ → Display-PIN.
                 </li>
               </ul>
               <p>
-                Mollie Connect muss für das Restaurant aktiv sein (Gastzahlung).
-                Integriertes Counter-Terminal folgt später.
+                Beispiel-Payloads (Apple Configurator / Android Enterprise): siehe
+                Projekt-Doku{" "}
+                <span className="text-foreground">
+                  docs/kiosk-mdm-setup.md
+                </span>
+                . Web allein sperrt Home/Recents nicht — Gerät-Lock ist Pflicht.
               </p>
             </CardContent>
           </Card>

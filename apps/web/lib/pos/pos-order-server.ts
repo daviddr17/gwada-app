@@ -322,6 +322,13 @@ export async function updatePosOrderStatus(params: {
     return { ok: false, error: "update_failed", status: 500 };
   }
 
+  void import("@/lib/ordering/guest-order-notify-server").then((m) =>
+    m.notifyGuestOrderStatusChange({
+      orderId: params.orderId,
+      status: params.status,
+    }),
+  );
+
   return { ok: true, status: params.status };
 }
 

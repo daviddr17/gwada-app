@@ -110,6 +110,10 @@ export type PosWebOrderListItemDto = {
   tableSessionId: string;
   tableLabel: string;
   guestName?: string | null;
+  slotStartAt?: string | null;
+  deliveryTrackingActive?: boolean;
+  deliveryLat?: number | null;
+  deliveryLng?: number | null;
   createdAt: string;
   closedAt: string | null;
   lineCount: number;

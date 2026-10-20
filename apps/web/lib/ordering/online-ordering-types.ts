@@ -6,6 +6,15 @@ export type DeliveryZone = {
   minOrderCents?: number;
 };
 
+export const DEFAULT_NOTIFY_STATUSES = [
+  "received",
+  "preparing",
+  "ready",
+  "out_for_delivery",
+  "delivered",
+  "cancelled",
+] as const;
+
 export type OnlineOrderingSettings = {
   restaurantId: string;
   onlineEnabled: boolean;
@@ -20,6 +29,14 @@ export type OnlineOrderingSettings = {
   deliveryLeadMinutes: number;
   kioskIdleSeconds: number;
   guestStatusMessage: string | null;
+  notifyWhatsappEnabled: boolean;
+  notifyEmailEnabled: boolean;
+  notifyStatuses: string[];
+  timeslotsEnabled: boolean;
+  slotIntervalMinutes: number;
+  slotCapacity: number;
+  slotHorizonHours: number;
+  kioskMollieTerminalId: string | null;
 };
 
 export type OnlineOrderingSettingsPatch = Partial<
@@ -56,8 +73,21 @@ export type GuestCheckoutInput = {
   deliveryPostalCode?: string;
   deliveryNotes?: string;
   diningTableId?: string;
+  /** ISO start of chosen timeslot */
+  slotStartAt?: string;
+  /** Mollie terminal for counter kiosk pointofsale */
+  mollieTerminalId?: string;
+  /** Prefer terminal payment (kiosk); default true for channel=kiosk */
+  payWithTerminal?: boolean;
   items: GuestOrderLineInput[];
   notes?: string;
+};
+
+export type OrderingTimeslot = {
+  startAt: string;
+  endAt: string;
+  remaining: number;
+  label: string;
 };
 
 export const DEFAULT_ONLINE_ORDERING_SETTINGS: Omit<
@@ -76,4 +106,12 @@ export const DEFAULT_ONLINE_ORDERING_SETTINGS: Omit<
   deliveryLeadMinutes: 45,
   kioskIdleSeconds: 90,
   guestStatusMessage: null,
+  notifyWhatsappEnabled: true,
+  notifyEmailEnabled: true,
+  notifyStatuses: [...DEFAULT_NOTIFY_STATUSES],
+  timeslotsEnabled: false,
+  slotIntervalMinutes: 15,
+  slotCapacity: 8,
+  slotHorizonHours: 24,
+  kioskMollieTerminalId: null,
 };

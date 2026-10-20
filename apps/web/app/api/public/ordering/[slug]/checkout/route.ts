@@ -35,6 +35,8 @@ export async function POST(
     statusToken: result.statusToken,
     checkoutUrl: result.checkoutUrl,
     guestPaymentId: result.guestPaymentId,
+    molliePaymentId: result.molliePaymentId,
+    paymentMode: result.paymentMode,
     totalCents: result.totalCents,
     statusUrl: `/order/${slug}/status/${result.statusToken}`,
   });

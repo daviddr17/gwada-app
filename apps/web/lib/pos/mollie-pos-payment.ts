@@ -193,5 +193,20 @@ export async function processPosMollieWebhook(
     restaurantId,
     molliePaymentId: paymentId,
   });
+
+  if (result.ok && result.paid) {
+    try {
+      const { markGuestOrderPaidFromPayment } = await import(
+        "@/lib/ordering/create-guest-order-server"
+      );
+      await markGuestOrderPaidFromPayment(paymentId);
+    } catch (err) {
+      console.warn(
+        "[mollie] mark kiosk order paid",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
   return { processed: result.ok };
 }

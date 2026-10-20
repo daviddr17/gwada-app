@@ -7,6 +7,7 @@ import {
   countPosDateRangeFilters,
   PosListFilterDrawer,
 } from "@/components/pos/pos-list-filter-drawer";
+import { PosDeliveryTrackButton } from "@/components/pos/pos-delivery-track-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -325,6 +326,7 @@ export function PosOrdersScreen() {
                   onSort={toggleSort}
                   align="right"
                 />
+                <th className="px-3 py-2 text-left font-medium">Aktion</th>
               </tr>
             </thead>
             <tbody>
@@ -332,6 +334,15 @@ export function PosOrdersScreen() {
                 <tr key={order.id} className="border-t border-border/40">
                   <td className="px-3 py-2.5 text-muted-foreground tabular-nums">
                     {formatDateTime(order.createdAt)}
+                    {order.slotStartAt ? (
+                      <span className="mt-0.5 block text-xs">
+                        Slot{" "}
+                        {new Date(order.slotStartAt).toLocaleTimeString(
+                          "de-DE",
+                          { hour: "2-digit", minute: "2-digit" },
+                        )}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2.5 tabular-nums font-medium">
                     #{order.orderNumber}
@@ -367,6 +378,17 @@ export function PosOrdersScreen() {
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-medium">
                     {formatCents(order.totalCents + order.tipCents)}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {restaurantId ? (
+                      <PosDeliveryTrackButton
+                        restaurantId={restaurantId}
+                        orderId={order.id}
+                        fulfillmentType={order.fulfillmentType}
+                        status={order.status}
+                        trackingActive={order.deliveryTrackingActive}
+                      />
+                    ) : null}
                   </td>
                 </tr>
               ))}

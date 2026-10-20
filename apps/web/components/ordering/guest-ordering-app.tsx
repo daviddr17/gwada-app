@@ -34,6 +34,16 @@ type PublicSettings = {
   deliveryLeadMinutes: number;
   kioskIdleSeconds: number;
   guestStatusMessage: string | null;
+  timeslotsEnabled?: boolean;
+  slotIntervalMinutes?: number;
+  hasKioskTerminal?: boolean;
+};
+
+type OrderingSlot = {
+  startAt: string;
+  endAt: string;
+  remaining: number;
+  label: string;
 };
 
 type OrderingPayload = {
@@ -99,6 +109,9 @@ export function GuestOrderingApp({
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryCity, setDeliveryCity] = useState("");
   const [deliveryPostalCode, setDeliveryPostalCode] = useState("");
+  const [slots, setSlots] = useState<OrderingSlot[]>([]);
+  const [slotStartAt, setSlotStartAt] = useState<string | null>(null);
+  const [terminalWaiting, setTerminalWaiting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -137,6 +150,37 @@ export function GuestOrderingApp({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!data?.settings.timeslotsEnabled) {
+      setSlots([]);
+      setSlotStartAt(null);
+      return;
+    }
+    if (fulfillment !== "pickup" && fulfillment !== "delivery") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/public/ordering/${encodeURIComponent(slug)}/slots?fulfillment=${fulfillment}`,
+          { cache: "no-store" },
+        );
+        const json = (await res.json()) as { slots?: OrderingSlot[] };
+        if (cancelled) return;
+        setSlots(json.slots ?? []);
+        setSlotStartAt((prev) => {
+          const list = json.slots ?? [];
+          if (prev && list.some((s) => s.startAt === prev)) return prev;
+          return list[0]?.startAt ?? null;
+        });
+      } catch {
+        if (!cancelled) setSlots([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.settings.timeslotsEnabled, fulfillment, slug]);
 
   const accent = data?.restaurant.accentHex ?? "#0f766e";
   const subtotal = cartSubtotalCents(cart);
@@ -190,6 +234,8 @@ export function GuestOrderingApp({
           ? `/order/${data.restaurant.slug}/status/{token}?paid=1`
           : `/kiosk/${data.restaurant.slug}/thanks/{token}`;
 
+      const useTerminal =
+        mode === "kiosk" && Boolean(data.settings.hasKioskTerminal);
       const res = await fetch(
         `/api/public/ordering/${encodeURIComponent(slug)}/checkout`,
         {
@@ -205,6 +251,8 @@ export function GuestOrderingApp({
             deliveryCity: deliveryCity.trim() || undefined,
             deliveryPostalCode: deliveryPostalCode.trim() || undefined,
             diningTableId,
+            slotStartAt: slotStartAt || undefined,
+            payWithTerminal: useTerminal,
             items: cart.map((l) => ({
               menuItemId: l.menuItemId,
               quantity: l.quantity,
@@ -221,12 +269,38 @@ export function GuestOrderingApp({
         statusToken?: string;
         orderNumber?: number;
         checkoutUrl?: string | null;
+        molliePaymentId?: string | null;
+        paymentMode?: "hosted" | "terminal";
       };
       if (!res.ok || !json.statusToken) {
         setCheckoutError(mapCheckoutError(json.error));
         setStep("checkout");
         return;
       }
+
+      if (json.paymentMode === "terminal" && json.molliePaymentId) {
+        setTerminalWaiting(true);
+        const paid = await pollTerminalPayment(
+          json.statusToken,
+          json.molliePaymentId,
+        );
+        setTerminalWaiting(false);
+        if (!paid) {
+          setCheckoutError(
+            "Zahlung am Terminal nicht bestätigt. Bitte erneut versuchen oder Staff rufen.",
+          );
+          setStep("checkout");
+          return;
+        }
+        onOrderPlaced?.({
+          statusToken: json.statusToken,
+          orderNumber: json.orderNumber ?? 0,
+          checkoutUrl: null,
+        });
+        setCart([]);
+        return;
+      }
+
       onOrderPlaced?.({
         statusToken: json.statusToken,
         orderNumber: json.orderNumber ?? 0,
@@ -246,7 +320,33 @@ export function GuestOrderingApp({
       setStep("checkout");
     } finally {
       setSubmitting(false);
+      setTerminalWaiting(false);
     }
+  }
+
+  async function pollTerminalPayment(
+    statusToken: string,
+    molliePaymentId: string,
+  ): Promise<boolean> {
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(
+          `/api/public/ordering/status/${encodeURIComponent(statusToken)}/payment`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ molliePaymentId }),
+          },
+        );
+        const json = (await res.json()) as { paid?: boolean };
+        if (json.paid) return true;
+      } catch {
+        /* retry */
+      }
+      await new Promise((r) => window.setTimeout(r, 2000));
+    }
+    return false;
   }
 
   if (showSkeleton) {
@@ -585,6 +685,30 @@ export function GuestOrderingApp({
                 </div>
               </>
             ) : null}
+            {data.settings.timeslotsEnabled &&
+            (fulfillment === "pickup" || fulfillment === "delivery") ? (
+              <div className="space-y-2">
+                <Label>Zeitfenster</Label>
+                <div className="flex flex-wrap gap-2">
+                  {slots.map((s) => (
+                    <Chip
+                      key={s.startAt}
+                      active={slotStartAt === s.startAt}
+                      accent={accent}
+                      large={largeTouch}
+                      onClick={() => setSlotStartAt(s.startAt)}
+                    >
+                      {s.label}
+                    </Chip>
+                  ))}
+                </div>
+                {slots.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Keine freien Zeitslots.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-6 space-y-1 rounded-2xl border border-border/50 p-4">
@@ -616,14 +740,27 @@ export function GuestOrderingApp({
               largeTouch && "h-16 text-lg",
             )}
             style={{ backgroundColor: accent }}
-            disabled={submitting || !cart.length}
+            disabled={
+              submitting ||
+              !cart.length ||
+              (Boolean(data.settings.timeslotsEnabled) &&
+                (fulfillment === "pickup" || fulfillment === "delivery") &&
+                !slotStartAt)
+            }
             onClick={() => void submitCheckout()}
           >
-            {submitting ? "Wird vorbereitet …" : "Jetzt bezahlen"}
+            {terminalWaiting
+              ? "Bitte am Terminal zahlen …"
+              : submitting
+                ? "Wird vorbereitet …"
+                : mode === "kiosk" && data.settings.hasKioskTerminal
+                  ? "Am Terminal bezahlen"
+                  : "Jetzt bezahlen"}
           </Button>
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Sichere Zahlung über Mollie. Nach der Zahlung siehst du den
-            Live-Status.
+            {mode === "kiosk" && data.settings.hasKioskTerminal
+              ? "Zahlung über Mollie-Terminal am Kiosk."
+              : "Sichere Zahlung über Mollie. Nach der Zahlung siehst du den Live-Status."}
           </p>
         </div>
       ) : null}
@@ -782,6 +919,13 @@ function mapCheckoutError(code?: string): string {
     case "online_disabled":
     case "kiosk_disabled":
       return "Bestellen ist derzeit deaktiviert.";
+    case "slot_required":
+    case "slot_unavailable":
+      return "Bitte ein verfügbares Zeitfenster wählen.";
+    case "terminal_required":
+      return "Kein Mollie-Terminal für den Kiosk konfiguriert.";
+    case "mollie_pos_not_enabled":
+      return "Mollie POS/Terminal ist noch nicht freigeschaltet.";
     default:
       return code ? `Fehler: ${code}` : "Checkout fehlgeschlagen.";
   }

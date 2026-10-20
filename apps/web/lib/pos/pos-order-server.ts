@@ -303,9 +303,19 @@ export async function updatePosOrderStatus(params: {
     return { ok: false, error: "invalid_status_transition", status: 400 };
   }
 
+  const now = new Date().toISOString();
+  const stamp: Record<string, unknown> = { status: params.status };
+  if (params.status === "received") stamp.accepted_at = now;
+  if (params.status === "ready") stamp.ready_at = now;
+  if (params.status === "out_for_delivery") stamp.out_for_delivery_at = now;
+  if (params.status === "delivered" || params.status === "cancelled") {
+    stamp.completed_at = now;
+    stamp.closed_at = now;
+  }
+
   const { error: updateError } = await params.supabase
     .from("pos_orders")
-    .update({ status: params.status })
+    .update(stamp)
     .eq("id", params.orderId);
 
   if (updateError) {

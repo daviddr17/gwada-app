@@ -103,10 +103,13 @@ export type PosWebOrderListItemDto = {
   id: string;
   orderNumber: number;
   status: string;
+  channel?: string;
+  fulfillmentType?: string;
   totalCents: number;
   tipCents: number;
   tableSessionId: string;
   tableLabel: string;
+  guestName?: string | null;
   createdAt: string;
   closedAt: string | null;
   lineCount: number;

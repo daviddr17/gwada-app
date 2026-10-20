@@ -197,5 +197,19 @@ export async function syncGuestPaymentFromMollie(
     })
     .eq("id", row.id as string);
 
+  if (status === "paid") {
+    try {
+      const { markGuestOrderPaidFromPayment } = await import(
+        "@/lib/ordering/create-guest-order-server"
+      );
+      await markGuestOrderPaidFromPayment(paymentId);
+    } catch (err) {
+      console.warn(
+        "[mollie] mark guest order paid",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
   return { processed: true };
 }

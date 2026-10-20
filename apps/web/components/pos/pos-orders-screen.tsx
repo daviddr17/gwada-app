@@ -45,12 +45,20 @@ const STATUS_OPTIONS = [
 ] as const;
 
 const STATUS_LABEL: Record<string, string> = {
-  pending_payment: "Offen",
-  received: "Eingegangen",
+  pending_payment: "Zahlung ausstehend",
+  received: "Angenommen",
   preparing: "In Zubereitung",
-  ready: "Fertig",
+  ready: "Fertig / Abholbereit",
+  out_for_delivery: "In Lieferung",
   delivered: "Abgeschlossen",
   cancelled: "Storniert",
+};
+
+const CHANNEL_LABEL: Record<string, string> = {
+  pos: "Kasse",
+  online: "Online",
+  kiosk: "Kiosk",
+  table: "Tisch",
 };
 
 function formatCents(cents: number): string {
@@ -328,7 +336,24 @@ export function PosOrdersScreen() {
                   <td className="px-3 py-2.5 tabular-nums font-medium">
                     #{order.orderNumber}
                   </td>
-                  <td className="px-3 py-2.5">{order.tableLabel}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span>{order.tableLabel}</span>
+                      {order.channel && order.channel !== "pos" ? (
+                        <Badge variant="secondary" className="font-normal">
+                          {CHANNEL_LABEL[order.channel] ?? order.channel}
+                          {order.fulfillmentType &&
+                          order.fulfillmentType !== "dine_in"
+                            ? ` · ${
+                                order.fulfillmentType === "delivery"
+                                  ? "Lieferung"
+                                  : "Abholung"
+                              }`
+                            : ""}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5">
                     <Badge variant="outline">
                       {STATUS_LABEL[order.status] ?? order.status}

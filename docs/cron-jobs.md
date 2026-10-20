@@ -86,7 +86,7 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
   https://gwada.app/api/cron/news-publish
 ```
 
-Abo: täglich 06:00 UTC Stripe gegen die DB (verpasste Webhooks, Status, 7-Tage-Cutoff). `news-feed-sync` kann denselben Sweep zusätzlich auslösen, wenn er fällig ist.
+Abo: täglich 06:00 UTC Mollie gegen die DB (verpasste Webhooks, Status, 7-Tage-Cutoff). `news-feed-sync` kann denselben Sweep zusätzlich auslösen, wenn er fällig ist.
 
 ### Reservierungen: Erinnerung / Danke & Bewertung
 

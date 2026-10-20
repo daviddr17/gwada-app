@@ -1,11 +1,21 @@
 export const MOLLIE_AUTHORIZE_URL = "https://my.mollie.com/oauth2/authorize";
 
-/** Enough to create payments later. No application-fee scopes. */
+/**
+ * Connect for Platforms — restaurant merchants (POS + guest online).
+ * Adding scopes after go-live requires re-authorization (Mollie docs).
+ */
 export const MOLLIE_CONNECT_SCOPES = [
   "payments.read",
   "payments.write",
+  "payment-links.read",
+  "payment-links.write",
+  "refunds.read",
+  "refunds.write",
+  "terminals.read",
+  "terminals.write",
   "organizations.read",
   "profiles.read",
+  "onboarding.read",
 ] as const;
 
 export const MOLLIE_PLATFORM_NOT_READY_MESSAGE =

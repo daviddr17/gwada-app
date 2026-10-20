@@ -205,8 +205,7 @@ export function settingsIntegrationsUrl(params?: {
     | "instagram"
     | "google_business"
     | "email"
-    | "mollie"
-    | "adyen";
+    | "mollie";
   result?: "connected" | "error" | "select_page" | "select_location";
   message?: string;
 }): string {

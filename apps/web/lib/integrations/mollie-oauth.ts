@@ -143,3 +143,41 @@ export async function fetchMollieProfileId(
   const first = profiles.find((p) => p.id);
   return verified?.id ?? first?.id ?? null;
 }
+
+export async function refreshMollieAccessToken(params: {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+}): Promise<MollieTokenResult | { error: string }> {
+  const res = await fetch(MOLLIE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: params.refreshToken,
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+    }),
+    cache: "no-store",
+    signal: platformApiFetchSignal(),
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    scope?: string;
+    error?: string;
+  };
+  if (!res.ok || !body.access_token) {
+    return { error: "mollie_refresh_rejected" };
+  }
+  return {
+    accessToken: body.access_token,
+    refreshToken:
+      typeof body.refresh_token === "string" && body.refresh_token.trim()
+        ? body.refresh_token.trim()
+        : params.refreshToken,
+    expiresIn: typeof body.expires_in === "number" ? body.expires_in : null,
+    scope: body.scope?.trim() || MOLLIE_CONNECT_SCOPES.join(" "),
+  };
+}

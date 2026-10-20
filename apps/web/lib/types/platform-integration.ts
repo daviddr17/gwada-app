@@ -14,13 +14,11 @@ export type PlatformIntegrationKey =
   | "email"
   | "weather"
   | "fiskaly"
-  | "stripe"
   | "lexoffice"
   | "tripadvisor"
   | "apple_business_connect"
   | "openai"
-  | "mollie"
-  | "adyen";
+  | "mollie";
 
 export type PlatformIntegrationConfig = {
   client_id?: string;
@@ -54,13 +52,11 @@ export const PLATFORM_INTEGRATION_KEYS: readonly PlatformIntegrationKey[] = [
   "email",
   "weather",
   "fiskaly",
-  "stripe",
   "lexoffice",
   "tripadvisor",
   "apple_business_connect",
   "openai",
   "mollie",
-  "adyen",
 ] as const;
 
 export function integrationConfigFromJson(

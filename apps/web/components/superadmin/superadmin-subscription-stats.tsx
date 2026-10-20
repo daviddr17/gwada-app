@@ -30,12 +30,12 @@ export function SuperadminSubscriptionStats({
   const kpis = useMemo(
     () => [
       {
-        label: "MRR (Stripe)",
+        label: "MRR (Mollie)",
         value: formatStatsEur(stats.kpis.mrrEur),
-        hint: "Katalogpreise × zahlende Stripe-Abos",
+        hint: "Katalogpreise × zahlende Mollie-Abos",
       },
       {
-        label: "ARR (Stripe)",
+        label: "ARR (Mollie)",
         value: formatStatsEur(stats.kpis.arrEur),
       },
       {
@@ -79,7 +79,7 @@ export function SuperadminSubscriptionStats({
         <SuperadminAreaChartCard
           className="lg:col-span-3"
           title="Zahlungseingänge"
-          description="Bezahlt (EUR) pro Monat aus syncten Stripe-Rechnungen."
+          description="Bezahlt (EUR) pro Monat aus syncten Mollie-Rechnungen."
           data={stats.revenueByMonth.map((p) => ({
             label: p.label,
             eur: p.eur,
@@ -90,7 +90,7 @@ export function SuperadminSubscriptionStats({
         <SuperadminAreaChartCard
           className="lg:col-span-2"
           title="Neue Paid-Abos"
-          description="Basic/Pro (Stripe/Complimentary) nach Anlagedatum."
+          description="Basic/Pro (Mollie/Complimentary) nach Anlagedatum."
           data={stats.newPayingByMonth.map((p) => ({
             label: p.label,
             count: p.count,
@@ -108,7 +108,7 @@ export function SuperadminSubscriptionStats({
         />
         <SuperadminBarChartCard
           title="Quelle"
-          description="Stripe, Legacy, Manuell, Complimentary."
+          description="Mollie, Legacy, Manuell, Complimentary."
           data={stats.sourceDistribution}
         />
         <SuperadminBarChartCard

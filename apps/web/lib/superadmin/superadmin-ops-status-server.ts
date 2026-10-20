@@ -25,9 +25,10 @@ import { fetchPlatformWeatherConfigAdmin } from "@/lib/supabase/platform-weather
 import { fetchPlatformWhatsappWahaConfigAdmin } from "@/lib/supabase/platform-whatsapp-secrets-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
-  adyenConfigFromJson,
-  adyenPlatformSecretsReady,
-} from "@/lib/integrations/platform-adyen-config";
+  mollieBillingSecretsReady,
+  mollieConfigFromJson,
+  mollieConnectSecretsReady,
+} from "@/lib/integrations/platform-mollie-config";
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
 import type {
   SuperadminDatabaseStatus,
@@ -340,20 +341,37 @@ async function checkOAuthIntegration(
   return health("ok", "Zugangsdaten hinterlegt.");
 }
 
-async function checkAdyenConnection(): Promise<SuperadminIntegrationConnectionHealth> {
+async function checkMollieConnection(): Promise<SuperadminIntegrationConnectionHealth> {
   const admin = createSupabaseAdminClient();
   if (!admin) return health("error", "Service-Role nicht konfiguriert.");
   const { data } = await admin
     .from("platform_integrations")
     .select("enabled, config")
-    .eq("key", "adyen")
+    .eq("key", "mollie")
     .maybeSingle();
   if (!data?.enabled) return health("disabled", "Integration ist deaktiviert.");
-  const cfg = adyenConfigFromJson(data.config);
-  if (!adyenPlatformSecretsReady(cfg)) {
-    return health("not_configured", "API-Keys fehlen.");
+  const cfg = mollieConfigFromJson(data.config);
+  const connectOk = mollieConnectSecretsReady(cfg);
+  const billingOk = mollieBillingSecretsReady(cfg);
+  if (!connectOk && !billingOk) {
+    return health("not_configured", "OAuth-Client und API-Key fehlen.");
   }
-  return health("ok", "API-Keys hinterlegt.");
+  if (!connectOk) {
+    return health(
+      "not_configured",
+      "OAuth Client-ID/Secret fehlen (Restaurant-Connect).",
+    );
+  }
+  if (!billingOk) {
+    return health(
+      "not_configured",
+      "Gwada API-Key fehlt (Software-Abos).",
+    );
+  }
+  return health(
+    "ok",
+    `Connect + Billing hinterlegt (${cfg.mode ?? "test"}).`,
+  );
 }
 
 async function countExact(
@@ -471,8 +489,7 @@ const HEALTH_CHECKERS: Partial<
   facebook: () => checkOAuthIntegration("facebook"),
   instagram: () => checkOAuthIntegration("instagram"),
   google_business: () => checkOAuthIntegration("google_business"),
-  mollie: () => checkOAuthIntegration("mollie"),
-  adyen: checkAdyenConnection,
+  mollie: checkMollieConnection,
 };
 
 export async function buildSuperadminIntegrationHealthMap(): Promise<{

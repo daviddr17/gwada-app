@@ -35,7 +35,6 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "integrations.tripadvisor",
   "integrations.apple_business_connect",
   "integrations.mollie",
-  "integrations.adyen",
   "integrations.assistant",
   "settings.restaurant",
   "settings.opening_hours",
@@ -208,13 +207,8 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
     {
       key: "integrations.mollie",
       label: "Mollie verbinden",
-      description: "Eigenes Mollie-Konto für spätere Zahlungen verbinden.",
-      group: "integrationen",
-    },
-    {
-      key: "integrations.adyen",
-      label: "Adyen verbinden",
-      description: "Eigenes Adyen-Konto über das gehostete Onboarding verbinden.",
+      description:
+        "Eigenes Mollie-Konto für POS- und Online-Gastzahlungen verbinden.",
       group: "integrationen",
     },
     {

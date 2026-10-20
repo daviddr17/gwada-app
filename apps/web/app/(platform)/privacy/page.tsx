@@ -126,17 +126,17 @@ export default function DatenschutzPage() {
 
       <h2>5. Zahlungen und Abonnements</h2>
       <p>
-        Abonnements und Zahlungen werden über <strong>Stripe</strong>{" "}
-        abgewickelt. Dabei werden Zahlungsdaten direkt an Stripe übermittelt;
-        wir speichern in der Regel keine vollständigen Kartendaten. Stripe
+        Abonnements und Zahlungen werden über  <strong>Mollie</strong>{" "}
+        abgewickelt. Dabei werden Zahlungsdaten direkt an Mollie übermittelt;
+        wir speichern in der Regel keine vollständigen Kartendaten. Mollie
         verarbeitet Daten als eigener Verantwortlicher bzw. als unser
         Auftragsverarbeiter je nach Verarbeitungsschritt. Details:{" "}
         <a
-          href="https://stripe.com/privacy"
+          href="https://www.mollie.com/privacy"
           rel="noopener noreferrer"
           target="_blank"
         >
-          stripe.com/privacy
+          mollie.com/privacy
         </a>
         . Rechtsgrundlage: Art. 6 Abs. 1 lit. b und lit. c DSGVO.
       </p>

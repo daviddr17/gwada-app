@@ -210,20 +210,25 @@ export function PosSettingsOnlineOrderingScreen() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <NumberField
-                  label="Vorlauf Abholung (Min.)"
+                  label="Mindestvorlauf Abholung (Min.)"
                   value={draft.pickupLeadMinutes}
                   onChange={(n) =>
                     setDraft({ ...draft, pickupLeadMinutes: n })
                   }
                 />
                 <NumberField
-                  label="Vorlauf Lieferung (Min.)"
+                  label="Mindestvorlauf Lieferung (Min.)"
                   value={draft.deliveryLeadMinutes}
                   onChange={(n) =>
                     setDraft({ ...draft, deliveryLeadMinutes: n })
                   }
                 />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Online: Gast wählt Schnellstmöglich (jetzt + Vorlauf) oder eine
+                Wunschzeit danach. Kiosk/Tisch immer sofort / Schnellstmöglich —
+                ohne Zeitwahl.
+              </p>
               <NumberField
                 label="Kiosk Idle-Reset (Sek.)"
                 value={draft.kioskIdleSeconds}
@@ -275,51 +280,6 @@ export function PosSettingsOnlineOrderingScreen() {
                 Angenommen, Zubereitung, Abholbereit, In Lieferung, Geliefert,
                 Storniert.
               </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50 shadow-card">
-            <CardContent className="space-y-4 pt-6">
-              <ToggleRow
-                label="Zeitslots"
-                description="Gast wählt Abhol-/Lieferfenster; Kapazität pro Slot."
-                checked={draft.timeslotsEnabled}
-                onCheckedChange={(v) =>
-                  setDraft({ ...draft, timeslotsEnabled: v })
-                }
-              />
-              <div className="grid gap-3 sm:grid-cols-3">
-                <NumberField
-                  label="Intervall (Min.)"
-                  value={draft.slotIntervalMinutes}
-                  onChange={(n) =>
-                    setDraft({
-                      ...draft,
-                      slotIntervalMinutes: Math.min(120, Math.max(5, n)),
-                    })
-                  }
-                />
-                <NumberField
-                  label="Kapazität / Slot"
-                  value={draft.slotCapacity}
-                  onChange={(n) =>
-                    setDraft({
-                      ...draft,
-                      slotCapacity: Math.min(200, Math.max(1, n)),
-                    })
-                  }
-                />
-                <NumberField
-                  label="Horizont (Std.)"
-                  value={draft.slotHorizonHours}
-                  onChange={(n) =>
-                    setDraft({
-                      ...draft,
-                      slotHorizonHours: Math.min(168, Math.max(1, n)),
-                    })
-                  }
-                />
-              </div>
             </CardContent>
           </Card>
 

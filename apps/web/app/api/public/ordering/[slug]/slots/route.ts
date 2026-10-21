@@ -1,21 +1,27 @@
 import { NextResponse } from "next/server";
 import { resolveRestaurantBySlug } from "@/lib/ordering/create-guest-order-server";
 import { loadOnlineOrderingSettings } from "@/lib/ordering/online-ordering-settings-server";
-import { listAvailableOrderingSlots } from "@/lib/ordering/ordering-timeslots-server";
+import {
+  earliestReadyAt,
+  formatEarliestLabelDe,
+  leadMinutesForFulfillment,
+} from "@/lib/ordering/ordering-lead-time";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { PosFulfillmentType } from "@gwada/pos-domain";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Legacy path — returns earliest ready time (Mindestvorlauf), not capacity slots.
+ * Guest UX uses checkout timingMode; this remains for older clients.
+ */
 export async function GET(
   request: Request,
   context: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await context.params;
-  const fulfillment =
-    new URL(request.url).searchParams.get("fulfillment")?.trim() ?? "pickup";
-  if (fulfillment !== "pickup" && fulfillment !== "delivery") {
-    return NextResponse.json({ error: "invalid_fulfillment" }, { status: 400 });
-  }
+  const fulfillment = (new URL(request.url).searchParams.get("fulfillment") ??
+    "pickup") as PosFulfillmentType;
 
   const restaurant = await resolveRestaurantBySlug(slug);
   if (!restaurant.ok) {
@@ -37,15 +43,15 @@ export async function GET(
     admin,
     restaurant.restaurantId,
   );
-  const slots = await listAvailableOrderingSlots({
-    supabase: admin,
-    restaurantId: restaurant.restaurantId,
-    settings,
-    fulfillmentType: fulfillment,
-  });
+  const earliest = earliestReadyAt(settings, fulfillment);
+  const leadMinutes = leadMinutesForFulfillment(settings, fulfillment);
 
   return NextResponse.json({
-    timeslotsEnabled: settings.timeslotsEnabled,
-    slots,
+    earliestAt: earliest.toISOString(),
+    leadMinutes,
+    label: formatEarliestLabelDe(earliest),
+    /** @deprecated empty — capacity timeslots removed from guest model */
+    slots: [],
+    timeslotsEnabled: false,
   });
 }

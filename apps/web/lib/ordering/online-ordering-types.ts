@@ -32,6 +32,10 @@ export type OnlineOrderingSettings = {
   notifyWhatsappEnabled: boolean;
   notifyEmailEnabled: boolean;
   notifyStatuses: string[];
+  /**
+   * Legacy timeslot capacity model — no longer guest-facing.
+   * Kept for DB round-trip; UI uses Mindestvorlauf (pickup/delivery lead) only.
+   */
   timeslotsEnabled: boolean;
   slotIntervalMinutes: number;
   slotCapacity: number;
@@ -73,7 +77,14 @@ export type GuestCheckoutInput = {
   deliveryPostalCode?: string;
   deliveryNotes?: string;
   diningTableId?: string;
-  /** ISO start of chosen timeslot */
+  /**
+   * Online only: `asap` = Schnellstmöglich, `scheduled` = Wunschzeit.
+   * Kiosk/table always forced to asap server-side.
+   */
+  timingMode?: "asap" | "scheduled";
+  /** ISO datetime for Wunschzeit (required when timingMode=scheduled) */
+  scheduledAt?: string;
+  /** @deprecated use timingMode + scheduledAt */
   slotStartAt?: string;
   /** Mollie terminal for counter kiosk pointofsale */
   mollieTerminalId?: string;
@@ -109,6 +120,7 @@ export const DEFAULT_ONLINE_ORDERING_SETTINGS: Omit<
   notifyWhatsappEnabled: true,
   notifyEmailEnabled: true,
   notifyStatuses: [...DEFAULT_NOTIFY_STATUSES],
+  /** Capacity slots demoted — lead time is the product model. */
   timeslotsEnabled: false,
   slotIntervalMinutes: 15,
   slotCapacity: 8,

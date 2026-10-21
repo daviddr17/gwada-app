@@ -150,31 +150,25 @@ export async function createGuestOrderCheckout(params: {
     return { ok: false, error: "invalid_total", status: 400 };
   }
 
-  let slotStartAt: string | null = null;
-  let slotEndAt: string | null = null;
-  if (
-    settings.timeslotsEnabled &&
-    (fulfillment === "pickup" || fulfillment === "delivery")
-  ) {
-    if (!params.input.slotStartAt) {
-      return { ok: false, error: "slot_required", status: 400 };
-    }
-    const { validateOrderingSlot } = await import(
-      "@/lib/ordering/ordering-timeslots-server"
-    );
-    const slot = await validateOrderingSlot({
-      supabase: admin,
-      restaurantId: restaurant.restaurantId,
-      settings,
-      fulfillmentType: fulfillment,
-      slotStartAt: params.input.slotStartAt,
-    });
-    if (!slot.ok) {
-      return { ok: false, error: slot.error, status: 400 };
-    }
-    slotStartAt = slot.slotStartAt;
-    slotEndAt = slot.slotEndAt;
+  const { resolveGuestOrderTiming } = await import(
+    "@/lib/ordering/ordering-lead-time"
+  );
+  const timingMode =
+    params.input.timingMode ??
+    (params.input.slotStartAt ? "scheduled" : "asap");
+  const timing = resolveGuestOrderTiming({
+    channel,
+    fulfillment,
+    settings,
+    timingMode,
+    scheduledAt: params.input.scheduledAt ?? params.input.slotStartAt,
+  });
+  if (!timing.ok) {
+    return { ok: false, error: timing.error, status: 400 };
   }
+  const slotStartAt = timing.slotStartAt;
+  const slotEndAt = timing.slotEndAt;
+  const fulfillmentAsap = timing.fulfillmentAsap;
 
   const wantTerminal =
     channel === "kiosk" &&
@@ -218,6 +212,7 @@ export async function createGuestOrderCheckout(params: {
       created_by_profile_id: null,
       slot_start_at: slotStartAt,
       slot_end_at: slotEndAt,
+      fulfillment_asap: fulfillmentAsap,
     })
     .select("id, order_number")
     .single();
@@ -570,7 +565,7 @@ export async function loadGuestOrderStatusByToken(
       id, order_number, status, channel, fulfillment_type, total_cents,
       delivery_fee_cents, guest_name, created_at, accepted_at, ready_at,
       out_for_delivery_at, completed_at, guest_payment_id, restaurant_id,
-      slot_start_at, slot_end_at, delivery_lat, delivery_lng,
+      slot_start_at, slot_end_at, fulfillment_asap, delivery_lat, delivery_lng,
       delivery_location_updated_at, delivery_tracking_active
     `,
     )
@@ -630,6 +625,7 @@ export async function loadGuestOrderStatusByToken(
       completedAt: (order.completed_at as string | null) ?? null,
       slotStartAt: (order.slot_start_at as string | null) ?? null,
       slotEndAt: (order.slot_end_at as string | null) ?? null,
+      fulfillmentAsap: order.fulfillment_asap !== false,
       deliveryLat:
         typeof order.delivery_lat === "number" ? order.delivery_lat : null,
       deliveryLng:

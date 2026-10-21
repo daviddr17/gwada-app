@@ -23,6 +23,7 @@ import {
 } from "@/lib/constants/list-pagination";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { formatOrderTimingLabelDe } from "@/lib/ordering/ordering-lead-time";
 import {
   fetchPosOrdersList,
   posApiErrorLabel,
@@ -334,13 +335,14 @@ export function PosOrdersScreen() {
                 <tr key={order.id} className="border-t border-border/40">
                   <td className="px-3 py-2.5 text-muted-foreground tabular-nums">
                     {formatDateTime(order.createdAt)}
-                    {order.slotStartAt ? (
+                    {order.channel === "online" ||
+                    order.channel === "kiosk" ||
+                    order.channel === "table" ? (
                       <span className="mt-0.5 block text-xs">
-                        Slot{" "}
-                        {new Date(order.slotStartAt).toLocaleTimeString(
-                          "de-DE",
-                          { hour: "2-digit", minute: "2-digit" },
-                        )}
+                        {formatOrderTimingLabelDe({
+                          fulfillmentAsap: order.fulfillmentAsap !== false,
+                          slotStartAt: order.slotStartAt ?? null,
+                        })}
                       </span>
                     ) : null}
                   </td>

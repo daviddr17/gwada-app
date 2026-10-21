@@ -529,6 +529,7 @@ export type GuestOrderStatusDto = {
   completedAt: string | null;
   slotStartAt: string | null;
   slotEndAt: string | null;
+  fulfillmentAsap: boolean;
   deliveryLat: number | null;
   deliveryLng: number | null;
   deliveryLocationUpdatedAt: string | null;

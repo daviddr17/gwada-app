@@ -43,6 +43,8 @@ declare
   c3 uuid := 'a55c0001-5a17-4a17-8a17-c00000000062'::uuid;
   po1 text := 'sk-po-fisch-01';
   po2 text := 'sk-po-hof-01';
+  main_speisen uuid;
+  main_getraenke uuid;
   cat_vorspeisen uuid := 'a55c0001-5a17-4a17-8a17-c00000000080'::uuid;
   cat_haupt uuid := 'a55c0001-5a17-4a17-8a17-c00000000081'::uuid;
   cat_beilagen uuid := 'a55c0001-5a17-4a17-8a17-c00000000082'::uuid;
@@ -213,16 +215,33 @@ begin
     );
   end loop;
 
-  -- Speisekarte
-  insert into public.menu_categories (id, restaurant_id, name, sort_order, is_active) values
-    (cat_vorspeisen, v_rid, 'Vorspeisen vom Meer', 0, true),
-    (cat_haupt, v_rid, 'Hauptgerichte', 1, true),
-    (cat_beilagen, v_rid, 'Beilagen & Gemüse', 2, true),
-    (cat_desserts, v_rid, 'Süßes', 3, true),
-    (cat_getraenke, v_rid, 'Getränke', 4, true)
+  -- Speisekarte (Hauptkategorien Pflicht; Trigger legt ggf. schon Speisen/Getränke an)
+  select id into main_speisen from public.menu_main_categories
+  where restaurant_id = v_rid and name ilike 'Speisen' order by sort_order limit 1;
+  select id into main_getraenke from public.menu_main_categories
+  where restaurant_id = v_rid and name ilike 'Getränke' order by sort_order limit 1;
+
+  if main_speisen is null then
+    insert into public.menu_main_categories (id, restaurant_id, name, sort_order, is_active)
+    values ('a55c0001-5a17-4a17-8a17-c00000000085'::uuid, v_rid, 'Speisen', 0, true)
+    returning id into main_speisen;
+  end if;
+  if main_getraenke is null then
+    insert into public.menu_main_categories (id, restaurant_id, name, sort_order, is_active)
+    values ('a55c0001-5a17-4a17-8a17-c00000000086'::uuid, v_rid, 'Getränke', 1, true)
+    returning id into main_getraenke;
+  end if;
+
+  insert into public.menu_categories (id, restaurant_id, name, sort_order, is_active, main_category_id) values
+    (cat_vorspeisen, v_rid, 'Vorspeisen vom Meer', 0, true, main_speisen),
+    (cat_haupt, v_rid, 'Hauptgerichte', 1, true, main_speisen),
+    (cat_beilagen, v_rid, 'Beilagen & Gemüse', 2, true, main_speisen),
+    (cat_desserts, v_rid, 'Süßes', 3, true, main_speisen),
+    (cat_getraenke, v_rid, 'Getränke', 4, true, main_getraenke)
   on conflict (id) do update set
     name = excluded.name,
     sort_order = excluded.sort_order,
+    main_category_id = excluded.main_category_id,
     is_active = true;
 
   insert into public.menu_tags (id, restaurant_id, name, background_color, sort_order, is_active) values
@@ -245,51 +264,51 @@ begin
     (item_makrele, v_rid, cat_vorspeisen,
       'Geräucherte Makrele',
       'Hausgeräuchert über Buchenholz, fermentierte Gurke, Dillöl und Roggen-Crumble.',
-      14.50, null, true, 1),
+      14.50, '', true, 1),
     (item_garnelen, v_rid, cat_vorspeisen,
       'Nordseegarnelen mit Meerrettich',
       'Frische Büsumer Garnelen, Meerrettichschaum, Avocado und knusprige Kartoffelstrohhalme.',
-      16.90, null, true, 2),
+      16.90, '', true, 2),
     (item_matjes, v_rid, cat_vorspeisen,
       'Matjes zwei Wege',
       'Klassisch und gebeizt, mit Apfel, roter Zwiebel, Sauerrahm und Dill.',
-      13.50, null, true, 3),
+      13.50, '', true, 3),
     (item_suppe, v_rid, cat_vorspeisen,
       'Nordseefischsuppe',
       'Safranfond, Miesmuscheln, Weißfisch, Fenchel und Kräuteröl — mit Sauerteig.',
-      12.90, null, true, 4),
+      12.90, '', true, 4),
     (item_scholle, v_rid, cat_haupt,
       'Gebratene Scholle',
       'Butter, Kapern, Queller, neue Kartoffeln und Zitrone — klar norddeutsch.',
-      24.50, null, true, 5),
+      24.50, '', true, 5),
     (item_rind, v_rid, cat_haupt,
       'Holstein-Rind mit Markkruste',
       'Langsam gegart, geräucherte Knochenmark-Kruste, Wurzelgemüse und Bierjus.',
-      29.90, null, true, 6),
+      29.90, '', true, 6),
     (item_sellerie, v_rid, cat_haupt,
       'Sellerie-Steak',
       'Ofengerösteter Knollensellerie, geräucherte Mandelcreme, Wildkräuter und schwarzer Knoblauch.',
-      21.50, null, true, 7),
+      21.50, '', true, 7),
     (item_bete, v_rid, cat_beilagen,
       'Rote-Bete-Salat',
       'Fermentierte Bete, Meerrettichcreme, Haselnuss und Mikrokräuter.',
-      8.90, null, true, 8),
+      8.90, '', true, 8),
     (item_fries, v_rid, cat_beilagen,
       'Salzkartoffeln mit Quellerbutter',
       'Festkochend, braune Butter mit Queller und Meersalzflocken.',
-      6.50, null, true, 9),
+      6.50, '', true, 9),
     (item_sanddorn, v_rid, cat_desserts,
       'Sanddorn-Panna-Cotta',
       'Herb-fruchtig, weiße Schokolade und Minze.',
-      9.50, null, true, 10),
+      9.50, '', true, 10),
     (item_bier, v_rid, cat_getraenke,
       'Küsten-Pale Ale 0,4 l',
       'Hopfiges Hausbier von der norddeutschen Kleinbrauerei — passt zu Räucherfisch.',
-      4.90, null, true, 11),
+      4.90, '', true, 11),
     (item_aquavit, v_rid, cat_getraenke,
       'Aquavit vom Fass 2 cl',
       'Kümmel, Dill und ein Hauch Rauch — unser Digestif.',
-      5.50, null, true, 12)
+      5.50, '', true, 12)
   on conflict (id) do update set
     name = excluded.name,
     description = excluded.description,

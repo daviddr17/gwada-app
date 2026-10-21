@@ -111,6 +111,7 @@ export type PosWebOrderListItemDto = {
   tableLabel: string;
   guestName?: string | null;
   slotStartAt?: string | null;
+  fulfillmentAsap?: boolean;
   deliveryTrackingActive?: boolean;
   deliveryLat?: number | null;
   deliveryLng?: number | null;

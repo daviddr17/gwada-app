@@ -13,6 +13,11 @@ import {
   formatEuroFromCents,
   type GuestCartLine,
 } from "@/lib/ordering/guest-cart-types";
+import {
+  earliestReadyAt,
+  formatEarliestLabelDe,
+  toDatetimeLocalValue,
+} from "@/lib/ordering/ordering-lead-time";
 import type { PublicOrderingRecipeIngredient } from "@/lib/ordering/online-ordering-types";
 import type { MenuItem, MenuOptionGroup } from "@/lib/types/menu";
 import { cn } from "@/lib/utils";
@@ -34,16 +39,7 @@ type PublicSettings = {
   deliveryLeadMinutes: number;
   kioskIdleSeconds: number;
   guestStatusMessage: string | null;
-  timeslotsEnabled?: boolean;
-  slotIntervalMinutes?: number;
   hasKioskTerminal?: boolean;
-};
-
-type OrderingSlot = {
-  startAt: string;
-  endAt: string;
-  remaining: number;
-  label: string;
 };
 
 type OrderingPayload = {
@@ -109,8 +105,9 @@ export function GuestOrderingApp({
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryCity, setDeliveryCity] = useState("");
   const [deliveryPostalCode, setDeliveryPostalCode] = useState("");
-  const [slots, setSlots] = useState<OrderingSlot[]>([]);
-  const [slotStartAt, setSlotStartAt] = useState<string | null>(null);
+  /** Online only — kiosk/table always ASAP. */
+  const [timingMode, setTimingMode] = useState<"asap" | "scheduled">("asap");
+  const [scheduledLocal, setScheduledLocal] = useState("");
   const [terminalWaiting, setTerminalWaiting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -151,36 +148,22 @@ export function GuestOrderingApp({
     void load();
   }, [load]);
 
+  const earliestAt = useMemo(() => {
+    if (!data) return null;
+    return earliestReadyAt(data.settings, fulfillment);
+  }, [data, fulfillment]);
+
   useEffect(() => {
-    if (!data?.settings.timeslotsEnabled) {
-      setSlots([]);
-      setSlotStartAt(null);
-      return;
-    }
-    if (fulfillment !== "pickup" && fulfillment !== "delivery") return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/public/ordering/${encodeURIComponent(slug)}/slots?fulfillment=${fulfillment}`,
-          { cache: "no-store" },
-        );
-        const json = (await res.json()) as { slots?: OrderingSlot[] };
-        if (cancelled) return;
-        setSlots(json.slots ?? []);
-        setSlotStartAt((prev) => {
-          const list = json.slots ?? [];
-          if (prev && list.some((s) => s.startAt === prev)) return prev;
-          return list[0]?.startAt ?? null;
-        });
-      } catch {
-        if (!cancelled) setSlots([]);
+    if (!earliestAt) return;
+    setScheduledLocal((prev) => {
+      if (!prev) return toDatetimeLocalValue(earliestAt);
+      const prevDate = new Date(prev);
+      if (Number.isNaN(prevDate.getTime()) || prevDate < earliestAt) {
+        return toDatetimeLocalValue(earliestAt);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [data?.settings.timeslotsEnabled, fulfillment, slug]);
+      return prev;
+    });
+  }, [earliestAt]);
 
   const accent = data?.restaurant.accentHex ?? "#0f766e";
   const subtotal = cartSubtotalCents(cart);
@@ -251,7 +234,11 @@ export function GuestOrderingApp({
             deliveryCity: deliveryCity.trim() || undefined,
             deliveryPostalCode: deliveryPostalCode.trim() || undefined,
             diningTableId,
-            slotStartAt: slotStartAt || undefined,
+            timingMode: mode === "online" ? timingMode : "asap",
+            scheduledAt:
+              mode === "online" && timingMode === "scheduled" && scheduledLocal
+                ? new Date(scheduledLocal).toISOString()
+                : undefined,
             payWithTerminal: useTerminal,
             items: cart.map((l) => ({
               menuItemId: l.menuItemId,
@@ -685,29 +672,68 @@ export function GuestOrderingApp({
                 </div>
               </>
             ) : null}
-            {data.settings.timeslotsEnabled &&
+            {mode === "online" &&
             (fulfillment === "pickup" || fulfillment === "delivery") ? (
-              <div className="space-y-2">
-                <Label>Zeitfenster</Label>
+              <div className="space-y-3">
+                <Label>Wann?</Label>
                 <div className="flex flex-wrap gap-2">
-                  {slots.map((s) => (
-                    <Chip
-                      key={s.startAt}
-                      active={slotStartAt === s.startAt}
-                      accent={accent}
-                      large={largeTouch}
-                      onClick={() => setSlotStartAt(s.startAt)}
-                    >
-                      {s.label}
-                    </Chip>
-                  ))}
+                  <Chip
+                    active={timingMode === "asap"}
+                    accent={accent}
+                    large={largeTouch}
+                    onClick={() => setTimingMode("asap")}
+                  >
+                    Schnellstmöglich
+                  </Chip>
+                  <Chip
+                    active={timingMode === "scheduled"}
+                    accent={accent}
+                    large={largeTouch}
+                    onClick={() => setTimingMode("scheduled")}
+                  >
+                    Wunschzeit
+                  </Chip>
                 </div>
-                {slots.length === 0 ? (
+                {timingMode === "asap" && earliestAt ? (
                   <p className="text-sm text-muted-foreground">
-                    Keine freien Zeitslots.
+                    Frühestens {formatEarliestLabelDe(earliestAt)}
+                    {fulfillment === "delivery"
+                      ? ` · Vorlauf ${data.settings.deliveryLeadMinutes} Min.`
+                      : ` · Vorlauf ${data.settings.pickupLeadMinutes} Min.`}
                   </p>
                 ) : null}
+                {timingMode === "scheduled" ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="guest-wunschzeit">Wunschzeit</Label>
+                    <Input
+                      id="guest-wunschzeit"
+                      type="datetime-local"
+                      value={scheduledLocal}
+                      min={
+                        earliestAt ? toDatetimeLocalValue(earliestAt) : undefined
+                      }
+                      onChange={(e) => setScheduledLocal(e.target.value)}
+                      className={cn(
+                        "rounded-xl",
+                        largeTouch && "h-12 text-base",
+                      )}
+                    />
+                    {earliestAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        Ab {formatEarliestLabelDe(earliestAt)} möglich.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
+            ) : null}
+            {mode !== "online" ? (
+              <p className="text-sm text-muted-foreground">
+                Timing: Sofort / Schnellstmöglich
+                {earliestAt
+                  ? ` · frühestens ${formatEarliestLabelDe(earliestAt)}`
+                  : ""}
+              </p>
             ) : null}
           </div>
 
@@ -743,9 +769,9 @@ export function GuestOrderingApp({
             disabled={
               submitting ||
               !cart.length ||
-              (Boolean(data.settings.timeslotsEnabled) &&
-                (fulfillment === "pickup" || fulfillment === "delivery") &&
-                !slotStartAt)
+              (mode === "online" &&
+                timingMode === "scheduled" &&
+                !scheduledLocal)
             }
             onClick={() => void submitCheckout()}
           >
@@ -921,7 +947,14 @@ function mapCheckoutError(code?: string): string {
       return "Bestellen ist derzeit deaktiviert.";
     case "slot_required":
     case "slot_unavailable":
-      return "Bitte ein verfügbares Zeitfenster wählen.";
+    case "scheduled_at_required":
+      return "Bitte eine Wunschzeit wählen.";
+    case "scheduled_at_invalid":
+      return "Ungültige Wunschzeit.";
+    case "scheduled_before_earliest":
+      return "Die Wunschzeit liegt vor dem Mindestvorlauf.";
+    case "scheduled_too_far":
+      return "Die Wunschzeit liegt zu weit in der Zukunft.";
     case "terminal_required":
       return "Kein Mollie-Terminal für den Kiosk konfiguriert.";
     case "mollie_pos_not_enabled":

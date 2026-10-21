@@ -8,6 +8,7 @@ import {
   GUEST_STATUS_STEPS_PICKUP,
 } from "@/lib/ordering/guest-order-labels";
 import { formatEuroFromCents } from "@/lib/ordering/guest-cart-types";
+import { formatOrderTimingLabelDe } from "@/lib/ordering/ordering-lead-time";
 import { cn } from "@/lib/utils";
 
 type OrderDto = {
@@ -22,6 +23,7 @@ type OrderDto = {
   restaurantSlug: string;
   slotStartAt: string | null;
   slotEndAt: string | null;
+  fulfillmentAsap?: boolean;
   deliveryLat: number | null;
   deliveryLng: number | null;
   deliveryLocationUpdatedAt: string | null;
@@ -104,21 +106,12 @@ export function GuestOrderStatusScreen({ token }: { token: string }) {
         Bestellung #{order.orderNumber}
       </h1>
       <p className="mt-2 text-lg font-medium">{order.statusLabel}</p>
-      {order.slotStartAt ? (
-        <p className="mt-1 text-sm text-muted-foreground">
-          Zeitfenster:{" "}
-          {new Date(order.slotStartAt).toLocaleString("de-DE", {
-            dateStyle: "short",
-            timeStyle: "short",
-          })}
-          {order.slotEndAt
-            ? ` – ${new Date(order.slotEndAt).toLocaleTimeString("de-DE", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}`
-            : ""}
-        </p>
-      ) : null}
+      <p className="mt-1 text-sm text-muted-foreground">
+        {formatOrderTimingLabelDe({
+          fulfillmentAsap: order.fulfillmentAsap !== false,
+          slotStartAt: order.slotStartAt,
+        })}
+      </p>
       {order.message ? (
         <p className="mt-2 text-sm text-muted-foreground">{order.message}</p>
       ) : null}

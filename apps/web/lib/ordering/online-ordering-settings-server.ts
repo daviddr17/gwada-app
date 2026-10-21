@@ -190,8 +190,6 @@ export function publicOrderingSettingsView(settings: OnlineOrderingSettings) {
     deliveryLeadMinutes: settings.deliveryLeadMinutes,
     kioskIdleSeconds: settings.kioskIdleSeconds,
     guestStatusMessage: settings.guestStatusMessage,
-    timeslotsEnabled: settings.timeslotsEnabled,
-    slotIntervalMinutes: settings.slotIntervalMinutes,
     hasKioskTerminal: Boolean(settings.kioskMollieTerminalId),
   };
 }

@@ -28,6 +28,7 @@ export type PosOrderListItem = {
   tableLabel: string;
   guestName: string | null;
   slotStartAt: string | null;
+  fulfillmentAsap: boolean;
   deliveryTrackingActive: boolean;
   deliveryLat: number | null;
   deliveryLng: number | null;
@@ -104,7 +105,7 @@ export async function listPosOrdersInRange(
   let dataQuery = supabase
     .from("pos_orders")
     .select(
-      "id, order_number, status, channel, fulfillment_type, total_cents, tip_cents, table_session_id, guest_name, slot_start_at, delivery_tracking_active, delivery_lat, delivery_lng, created_at, closed_at",
+      "id, order_number, status, channel, fulfillment_type, total_cents, tip_cents, table_session_id, guest_name, slot_start_at, fulfillment_asap, delivery_tracking_active, delivery_lat, delivery_lng, created_at, closed_at",
     )
     .eq("restaurant_id", restaurantId)
     .gte("created_at", bounds.startAt)
@@ -267,6 +268,8 @@ export async function listPosOrdersInRange(
       slotStartAt:
         ((order as { slot_start_at?: string | null }).slot_start_at ??
           null) as string | null,
+      fulfillmentAsap:
+        (order as { fulfillment_asap?: boolean }).fulfillment_asap !== false,
       deliveryTrackingActive: Boolean(
         (order as { delivery_tracking_active?: boolean })
           .delivery_tracking_active,

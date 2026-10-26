@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 # Auf dem VPS: vorgebautes Image pullen, Container tauschen, /api/build-info prüfen.
 # Build läuft in GitHub Actions — nicht mehr auf dem VPS.
+# Preferiert Compose+Caddy unter /opt/gwada/live; Fallback Coolify-App-Compose.
 set -euo pipefail
 
 COOLIFY_APP_ID="${GWADA_COOLIFY_APP_UUID:-d3cg1b54arvue2tcm8u34qty}"
-COMPOSE_DIR="/data/coolify/applications/${COOLIFY_APP_ID}"
+LIVE_COMPOSE_DIR="${GWADA_LIVE_COMPOSE_DIR:-/opt/gwada/live}"
+COOLIFY_COMPOSE_DIR="/data/coolify/applications/${COOLIFY_APP_ID}"
+if [[ -f "${LIVE_COMPOSE_DIR}/docker-compose.yml" || -f "${LIVE_COMPOSE_DIR}/docker-compose.yaml" ]]; then
+  COMPOSE_DIR="${LIVE_COMPOSE_DIR}"
+  DEPLOY_MODE="caddy"
+else
+  COMPOSE_DIR="${COOLIFY_COMPOSE_DIR}"
+  DEPLOY_MODE="coolify"
+fi
 SCRIPTS_DIR="${GWADA_DEPLOY_SCRIPTS_DIR:-}"
 APP_ORIGIN="${APP_ORIGIN:-https://gwada.app}"
 LOG="${GWADA_DEPLOY_LOG:-/tmp/gwada-deploy-live-app.log}"
@@ -122,11 +131,12 @@ if [[ -z "${DEPLOY_IMAGE}" ]]; then
 fi
 
 if [[ ! -d "${COMPOSE_DIR}" ]]; then
-  echo "Coolify-Verzeichnis fehlt: ${COMPOSE_DIR}" >&2
+  echo "Compose-Verzeichnis fehlt: ${COMPOSE_DIR} (mode=${DEPLOY_MODE})" >&2
   exit 1
 fi
+echo "Deploy-Mode: ${DEPLOY_MODE} dir=${COMPOSE_DIR}"
 
-# CI/SSH-Env vor Coolify-.env sichern — sonst überschreibt ein veraltetes
+# CI/SSH-Env vor Compose-.env sichern — sonst überschreibt ein veraltetes
 # GITHUB_DEPLOY_TOKEN im Compose-.env den frischen Pull-Token und GHCR → denied.
 _DEPLOY_GHCR_PULL_TOKEN="${GHCR_PULL_TOKEN:-}"
 _DEPLOY_GITHUB_DEPLOY_TOKEN="${GITHUB_DEPLOY_TOKEN:-}"
@@ -163,17 +173,6 @@ prefer_ghcr_ipv4
 docker pull "${DEPLOY_IMAGE}"
 restore_ghcr_ipv4_hosts
 
-if [[ -f "${COMPOSE_FILE}" ]]; then
-  if grep -q "image: '${COOLIFY_APP_ID}:" "${COMPOSE_FILE}"; then
-    sed -i "s|image: '${COOLIFY_APP_ID}:.*'|image: '${DEPLOY_IMAGE}'|" "${COMPOSE_FILE}"
-  elif grep -q "image: 'ghcr.io/" "${COMPOSE_FILE}"; then
-    sed -i "s|image: 'ghcr.io/[^']*'|image: '${DEPLOY_IMAGE}'|" "${COMPOSE_FILE}"
-  else
-    sed -i "0,/image: '/s|image: '[^']*'|image: '${DEPLOY_IMAGE}'|" "${COMPOSE_FILE}"
-  fi
-  echo "Compose-Image → ${DEPLOY_IMAGE}"
-fi
-
 patch_compose_env_key() {
   local key="$1"
   local value="$2"
@@ -196,23 +195,56 @@ if [[ -n "${CRON_SECRET:-}" ]]; then
   patch_compose_env_key CRON_SECRET "${CRON_SECRET}"
 fi
 
-ENSURE_RUNTIME_ENV="${SCRIPTS_DIR}/ensure-coolify-compose-runtime-env.sh"
-if [[ -f "${ENSURE_RUNTIME_ENV}" ]]; then
-  # shellcheck source=scripts/ensure-coolify-compose-runtime-env.sh
-  source "${ENSURE_RUNTIME_ENV}"
-  ensure_coolify_compose_runtime_env "${COMPOSE_DIR}" \
-    GITHUB_DEPLOY_TOKEN CHANGELOG_SYNC_SECRET CRON_SECRET SUPABASE_SERVICE_ROLE_KEY || true
-fi
-
-ENSURE_TRAEFIK="${SCRIPTS_DIR}/vps-ensure-coolify-traefik-fqdn.sh"
-if [[ -f "${ENSURE_TRAEFIK}" ]]; then
-  DEPLOY_FQDN="${APP_ORIGIN#https://}"
-  DEPLOY_FQDN="${DEPLOY_FQDN#http://}"
-  DEPLOY_FQDN="${DEPLOY_FQDN%%/*}"
-  COOLIFY_FQDN="${DEPLOY_FQDN}" bash "${ENSURE_TRAEFIK}" "${COMPOSE_DIR}" "${COOLIFY_APP_ID}"
-else
+if [[ "${DEPLOY_MODE}" == "caddy" ]]; then
+  patch_compose_env_key GWADA_APP_IMAGE "${DEPLOY_IMAGE}"
+  # Compose nutzt ${GWADA_APP_IMAGE}; zusätzlich hart setzen falls Variable fehlt
+  if [[ -f "${COMPOSE_FILE}" ]]; then
+    if grep -qE 'image: \$\{GWADA_APP_IMAGE' "${COMPOSE_FILE}"; then
+      echo "Compose-Image via GWADA_APP_IMAGE=${DEPLOY_IMAGE}"
+    elif grep -q "image: 'ghcr.io/" "${COMPOSE_FILE}"; then
+      sed -i "s|image: 'ghcr.io/[^']*'|image: '${DEPLOY_IMAGE}'|" "${COMPOSE_FILE}"
+    fi
+  fi
   cd "${COMPOSE_DIR}"
-  docker compose up -d --force-recreate --remove-orphans
+  # shellcheck disable=SC1091
+  set -a
+  # shellcheck disable=SC1090
+  [[ -f "${COMPOSE_DIR}/.env" ]] && source "${COMPOSE_DIR}/.env"
+  set +a
+  export GWADA_APP_IMAGE="${DEPLOY_IMAGE}"
+  docker compose up -d --pull always --force-recreate app
+  # Caddy neu laden falls Config unverändert — kein Recreate nötig
+  docker compose up -d caddy 2>/dev/null || true
+else
+  if [[ -f "${COMPOSE_FILE}" ]]; then
+    if grep -q "image: '${COOLIFY_APP_ID}:" "${COMPOSE_FILE}"; then
+      sed -i "s|image: '${COOLIFY_APP_ID}:.*'|image: '${DEPLOY_IMAGE}'|" "${COMPOSE_FILE}"
+    elif grep -q "image: 'ghcr.io/" "${COMPOSE_FILE}"; then
+      sed -i "s|image: 'ghcr.io/[^']*'|image: '${DEPLOY_IMAGE}'|" "${COMPOSE_FILE}"
+    else
+      sed -i "0,/image: '/s|image: '[^']*'|image: '${DEPLOY_IMAGE}'|" "${COMPOSE_FILE}"
+    fi
+    echo "Compose-Image → ${DEPLOY_IMAGE}"
+  fi
+
+  ENSURE_RUNTIME_ENV="${SCRIPTS_DIR}/ensure-coolify-compose-runtime-env.sh"
+  if [[ -f "${ENSURE_RUNTIME_ENV}" ]]; then
+    # shellcheck source=scripts/ensure-coolify-compose-runtime-env.sh
+    source "${ENSURE_RUNTIME_ENV}"
+    ensure_coolify_compose_runtime_env "${COMPOSE_DIR}" \
+      GITHUB_DEPLOY_TOKEN CHANGELOG_SYNC_SECRET CRON_SECRET SUPABASE_SERVICE_ROLE_KEY || true
+  fi
+
+  ENSURE_TRAEFIK="${SCRIPTS_DIR}/vps-ensure-coolify-traefik-fqdn.sh"
+  if [[ -f "${ENSURE_TRAEFIK}" ]]; then
+    DEPLOY_FQDN="${APP_ORIGIN#https://}"
+    DEPLOY_FQDN="${DEPLOY_FQDN#http://}"
+    DEPLOY_FQDN="${DEPLOY_FQDN%%/*}"
+    COOLIFY_FQDN="${DEPLOY_FQDN}" bash "${ENSURE_TRAEFIK}" "${COMPOSE_DIR}" "${COOLIFY_APP_ID}"
+  else
+    cd "${COMPOSE_DIR}"
+    docker compose up -d --force-recreate --remove-orphans
+  fi
 fi
 
 VERIFY_SHA="${EXPECTED_SHA:-}"
@@ -224,8 +256,12 @@ echo "Warte auf App (sha=${VERIFY_SHA:-?}) …"
 for i in $(seq 1 90); do
   if [[ -n "${VERIFY_SHA}" ]] && curl -fsSL "${APP_ORIGIN}/api/build-info" 2>/dev/null | grep -q "\"sha\":\"${VERIFY_SHA}\""; then
     echo "✓ Live bestätigt: ${APP_ORIGIN}/api/build-info → sha=${VERIFY_SHA}"
-    docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep 3000 || true
-    fresh_running="$(docker ps --format '{{.Names}}' | grep "${COOLIFY_APP_ID}-" | head -1 || true)"
+    docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep -iE 'gwada-app|3000' || true
+    if [[ "${DEPLOY_MODE}" == "caddy" ]]; then
+      fresh_running="$(docker ps --format '{{.Names}}' | grep -E '^gwada-app$' | head -1 || true)"
+    else
+      fresh_running="$(docker ps --format '{{.Names}}' | grep "${COOLIFY_APP_ID}-" | head -1 || true)"
+    fi
     if [[ -n "${fresh_running}" ]] && declare -F verify_container_env >/dev/null; then
       verify_container_env "${fresh_running}" GITHUB_DEPLOY_TOKEN || true
     fi
@@ -237,5 +273,5 @@ done
 
 echo "WARNUNG: /api/build-info zeigt nicht sha=${VERIFY_SHA}." >&2
 curl -fsSL "${APP_ORIGIN}/api/build-info" 2>/dev/null || true
-docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep 3000 || true
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep -iE 'gwada-app|3000' || true
 exit 1

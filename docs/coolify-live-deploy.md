@@ -2,10 +2,12 @@
 
 **Production-Domain:** `https://gwada.app` — Domain-Architektur: [gwada-app-domains.md](./gwada-app-domains.md)
 
+**Infra-Ziel:** Coolify/Traefik → **Docker Compose + Caddy** unter `/opt/gwada/live` (Musterungsfuchs-Modell). Runbook: [coolify-to-caddy-migration.md](./coolify-to-caddy-migration.md). Solange `/opt/gwada/live` fehlt, bleibt der Coolify-App-Compose-Pfad aktiv (`scripts/vps-deploy-live-app.sh`).
+
 ## Ablauf (seit 2026-07)
 
 1. **GitHub Actions** baut das Docker-Image (Buildkit + GHA-Cache) und pusht nach **`ghcr.io/daviddr17/gwada-app:<sha>`**
-2. **VPS** pullt nur noch das Image und startet den Coolify-Container neu (~2–4 Min.)
+2. **VPS** pullt nur noch das Image und startet den App-Container neu (~2–4 Min.) — Compose+Caddy **oder** Coolify-Fallback
 
 Kein `docker build` mehr auf dem VPS — damit entfallen OOM/Timeout beim TypeScript-Check auf dem kleinen Server.
 
@@ -64,6 +66,7 @@ SHA muss dem gewünschten `git rev-parse --short HEAD` entsprechen.
 | `denied` beim docker pull | GHCR-Token ohne `read:packages` | PAT aktualisieren, `sync-github-deploy-token-live.yml` |
 | Superadmin „Deploy konnte nicht gestartet werden“ / „GitHub-Vergleich fehlt“ | Keine GitHub-Auth im Container (abgelaufener PAT) | **Empfohlen:** GitHub App — Secrets `GWADA_GITHUB_APP_*`, Workflow `sync-github-app-credentials-live.yml` ([github-app-deploy-auth.md](./github-app-deploy-auth.md)). Fallback: PAT `GWADA_GITHUB_DEPLOY_TOKEN` + `sync-github-deploy-token-live.yml` |
 | Build-Job: anon key fehlt | Weder Secret noch VPS-.env | `LIVE_NEXT_PUBLIC_SUPABASE_ANON_KEY` setzen |
-| 503 auf gwada.app | Traefik Host-Rule fehlt | `COOLIFY_FQDN=gwada.app bash scripts/vps-ensure-coolify-traefik-fqdn.sh` |
+| 503 auf gwada.app | Traefik Host-Rule fehlt (nur Coolify-Pfad) | `COOLIFY_FQDN=gwada.app bash scripts/vps-ensure-coolify-traefik-fqdn.sh` |
+| 503 nach Caddy-Cutover | Caddy/App down oder Netz | `cd /opt/gwada/live && docker compose ps` / Runbook Rollback |
 
-Siehe auch [live-deploy.md](./live-deploy.md).
+Siehe auch [live-deploy.md](./live-deploy.md), [coolify-to-caddy-migration.md](./coolify-to-caddy-migration.md).

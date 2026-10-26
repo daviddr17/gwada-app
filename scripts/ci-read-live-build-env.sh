@@ -8,7 +8,8 @@ source "${ROOT}/scripts/gwada-ssh-lib.sh"
 
 COOLIFY_APP_ID="${GWADA_COOLIFY_APP_UUID:-d3cg1b54arvue2tcm8u34qty}"
 VPS="${LIVE_VPS_HOST:-}"
-COMPOSE_ENV="/data/coolify/applications/${COOLIFY_APP_ID}/.env"
+LIVE_COMPOSE_ENV="${GWADA_LIVE_COMPOSE_DIR:-/opt/gwada/live}/.env"
+COOLIFY_COMPOSE_ENV="/data/coolify/applications/${COOLIFY_APP_ID}/.env"
 
 read_env_from_vps() {
   local key="$1"
@@ -22,8 +23,13 @@ read_env_from_vps() {
   export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
   export GWADA_SSH_BATCH=1
 
+  # Prefer Compose+Caddy .env, Fallback Coolify
   gwada_ssh "root@${VPS}" \
-    "grep -E '^${key}=' '${COMPOSE_ENV}' 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"'" \
+    "for f in '${LIVE_COMPOSE_ENV}' '${COOLIFY_COMPOSE_ENV}'; do
+       [[ -f \"\$f\" ]] || continue
+       val=\$(grep -E '^${key}=' \"\$f\" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"')
+       if [[ -n \"\$val\" ]]; then printf '%s' \"\$val\"; exit 0; fi
+     done" \
     || true
 }
 
@@ -39,7 +45,7 @@ fi
 UPSTREAM="${UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy1u9n8:8000}"
 
 if [[ -z "${ANON}" ]]; then
-  echo "::error::NEXT_PUBLIC_SUPABASE_ANON_KEY fehlt (GitHub Secret LIVE_NEXT_PUBLIC_SUPABASE_ANON_KEY oder VPS ${COMPOSE_ENV})." >&2
+  echo "::error::NEXT_PUBLIC_SUPABASE_ANON_KEY fehlt (GitHub Secret LIVE_NEXT_PUBLIC_SUPABASE_ANON_KEY oder VPS ${LIVE_COMPOSE_ENV} / ${COOLIFY_COMPOSE_ENV})." >&2
   exit 1
 fi
 

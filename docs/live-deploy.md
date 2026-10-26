@@ -14,7 +14,7 @@ Nach `git push origin main` — **eine** der Varianten (alle landen in denselben
 
 Prüfen: `curl -s https://gwada.app/api/build-info` → `sha` = gewünschter Commit.
 
-`deploy-live-full` **ruft** `deploy-live-db` + `deploy-live-app` auf (kein paralleler Code). Details App: [coolify-live-deploy.md](./coolify-live-deploy.md).
+`deploy-live-full` **ruft** `deploy-live-db` + `deploy-live-app` auf (kein paralleler Code). Details App: [coolify-live-deploy.md](./coolify-live-deploy.md). Coolify→Caddy: [coolify-to-caddy-migration.md](./coolify-to-caddy-migration.md).
 
 ### Cloud-Agent
 

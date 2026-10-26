@@ -1,0 +1,64 @@
+# Live-Cutover Coolify/Traefik → Compose + Caddy.
+# Nur manuell; Contabo-Snapshot + Bestätigungspflicht.
+name: Cutover Coolify to Caddy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Muss exakt CUTOVER sein
+        required: true
+        type: string
+      snapshot_done:
+        description: Contabo-Snapshot erledigt? (yes)
+        required: true
+        type: string
+
+concurrency:
+  group: cutover-coolify-to-caddy
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    name: Cutover edge proxy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Guardrails
+        run: |
+          if [ "${{ inputs.confirm }}" != "CUTOVER" ]; then
+            echo "::error::confirm muss CUTOVER sein."
+            exit 1
+          fi
+          if [ "${{ inputs.snapshot_done }}" != "yes" ]; then
+            echo "::error::snapshot_done muss yes sein (Contabo-Snapshot zuerst)."
+            exit 1
+          fi
+
+      - name: Run cutover over SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          GWADA_CONFIRM_CADDY_CUTOVER: CUTOVER
+          GWADA_SNAPSHOT_DONE: yes
+        run: |
+          set -euo pipefail
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          chmod +x scripts/vps-cutover-coolify-to-caddy.sh \
+            scripts/vps-cutover-coolify-to-caddy-remote.sh
+          bash scripts/vps-cutover-coolify-to-caddy.sh
+          echo "Post-cutover build-info:"
+          curl -fsS https://gwada.app/api/build-info
+          echo

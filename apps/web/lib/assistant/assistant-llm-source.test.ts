@@ -309,6 +309,28 @@ test("reservation edit draft becomes confirm_mutation with patch", () => {
   assert.match(settled.reply, /Jetzt umsetzen\?/);
 });
 
+test("tool permission filter keeps handbook and drops denied writes", async () => {
+  const { filterAssistantToolDefinitions } = await import(
+    "./assistant-tool-permission-map.ts"
+  );
+  const { ASSISTANT_TOOL_DEFINITIONS } = await import(
+    "./assistant-tool-definitions.ts"
+  );
+  const allowed = new Set(["reservations.read", "menu.read"]);
+  const filtered = filterAssistantToolDefinitions(
+    ASSISTANT_TOOL_DEFINITIONS,
+    allowed,
+  );
+  const names = filtered
+    .filter((t) => t.type === "function")
+    .map((t) => t.function.name);
+  assert.ok(names.includes("search_handbook"));
+  assert.ok(names.includes("count_reservations"));
+  assert.ok(names.includes("search_menu"));
+  assert.equal(names.includes("create_reservation"), false);
+  assert.equal(names.includes("reply_to_review"), false);
+});
+
 test("reservation day note and change-request drafts use confirm_mutation", () => {
   const note = settleAssistantToolPayloads("Ok.", [
     JSON.stringify({

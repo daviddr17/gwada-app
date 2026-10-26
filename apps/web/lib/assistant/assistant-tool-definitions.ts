@@ -506,4 +506,470 @@ export const ASSISTANT_TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionT
         },
       },
     },
+
+    {
+      type: "function",
+      function: {
+        name: "upsert_contact",
+        description:
+          "Kontakt anlegen (mode=create) oder ändern (mode=update). Mind. E-Mail oder Telefon beim Anlegen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            mode: { type: "string" },
+            contact_id: { type: "string" },
+            contact_name: { type: "string" },
+            first_name: { type: "string" },
+            last_name: { type: "string" },
+            email: { type: "string" },
+            phone: { type: "string" },
+            company: { type: "string" },
+            notes: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "delete_contact",
+        description: "Kontakt löschen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            contact_id: { type: "string" },
+            contact_name: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "read_contact_thread",
+        description: "Nachrichten-Thread eines Kontakts lesen (kurze Liste).",
+        parameters: {
+          type: "object",
+          properties: {
+            contact_id: { type: "string" },
+            contact_name: { type: "string" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "mark_contact_thread_read",
+        description: "Kontakt-Thread als gelesen markieren. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            contact_id: { type: "string" },
+            contact_name: { type: "string" },
+            platform: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "reply_to_review",
+        description:
+          "Auf Bewertung antworten (platform=google|facebook|gwada). confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            platform: { type: "string" },
+            review_id: { type: "string" },
+            comment: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "mark_review_read",
+        description: "Bewertung gelesen/ungelesen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            platform: { type: "string" },
+            review_id: { type: "string" },
+            unread: { type: "boolean" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "upsert_news_post",
+        description:
+          "News-Entwurf speichern oder mit publish=true veröffentlichen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            body: { type: "string" },
+            publish: { type: "boolean" },
+            platforms: { type: "array", items: { type: "string" } },
+            post_id: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "upsert_event",
+        description:
+          "Event-Entwurf oder publish=true. Braucht title, date_ymd, time_hm. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            date_ymd: { type: "string" },
+            time_hm: { type: "string" },
+            location: { type: "string" },
+            publish: { type: "boolean" },
+            platforms: { type: "array", items: { type: "string" } },
+            event_id: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "upsert_ingredient",
+        description: "Zutat anlegen/ändern. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            mode: { type: "string" },
+            name: { type: "string" },
+            new_name: { type: "string" },
+            unit: { type: "string" },
+            current_stock: { type: "number" },
+            ingredient_id: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "create_purchase_order",
+        description:
+          "Bestellung mit Positionen anlegen. lines=[{ingredient,quantity,unit?}]. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            supplier: { type: "string" },
+            lines: { type: "array", items: { type: "object" } },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "create_staff",
+        description: "Mitarbeiter anlegen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            given_name: { type: "string" },
+            family_name: { type: "string" },
+            email: { type: "string" },
+            phone: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "delete_staff",
+        description: "Mitarbeiter löschen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            staff_id: { type: "string" },
+            name: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "upsert_staff_shift",
+        description:
+          "Schicht planen/ändern (date_ymd, start_hm, end_hm, Mitarbeiter). confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            staff_id: { type: "string" },
+            name: { type: "string" },
+            date_ymd: { type: "string" },
+            start_hm: { type: "string" },
+            end_hm: { type: "string" },
+            shift_id: { type: "string" },
+            label: { type: "string" },
+            note: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "delete_staff_shift",
+        description: "Geplante Schicht löschen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            shift_id: { type: "string" },
+            name: { type: "string" },
+            date_ymd: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "list_staff_todos",
+        description: "Offene Checklisten/ToDos listen.",
+        parameters: {
+          type: "object",
+          properties: { restaurant_name: { type: "string" } },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "upsert_staff_todo",
+        description: "ToDo/Checkliste anlegen oder ändern. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            todo_id: { type: "string" },
+            title: { type: "string" },
+            description: { type: "string" },
+            priority: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "list_documents",
+        description: "Dokumente listen/suchen.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "add_document_note",
+        description: "Notiz an Dokument. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            document_id: { type: "string" },
+            body: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "list_guides",
+        description: "Anleitungen listen/suchen.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "list_compliance",
+        description: "Eigenkontrollen listen.",
+        parameters: {
+          type: "object",
+          properties: { restaurant_name: { type: "string" } },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "create_compliance_record",
+        description: "Eigenkontrolle anlegen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            note: { type: "string" },
+            status: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "delete_menu_item",
+        description: "Gericht löschen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            menu_item_id: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "upsert_menu_category",
+        description: "Speisekarten-Kategorie anlegen/ändern. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            category_id: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "upsert_menu_tag",
+        description: "Menü-Tag anlegen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "upsert_menu_allergen",
+        description: "Allergen anlegen. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "create_cash_book_entry",
+        description:
+          "Kassenbuch-Eintrag (direction income|expense, amount, category?). confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            direction: { type: "string" },
+            amount: { type: "number" },
+            category: { type: "string" },
+            note: { type: "string" },
+            date_ymd: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "update_restaurant_stammdaten",
+        description:
+          "Restaurant-Stammdaten patchen (name, phone, email, street, city, postal_code). Keine Secrets. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            phone: { type: "string" },
+            email: { type: "string" },
+            street: { type: "string" },
+            city: { type: "string" },
+            postal_code: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
   ];

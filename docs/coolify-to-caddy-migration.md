@@ -2,7 +2,7 @@
 
 **Ziel:** Coolify-Control-Plane (UI + Traefik) entfernen. Live bleibt auf Contabo `95.111.229.250` / `gwada.app`. Deploy weiter über GitHub Actions (`deploy-live-*` → GHCR → `docker compose pull/up`). TLS + Reverse-Proxy wie bei Musterungsfuchs: **Caddy**.
 
-**Stand:** 26. Oktober 2026 · Runbook + Repo-Skripte · **Live-Cutover blockiert**, solange kein VPS-SSH aus dem Agent und kein Contabo-Snapshot bestätigt sind.
+**Stand:** 26. Oktober 2026 · Runbook + Repo-Skripte · Inventur per GH Actions **OK** · **Live-Cutover blockiert** (kein Contabo-Snapshot bestätigt; Agent ohne `LIVE_SSH_KEY`).
 
 ---
 
@@ -20,20 +20,25 @@
 
 ---
 
-## Ist-Zustand (Repo + öffentliche Checks)
+## Ist-Zustand (Inventur 2026-10-26, VPS)
 
-| Baustein | Pfad / Hinweis |
-|----------|----------------|
-| App (Coolify) | UUID `d3cg1b54arvue2tcm8u34qty` → `/data/coolify/applications/d3cg1b54arvue2tcm8u34qty/` |
-| Deploy-Skript | `scripts/vps-deploy-live-app.sh` patched Coolify-Compose + Traefik-Labels |
-| Supabase-Netz | Docker-Netz `oogd5syyxiqb1k4g0wy1u9n8` (Kong `supabase-kong-oogd5syyxiqb1k4g0wy1u9n8`) |
-| Authelia + Studio-GW | `/data/coolify/services/authelia-gwada/` (Traefik-Labels) |
-| Coolify-Proxy | Traefik unter `/data/coolify/proxy/` bzw. Coolify-Source-Compose |
-| Domains | `gwada.app`, `studio.new.gwada.app` → Authelia 302, `auth.new.gwada.app` |
-| build-info (vor Cutover) | `curl -s https://gwada.app/api/build-info` |
+| Baustein | Live-Befund |
+|----------|-------------|
+| Host | `vmd197731` · Kernel 6.8 · up ~7d |
+| App | Container `d3cg1b54arvue2tcm8u34qty-211008998242` · Image `ghcr.io/daviddr17/gwada-app:451bc4a` · `127.0.0.1:3000` |
+| App-Compose | `/data/coolify/applications/d3cg1b54arvue2tcm8u34qty/` |
+| Proxy | `coolify-proxy` = **Traefik v3.6** auf `0.0.0.0:80/443` (+ UDP 443) |
+| Coolify UI | `coolify:4.1.2` · Port **8000** derzeit WAN (`0.0.0.0:8000→8080`) |
+| Live-Supabase | Service `oogd5syyxiqb1k4g0wy1u9n8` · Kong/DB/Studio/Auth **healthy** |
+| Authelia | `authelia-gwada` + `gwada-studio-gateway` · `/data/coolify/services/authelia-gwada/` |
+| Netze | `coolify`, `oogd5syyxiqb1k4g0wy1u9n8`, `gwada-dev_default`, `supabase_default` |
+| `/opt/gwada/live` | **fehlt** (Cutover legt an) |
+| Dev-Supabase | `/opt/gwada-supabase-dev` · mehrere Container **Restarting** (bestehend; Cutover fasst nicht an) |
+| build-info | `{"sha":"451bc4a"}` |
 
-Inventur-Skript (read-only, via GH Actions mit `LIVE_SSH_KEY`):  
-`scripts/vps-inventory-coolify-live.sh` · Workflow `inventory-live-vps.yml`.
+Roh-Log: `internal/coolify-live-inventory-2026-10-26.txt` · Workflow-Run [40324922126](https://github.com/daviddr17/gwada-app/actions/runs/40324922126).
+
+Inventur-Skript: `scripts/vps-inventory-coolify-live.sh` · Workflow `inventory-live-vps.yml`.
 
 ---
 
@@ -179,10 +184,19 @@ Deploy-Skripte mit fehlendem `/opt/gwada/live` fallen wieder auf Coolify-Pfad zu
 | Schritt | Status |
 |---------|--------|
 | Runbook | dieses Dokument |
-| Inventur-Workflow / Skript | im Repo-PR |
-| Compose+Caddy + Deploy-Fallback | im Repo-PR |
+| Inventur | **grün** (GH Actions + Artifact) |
+| Compose+Caddy + Deploy-Fallback | PR [#594](https://github.com/daviddr17/gwada-app/pull/594) |
 | Contabo-Snapshot | **offen** (manuell / Secrets PR #576) |
-| Live-Cutover | **blockiert** — siehe Voraussetzungen |
-| Coolify entfernt | nein (erst nach Grün) |
+| Live-Cutover | **blockiert** — Snapshot + `CUTOVER`-Dispatch |
+| Coolify entfernt | **nein** (weiter aktiv) |
+| build-info | unverändert `451bc4a` |
+
+**Nächster Schritt für David:** Contabo-Snapshot von `95.111.229.250`, dann nach Merge von #594:
+
+```bash
+gh workflow run cutover-coolify-to-caddy.yml --ref main \
+  -f confirm=CUTOVER -f snapshot_done=yes
+curl -s https://gwada.app/api/build-info
+```
 
 Siehe auch: [hosting-vergleich-coolify.md](./hosting-vergleich-coolify.md), Repo `docs/coolify-live-deploy.md`, `docs/live-deploy.md`, `docs/gwada-app-domains.md`.

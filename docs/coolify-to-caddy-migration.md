@@ -2,7 +2,7 @@
 
 **Ziel:** Coolify-Control-Plane (UI + Traefik) entfernen. Live bleibt auf Contabo `95.111.229.250` / `gwada.app`. Deploy weiter über GitHub Actions (`deploy-live-*` → GHCR → `docker compose pull/up`). TLS + Reverse-Proxy wie bei Musterungsfuchs: **Caddy**.
 
-**Stand:** 26. Oktober 2026 · Runbook + Repo-Skripte · Inventur per GH Actions **OK** · **Live-Cutover blockiert** (kein Contabo-Snapshot bestätigt; Agent ohne `LIVE_SSH_KEY`).
+**Stand:** 26. Oktober 2026 · **Cutover erfolgreich** · Edge = **Caddy** · Coolify-Control-Plane **gestoppt** · `build-info` weiter `451bc4a`.
 
 ---
 
@@ -169,34 +169,31 @@ Deploy-Skripte mit fehlendem `/opt/gwada/live` fallen wieder auf Coolify-Pfad zu
 
 ## Verify-Checkliste (nach Cutover)
 
-- [ ] `https://gwada.app/api/build-info` = erwarteter SHA
-- [ ] Login / Session
-- [ ] `/sb` (Supabase-Proxy) funktioniert
-- [ ] Studio → Authelia → Studio
-- [ ] `deploy-live-app` einmal erfolgreich ohne Coolify-Restart-API
-- [ ] Coolify-UI gestoppt oder unerreichbar; App weiter grün
-- [ ] Dev-DB-Pfad unverändert nutzbar
+- [x] `https://gwada.app/api/build-info` = `451bc4a`
+- [x] `/` und `/login` → HTTP 200 · Header `server: Caddy`
+- [x] `/sb` → Kong erreichbar (401 ohne Key = Proxy OK, kein 502)
+- [x] Studio → 302 Authelia · Auth → 200 (über Caddy)
+- [ ] `deploy-live-app` einmal post-Cutover (noch ausstehend, optional)
+- [x] Coolify-UI gestoppt; App weiter grün
+- [x] Dev-DB-Pfad nicht angefasst (weiter eigenes Restart-Thema)
 
 ---
 
-## Agent-Status dieses Laufs
+## Outcome 2026-10-26 (Live)
 
-| Schritt | Status |
-|---------|--------|
-| Runbook | dieses Dokument |
-| Inventur | **grün** (GH Actions + Artifact) |
-| Compose+Caddy + Deploy-Fallback | PR [#594](https://github.com/daviddr17/gwada-app/pull/594) |
-| Contabo-Snapshot | **offen** (manuell / Secrets PR #576) |
-| Live-Cutover | **blockiert** — Snapshot + `CUTOVER`-Dispatch |
-| Coolify entfernt | **nein** (weiter aktiv) |
-| build-info | unverändert `451bc4a` |
+| Item | Ergebnis |
+|------|----------|
+| Contabo-Snapshot | David: „Ist durch“ |
+| Prep-PR | [#594](https://github.com/daviddr17/gwada-app/pull/594) → `main` (`a0bf591a`) |
+| Cutover-PR | [#595](https://github.com/daviddr17/gwada-app/pull/595) → `main` |
+| Cutover-Run | [40326278584](https://github.com/daviddr17/gwada-app/actions/runs/40326278584) **success** (~45s; kurz DOWN, dann wieder `451bc4a`) |
+| Coolify-Stop-Run | [40326454251](https://github.com/daviddr17/gwada-app/actions/runs/40326454251) **success** |
+| Edge | `coolify-proxy` (Traefik) **Exited** · `gwada-caddy` **Up** · `server: Caddy` |
+| App | `gwada-app` = `ghcr.io/daviddr17/gwada-app:451bc4a` unter `/opt/gwada/live` |
+| Coolify UI | `coolify` / `coolify-db` / `coolify-redis` / `coolify-realtime` **gestoppt** (Container noch vorhanden, nicht gelöscht) |
+| Supabase Live | unverändert (`*-oogd5syyxiqb1k4g0wy1u9n8`) |
+| Trigger-Dateien | disarmed (`status=done`) — Re-Arm nur bewusst |
 
-**Nächster Schritt für David:** Contabo-Snapshot von `95.111.229.250`, dann nach Merge von #594:
-
-```bash
-gh workflow run cutover-coolify-to-caddy.yml --ref main \
-  -f confirm=CUTOVER -f snapshot_done=yes
-curl -s https://gwada.app/api/build-info
-```
+**Hinweis Agent:** `gh workflow run` war 403 → Cutover/Stop über Push-Trigger `.github/triggers/*.env` (wie `deploy-live.env`).
 
 Siehe auch: [hosting-vergleich-coolify.md](./hosting-vergleich-coolify.md), Repo `docs/coolify-live-deploy.md`, `docs/live-deploy.md`, `docs/gwada-app-domains.md`.

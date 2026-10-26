@@ -1,25 +1,23 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  History,
-  Loader2,
-  Mic,
-  Plus,
-  Send,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useLocale } from "next-intl";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AssistantPendingAction } from "@/lib/assistant/assistant-actions";
 import { consumeAssistantChatStream } from "@/lib/assistant/assistant-chat-stream-client";
 import type { AssistantSsePhase } from "@/lib/assistant/assistant-chat-sse";
+import {
+  AssistantChatHeaderActions,
+  AssistantChatPanel,
+  type AssistantChatMessage,
+  type AssistantChatThread,
+} from "@/components/assistant/assistant-chat-panel";
+import { AppMobileChromeScreen } from "@/components/layout/app-mobile-chrome-screen";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { isSuperadminAppPath } from "@/lib/superadmin/superadmin-session";
 import { createPortal } from "react-dom";
-import { Button } from "@/components/ui/button";
 import {
   getLocalAssistantThread,
   mergeAssistantThreadLists,
@@ -27,7 +25,9 @@ import {
   titleFromAssistantMessage,
   upsertLocalAssistantThread,
 } from "@/lib/assistant/assistant-chat-local";
+import { useAssistantMobileKeyboardInset } from "@/lib/hooks/use-assistant-mobile-keyboard-inset";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { APP_LOCALE_TO_PROFILE, normalizeAppLocale } from "@/i18n/config";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
 import {
@@ -39,27 +39,8 @@ import {
 import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import { cn } from "@/lib/utils";
 
-type Thread = {
-  id: string;
-  title: string;
-  updated_at: string;
-};
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  streaming?: boolean;
-};
-
-function typingLabel(phase: AssistantSsePhase | null, locale: string): string {
-  if (locale !== "de") {
-    if (phase === "tools") return "Working…";
-    return "Typing…";
-  }
-  if (phase === "tools") return "arbeitet …";
-  return "schreibt …";
-}
+type ChatMessage = AssistantChatMessage;
+type Thread = AssistantChatThread;
 
 function newLocalId(prefix = "local") {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -93,12 +74,17 @@ function speakReply(text: string, lang: string) {
   window.speechSynthesis.speak(utter);
 }
 
+/** Sheet-Open-Kurve in AppMobileChromeScreen (~520 ms) — Fokus danach. */
+const MOBILE_FOCUS_DELAY_MS = 560;
+const DESKTOP_FOCUS_DELAY_MS = 220;
+
 export function DashboardAssistantMount() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const pathname = usePathname();
   const zone = isSuperadminAppPath(pathname) ? "superadmin" : "restaurant";
   const locale = normalizeAppLocale(useLocale());
   const dateLocale = APP_LOCALE_TO_PROFILE[locale];
+  const isMobile = useIsMobile();
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -124,6 +110,7 @@ export function DashboardAssistantMount() {
   const abortRef = useRef<AbortController | null>(null);
   const streamMsgIdRef = useRef<string | null>(null);
   const sendGenerationRef = useRef(0);
+  const keyboardInset = useAssistantMobileKeyboardInset(open && isMobile);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -135,9 +122,12 @@ export function DashboardAssistantMount() {
 
   useEffect(() => {
     if (!open) return;
-    const t = window.setTimeout(() => inputRef.current?.focus(), 220);
+    const delay = isMobile ? MOBILE_FOCUS_DELAY_MS : DESKTOP_FOCUS_DELAY_MS;
+    const t = window.setTimeout(() => {
+      inputRef.current?.focus({ preventScroll: true });
+    }, delay);
     return () => window.clearTimeout(t);
-  }, [open, threadId]);
+  }, [open, threadId, isMobile]);
 
   useEffect(() => {
     if (!listRef.current) return;
@@ -547,7 +537,126 @@ export function DashboardAssistantMount() {
     recognitionRef.current?.stop();
   }, [open]);
 
+  const close = useCallback(() => setOpen(false), []);
+
+  const toggleHistory = useCallback(() => {
+    setShowHistory((v) => !v);
+    void loadThreads();
+  }, [loadThreads]);
+
   if (!mounted || !ready || !restaurantId) return null;
+
+  const chatProps = {
+    locale,
+    dateLocale,
+    zone: zone as "superadmin" | "restaurant",
+    messages,
+    threads,
+    threadId,
+    showHistory,
+    loadingThread,
+    bootError,
+    sending,
+    streamPhase,
+    input,
+    listening,
+    canSpeakInput,
+    listRef,
+    inputRef,
+    onInputChange: setInput,
+    onSend: () => void send(),
+    onToggleVoice: toggleVoice,
+    onToggleHistory: toggleHistory,
+    onNewChat: startNewChat,
+    onClose: close,
+    onLoadThread: (id: string) => void loadThread(id),
+  };
+
+  const confirmDialog = (
+    <ConfirmDialog
+      open={pendingAction != null}
+      onOpenChange={(next) => {
+        if (next) return;
+        if (confirmedRef.current) {
+          confirmedRef.current = false;
+          return;
+        }
+        if (suppressCancelRef.current) {
+          suppressCancelRef.current = false;
+          return;
+        }
+        cancelPending();
+      }}
+      title={locale === "de" ? "Jetzt umsetzen?" : "Apply now?"}
+      description={pendingAction?.summary}
+      confirmLabel={locale === "de" ? "Umsetzen" : "Apply"}
+      cancelLabel={locale === "de" ? "Abbrechen" : "Cancel"}
+      destructive={false}
+      confirmDisabled={confirming}
+      onConfirm={confirmPending}
+    />
+  );
+
+  if (isMobile) {
+    return createPortal(
+      <>
+        {/* FAB bleibt klickbar wenn Sheet zu; unter dem Sheet versteckt wenn offen */}
+        {!open ? (
+          <div
+            className={cn(
+              "pointer-events-none fixed flex flex-col items-end gap-3",
+              appMobileAssistantFabEndClassName,
+              appMobileFabBottomClassName,
+            )}
+            style={{ zIndex: APP_LAYER_Z_INDEX.fab + 1 }}
+            data-dashboard-assistant-fab
+          >
+            <motion.button
+              type="button"
+              className={cn(
+                "pointer-events-auto",
+                appMobileFabButtonClassName,
+                brandActionButtonClassName,
+              )}
+              aria-label="Assistent öffnen"
+              aria-expanded={false}
+              onClick={() => setOpen(true)}
+              whileTap={{ scale: 0.94 }}
+            >
+              <Sparkles className={appMobileFabIconClassName} />
+            </motion.button>
+          </div>
+        ) : null}
+        <AppMobileChromeScreen
+          open={open}
+          onClose={close}
+          title="Assistent"
+          aria-label="Gwada Assistent"
+          className={keyboardInset > 0 ? "pb-0" : undefined}
+          headerAction={
+            <AssistantChatHeaderActions
+              onToggleHistory={toggleHistory}
+              onNewChat={startNewChat}
+              onClose={close}
+            />
+          }
+        >
+          <div
+            className="flex min-h-0 flex-1 flex-col"
+            style={
+              keyboardInset > 0
+                ? { paddingBottom: keyboardInset }
+                : undefined
+            }
+          >
+            <AssistantChatPanel variant="mobile" {...chatProps} />
+          </div>
+        </AppMobileChromeScreen>
+        {confirmDialog}
+      </>,
+      document.body,
+    );
+  }
 
   const panel = (
     <div
@@ -571,212 +680,7 @@ export function DashboardAssistantMount() {
             role="dialog"
             aria-label="Gwada Assistent"
           >
-            <header className="flex items-center gap-2 border-b border-border/50 bg-muted/30 px-3 py-2.5">
-              <div className="flex size-8 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent-foreground">
-                <Sparkles className="size-4" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">Assistent</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  Fragen, Stats &amp; Aktionen
-                </p>
-              </div>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                className="rounded-full"
-                aria-label="Verlauf"
-                onClick={() => {
-                  setShowHistory((v) => !v);
-                  void loadThreads();
-                }}
-              >
-                <History className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                className="rounded-full"
-                aria-label="Neuer Chat"
-                onClick={startNewChat}
-              >
-                <Plus className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                className="rounded-full"
-                aria-label="Schließen"
-                onClick={() => setOpen(false)}
-              >
-                <X className="size-4" />
-              </Button>
-            </header>
-
-            <div className="relative min-h-0 flex-1">
-              <div
-                ref={listRef}
-                className="h-full space-y-3 overflow-y-auto px-3 py-3"
-              >
-                {messages.length === 0 && !loadingThread ? (
-                  <div className="space-y-2 rounded-xl border border-dashed border-border/60 bg-muted/20 p-3 text-sm text-muted-foreground">
-                    <p className="font-medium text-foreground">Hallo — wie kann ich helfen?</p>
-                    <ul className="list-disc space-y-1 pl-4">
-                      <li>„Wie viele Reservierungen nächste Woche?“</li>
-                      <li>„Wann haben wir geöffnet?“</li>
-                      <li>„Wie lege ich Sonderöffnungszeiten an?“</li>
-                    </ul>
-                    <p className="pt-1 text-xs leading-relaxed">
-                      {zone === "superadmin"
-                        ? "Offline: Stats, Öffnungszeiten und Handbuch. Mit dem Schlüssel unter Integrationen mehr Dialoge und Aktionen."
-                        : "Offline: Stats, Öffnungszeiten und Handbuch. Mit eigenem Schlüssel unter Einstellungen → Integrationen mehr Dialoge und Aktionen."}
-                    </p>
-                  </div>
-                ) : null}
-                {messages.map((m) => {
-                  if (m.role === "assistant" && m.streaming && !m.content.trim()) {
-                    return null;
-                  }
-                  return (
-                    <div
-                      key={m.id}
-                      className={cn(
-                        "max-w-[90%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-relaxed",
-                        m.role === "user"
-                          ? "ms-auto bg-[color-mix(in_oklab,var(--accent)_22%,transparent)] text-foreground"
-                          : "me-auto border border-border/50 bg-card text-foreground shadow-sm",
-                      )}
-                    >
-                      {m.content}
-                      {m.streaming && m.content.trim() ? (
-                        <span
-                          className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse rounded-sm bg-foreground/70"
-                          aria-hidden
-                        />
-                      ) : null}
-                    </div>
-                  );
-                })}
-                {sending &&
-                !messages.some((m) => m.streaming && m.content.trim()) ? (
-                  <div
-                    className="me-auto flex items-center gap-2 rounded-2xl border border-border/50 bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm"
-                    aria-live="polite"
-                  >
-                    <span className="flex gap-1" aria-hidden>
-                      <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/80" />
-                      <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/55 [animation-delay:150ms]" />
-                      <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/35 [animation-delay:300ms]" />
-                    </span>
-                    {typingLabel(streamPhase, locale)}
-                  </div>
-                ) : null}
-                {bootError ? (
-                  <p className="text-xs text-destructive">{bootError}</p>
-                ) : null}
-              </div>
-
-              <AnimatePresence>
-                {showHistory ? (
-                  <motion.div
-                    key="history"
-                    initial={{ opacity: 0, x: 12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 8 }}
-                    className="absolute inset-0 z-10 flex flex-col bg-background/95 backdrop-blur-sm"
-                  >
-                    <div className="border-b border-border/50 px-3 py-2 text-sm font-medium">
-                      Verlauf
-                    </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                      {threads.length === 0 ? (
-                        <p className="px-2 py-4 text-sm text-muted-foreground">
-                          Noch keine Chats.
-                        </p>
-                      ) : (
-                        threads.map((t) => (
-                          <button
-                            key={t.id}
-                            type="button"
-                            className={cn(
-                              "mb-1 w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-muted/60",
-                              t.id === threadId && "bg-muted/80",
-                            )}
-                            onClick={() => void loadThread(t.id)}
-                          >
-                            <span className="line-clamp-2 font-medium">
-                              {t.title || "Chat"}
-                            </span>
-                            <span className="mt-0.5 block text-xs text-muted-foreground">
-                              {new Date(t.updated_at).toLocaleString(dateLocale, {
-                                dateStyle: "short",
-                                timeStyle: "short",
-                              })}
-                            </span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </div>
-
-            <form
-              className="flex items-end gap-2 border-t border-border/50 p-2.5"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void send();
-              }}
-            >
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                rows={1}
-                placeholder="Nachricht …"
-                className="max-h-28 min-h-10 flex-1 resize-none rounded-xl border border-border/60 bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void send();
-                  }
-                }}
-              />
-              {canSpeakInput ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant={listening ? "default" : "outline"}
-                  className="size-10 shrink-0 rounded-full"
-                  aria-label={listening ? "Zuhören beenden" : "Sprechen"}
-                  aria-pressed={listening}
-                  disabled={sending}
-                  onClick={toggleVoice}
-                >
-                  <Mic className="size-4" />
-                </Button>
-              ) : null}
-              <Button
-                type="submit"
-                size="icon"
-                className={cn(
-                  "size-10 shrink-0 rounded-full",
-                  brandActionButtonClassName,
-                )}
-                disabled={!input.trim()}
-                aria-label={sending ? "Senden (bricht laufende Antwort ab)" : "Senden"}
-              >
-                {sending && !input.trim() ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" />
-                )}
-              </Button>
-            </form>
+            <AssistantChatPanel variant="desktop" {...chatProps} />
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -805,28 +709,7 @@ export function DashboardAssistantMount() {
   return createPortal(
     <>
       {panel}
-      <ConfirmDialog
-        open={pendingAction != null}
-        onOpenChange={(next) => {
-          if (next) return;
-          if (confirmedRef.current) {
-            confirmedRef.current = false;
-            return;
-          }
-          if (suppressCancelRef.current) {
-            suppressCancelRef.current = false;
-            return;
-          }
-          cancelPending();
-        }}
-        title={locale === "de" ? "Jetzt umsetzen?" : "Apply now?"}
-        description={pendingAction?.summary}
-        confirmLabel={locale === "de" ? "Umsetzen" : "Apply"}
-        cancelLabel={locale === "de" ? "Abbrechen" : "Cancel"}
-        destructive={false}
-        confirmDisabled={confirming}
-        onConfirm={confirmPending}
-      />
+      {confirmDialog}
     </>,
     document.body,
   );

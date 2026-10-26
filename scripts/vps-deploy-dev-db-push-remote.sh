@@ -79,28 +79,32 @@ fi
 
 ensure_schema_migrations_table() {
   local user="$1"
-  # CREATE SCHEMA IF NOT EXISTS kann unique_violation werfen obwohl Schema existiert.
-  # SQL via stdin — kein bash-Expand von Dollar-Quotes.
+  # Einzelne -c (kein Heredoc). Schema nur wenn fehlend; sonst nur Table.
+  local exists
+  exists="$(docker compose exec -T -e PGPASSWORD="${PW}" db \
+    psql -U "${user}" -d postgres -tAc "select 1 from pg_namespace where nspname='supabase_migrations';" 2>/dev/null | tr -d '[:space:]' || true)"
+  if [[ "${exists}" != "1" ]]; then
+    exists="$(docker compose exec -T -e PGPASSWORD="${PW}" db \
+      psql -U "${user}" -h localhost -p "${DB_PORT}" -d postgres -tAc \
+      "select 1 from pg_namespace where nspname='supabase_migrations';" 2>/dev/null | tr -d '[:space:]' || true)"
+  fi
+  if [[ "${exists}" != "1" ]]; then
+    docker compose exec -T -e PGPASSWORD="${PW}" db \
+      psql -U "${user}" -d postgres -v ON_ERROR_STOP=0 -c "create schema supabase_migrations;" \
+      || docker compose exec -T -e PGPASSWORD="${PW}" db \
+        psql -U "${user}" -h localhost -p "${DB_PORT}" -d postgres -v ON_ERROR_STOP=0 -c "create schema supabase_migrations;" \
+      || true
+  fi
   docker compose exec -T -e PGPASSWORD="${PW}" db \
-    psql -U "${user}" -h localhost -p "${DB_PORT}" -d postgres -v ON_ERROR_STOP=1 <<'SQL'
-do $ensure$
-begin
-  if not exists (select 1 from pg_namespace where nspname = 'supabase_migrations') then
-    create schema supabase_migrations;
-  end if;
-exception
-  when duplicate_object then null;
-  when unique_violation then null;
-end
-$ensure$;
-create table if not exists supabase_migrations.schema_migrations (
-  version text primary key,
-  statements text[],
-  name text
-);
-grant usage, create on schema supabase_migrations to postgres, supabase_admin;
-grant all on table supabase_migrations.schema_migrations to postgres, supabase_admin;
-SQL
+    psql -U "${user}" -d postgres -v ON_ERROR_STOP=1 -c \
+    "create table if not exists supabase_migrations.schema_migrations (version text primary key, statements text[], name text);" \
+    || docker compose exec -T -e PGPASSWORD="${PW}" db \
+      psql -U "${user}" -h localhost -p "${DB_PORT}" -d postgres -v ON_ERROR_STOP=1 -c \
+      "create table if not exists supabase_migrations.schema_migrations (version text primary key, statements text[], name text);"
+  docker compose exec -T -e PGPASSWORD="${PW}" db \
+    psql -U "${user}" -d postgres -v ON_ERROR_STOP=0 -c \
+    "grant usage, create on schema supabase_migrations to postgres, supabase_admin; grant all on table supabase_migrations.schema_migrations to postgres, supabase_admin;" \
+    || true
 }
 
 # Ownership/Grants + Fallback falls Repair scheiterte.

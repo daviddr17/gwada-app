@@ -39,7 +39,6 @@ import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   SOCIAL_FEED_LAYOUT_CHIP_LABELS,
-  SOCIAL_SLOT_KIND_LABELS,
   type SocialMediaTask,
   type SocialPostSuggestion,
   type SocialSuggestionAsset,
@@ -52,6 +51,7 @@ import {
   type SocialFeedLayoutId,
 } from "@/lib/social/social-feed-brand-system";
 import { defaultSocialBrandKit } from "@/lib/social/social-brand-kit";
+import { contentReasonFromSuggestion } from "@/lib/social/social-autopilot-relevance";
 import { resolveSuggestionFeedLayout } from "@/lib/social/social-feed-layout";
 import { socialPublishPlatformLabel } from "@/lib/social/social-publish-platforms";
 import { isNewsPlatform } from "@/lib/constants/news-platforms";
@@ -192,20 +192,26 @@ export function SocialAutopilotScreen() {
           setActionsId(null);
           if (gen?.skippedReason === "ai_not_configured") {
             toast.error(
-              "Autopilot braucht die KI-Verbindung (OpenAI oder Grok) unter Einstellungen → Integrationen",
+              "Autopilot braucht euren Restaurant-KI-Schlüssel (OpenAI oder Grok) unter Einstellungen → Integrationen",
             );
           } else if (gen?.skippedReason === "disabled") {
             toast.error("Autopilot ist in der Social-Marke ausgeschaltet");
+          } else if (gen?.skippedReason === "needs_media") {
+            toast.error(
+              "Keine Bilder gefunden — bitte Galerie-, Speisekarten- oder Profilfotos hinterlegen",
+            );
           } else if ((gen?.created ?? 0) > 0) {
             const llmHint =
               (gen?.llmApplied ?? 0) > 0
-                ? " · Texte mit Restaurant-KI"
+                ? " · Texte mit eurer Restaurant-KI"
                 : " · Vorlagen (KI-Antwort unbrauchbar)";
             toast.success(
-              `${gen!.created} neue Vorschläge mit Galerie & Speisekarte${llmHint}`,
+              `${gen!.created} Vorschläge aus Speisekarte, Galerie & Events${llmHint}`,
             );
           } else {
-            toast.message("Keine neuen Vorschläge erzeugt");
+            toast.message(
+              "Keine neuen Vorschläge — prüft Bilder, Events oder die Social-Marke",
+            );
           }
         } else {
           setDraftTitles((prev) => {
@@ -385,7 +391,9 @@ export function SocialAutopilotScreen() {
   const publishStories = kit?.publishStories !== false;
   const ctaLabel = kit?.cta ?? "Tisch reservieren";
   const logoUrl =
-    assetOptions.find((o) => o.id === "profile:avatar")?.imageUrl ?? null;
+    assetOptions.find((o) => o.id === "profile:avatar")?.imageUrl ??
+    assetOptions.find((o) => o.id === "profile:cover")?.imageUrl ??
+    null;
 
   const editing = editId
     ? suggestions.find((s) => s.id === editId) ?? null
@@ -396,8 +404,17 @@ export function SocialAutopilotScreen() {
 
   const galleryCount = assetOptions.filter((o) => o.group === "gallery").length;
   const menuCount = assetOptions.filter((o) => o.group === "menu").length;
+  const profileCount = assetOptions.filter((o) => o.group === "profile").length;
+  const eventCount = assetOptions.filter((o) => o.group === "event").length;
+  const mediaReady = galleryCount + menuCount + profileCount + eventCount > 0;
 
   const aiReady = aiConfigured === true;
+  const aiLabel =
+    aiProvider === "grok"
+      ? "Grok"
+      : aiProvider === "openai"
+        ? "OpenAI"
+        : "Restaurant-KI";
 
   return (
     <div className="space-y-6 pb-4">
@@ -405,11 +422,11 @@ export function SocialAutopilotScreen() {
         <Card className="border-border/50 shadow-card">
           <CardContent className="space-y-3 pt-5">
             <div className="space-y-1">
-              <p className="text-sm font-medium">KI-Verbindung fehlt</p>
+              <p className="text-sm font-medium">Euer KI-Abo fehlt</p>
               <p className="text-sm text-muted-foreground">
-                Der News-Autopilot nutzt denselben OpenAI- oder Grok-Schlüssel wie
-                der Restaurant-Assistent. Ohne hinterlegten Schlüssel werden keine
-                Vorschläge erzeugt.
+                Autopilot schreibt Captions mit demselben OpenAI- oder
+                Grok-Schlüssel wie der Restaurant-Assistent — euer Abo, eure
+                Kosten. Ohne Schlüssel entstehen keine Vorschläge.
               </p>
             </div>
             <Button
@@ -422,7 +439,26 @@ export function SocialAutopilotScreen() {
             </Button>
           </CardContent>
         </Card>
-      ) : null}
+      ) : (
+        <Card className="border-border/50 shadow-card">
+          <CardContent className="space-y-2 pt-5">
+            <p className="text-sm font-medium">So funktioniert Autopilot</p>
+            <p className="text-sm text-muted-foreground">
+              Mischt eure Speisekarte, Galerie und nahe Events zu Post-Vorschlägen
+              mit Bild und Social-Marke. Texte schreibt{" "}
+              <span className="text-foreground">{aiLabel}</span> über euren
+              Schlüssel unter Integrationen — Gwada verbraucht keinen eigenen
+              KI-Key dafür. Feiertage nur, wenn sie in den nächsten Tagen liegen.
+            </p>
+            {!logoUrl ? (
+              <p className="text-xs text-muted-foreground">
+                Tipp: Logo/Avatar im Restaurant-Profil hinterlegen — dann erscheint
+                es in der Vorschau.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       <Button
         type="button"
@@ -445,10 +481,10 @@ export function SocialAutopilotScreen() {
                 : null}
             </p>
             <p className="text-xs text-muted-foreground/90">
-              Bildquellen: {galleryCount} Galerie · {menuCount} Speisekarte
-              {aiReady
-                ? ` · Texte: ${aiProvider === "grok" ? "Grok" : "OpenAI"}`
-                : null}
+              Bilder: {galleryCount} Galerie · {menuCount} Speisekarte
+              {eventCount > 0 ? ` · ${eventCount} Events` : null}
+              {profileCount > 0 ? ` · ${profileCount} Profil` : null}
+              {aiReady ? ` · Texte: euer ${aiLabel}` : null}
             </p>
           </div>
           <Button
@@ -461,6 +497,28 @@ export function SocialAutopilotScreen() {
             Anpassen
           </Button>
         </div>
+      ) : null}
+
+      {aiReady && !mediaReady && !loading ? (
+        <Card className="border-border/50 shadow-card">
+          <CardContent className="space-y-3 pt-5">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Bilder fehlen</p>
+              <p className="text-sm text-muted-foreground">
+                Ohne Galerie-, Speisekarten- oder Profilfotos erzeugt Autopilot
+                keine Text-only-Posts. Ladet Fotos hoch, dann erneut vorschlagen.
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="lg"
+              className={cn("w-full", brandActionButtonRoundedClassName)}
+              render={<Link href={APP_ROUTES.galerie.overview} />}
+            >
+              Zur Galerie
+            </Button>
+          </CardContent>
+        </Card>
       ) : null}
 
       {tasks.length > 0 ? (
@@ -523,8 +581,8 @@ export function SocialAutopilotScreen() {
         </div>
       ) : suggestions.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          Keine offenen Vorschläge. „Neu vorschlagen“ mischt Galerie- und
-          Speisekarten-Bilder — oder warte auf den nächsten Wochenlauf.
+          Keine offenen Vorschläge. „Neu vorschlagen“ baut Posts aus eurer
+          Speisekarte, Galerie und nahen Events — mit Bild und eurer Restaurant-KI.
         </p>
       ) : (
         <div className="space-y-5">
@@ -532,6 +590,12 @@ export function SocialAutopilotScreen() {
             const title = draftTitles[s.id] ?? s.title?.trim() ?? "";
             const caption = draftCaptions[s.id] ?? s.caption;
             const layout = layoutForSuggestion(s);
+            const reason = contentReasonFromSuggestion({
+              slotKind: s.slotKind,
+              title: s.title,
+              assetLabel: s.asset.imageLabel ?? null,
+              source: s.source,
+            });
             const sourceLabel =
               s.asset.source === "gallery"
                 ? "Galerie"
@@ -540,34 +604,43 @@ export function SocialAutopilotScreen() {
                   : s.asset.source === "event"
                     ? "Event"
                     : s.asset.source === "profile"
-                      ? "Profil"
-                      : "Ohne Bild";
+                      ? "Profil / Logo"
+                      : "Bild fehlt";
             return (
               <Card
                 key={s.id}
                 className="overflow-hidden border-border/50 shadow-card"
               >
                 <CardContent className="space-y-4 pt-5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <MetaChip>{SOCIAL_SLOT_KIND_LABELS[s.slotKind]}</MetaChip>
-                    <MetaChip>{sourceLabel}</MetaChip>
-                    <MetaChip>{SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}</MetaChip>
-                    {s.platforms.filter(isNewsPlatform).map((p) => (
-                      <MetaChip key={p}>
-                        {socialPublishPlatformLabel(p)}
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <MetaChip className="border-accent/40 bg-accent/10 text-foreground">
+                        {reason.label}
                       </MetaChip>
-                    ))}
-                    {publishStories &&
-                    (s.platforms.includes("facebook") ||
-                      s.platforms.includes("instagram")) ? (
-                      <MetaChip>+ Story</MetaChip>
-                    ) : null}
-                    <MetaChip>{formatPlan(s.plannedAt)}</MetaChip>
-                    {s.status === "needs_asset" ? (
-                      <MetaChip className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200">
-                        Bild fehlt
+                      <MetaChip>{sourceLabel}</MetaChip>
+                      <MetaChip>
+                        {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}
                       </MetaChip>
-                    ) : null}
+                      {s.platforms.filter(isNewsPlatform).map((p) => (
+                        <MetaChip key={p}>
+                          {socialPublishPlatformLabel(p)}
+                        </MetaChip>
+                      ))}
+                      {publishStories &&
+                      (s.platforms.includes("facebook") ||
+                        s.platforms.includes("instagram")) ? (
+                        <MetaChip>+ Story</MetaChip>
+                      ) : null}
+                      <MetaChip>{formatPlan(s.plannedAt)}</MetaChip>
+                      {s.status === "needs_asset" || !s.asset.imageUrl ? (
+                        <MetaChip className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200">
+                          Bild fehlt
+                        </MetaChip>
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Bezug: {reason.detail}
+                    </p>
                   </div>
 
                   <div className="mx-auto w-full max-w-md">

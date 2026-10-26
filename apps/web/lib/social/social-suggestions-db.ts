@@ -193,20 +193,30 @@ export async function insertSocialSuggestionsInDb(
   return data?.length ?? 0;
 }
 
-/** Offene Vorschläge verwerfen (z. B. vor Neu-Generierung mit aktuellem Brand Kit). */
+/**
+ * Offene Vorschläge verwerfen (z. B. vor „Neu vorschlagen“).
+ * Ohne `suggestionIds`: alle pending/needs_asset des Restaurants — vermeidet
+ * Duplikat-Akkumulation, wenn die ID-Liste unvollständig wäre.
+ */
 export async function skipPendingSocialSuggestionsInDb(
   sb: SupabaseClient,
   restaurantId: string,
-  suggestionIds: string[],
+  suggestionIds?: string[],
 ): Promise<number> {
-  if (!isUuidRestaurantId(restaurantId) || suggestionIds.length === 0) return 0;
-  const { data, error } = await sb
+  if (!isUuidRestaurantId(restaurantId)) return 0;
+  if (suggestionIds && suggestionIds.length === 0) return 0;
+
+  let query = sb
     .from("social_post_suggestions")
     .update({ status: "skipped" })
     .eq("restaurant_id", restaurantId)
-    .in("id", suggestionIds)
-    .in("status", ["pending", "needs_asset"])
-    .select("id");
+    .in("status", ["pending", "needs_asset"]);
+
+  if (suggestionIds && suggestionIds.length > 0) {
+    query = query.in("id", suggestionIds);
+  }
+
+  const { data, error } = await query.select("id");
   if (error) {
     console.warn("[gwada] skipPendingSocialSuggestionsInDb", error.message);
     return 0;

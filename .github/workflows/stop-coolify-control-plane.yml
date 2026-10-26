@@ -1,0 +1,74 @@
+# Stoppt Coolify-UI/Control-Plane nach erfolgreichem Caddy-Cutover.
+name: Stop Coolify control plane
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Muss exakt STOP sein
+        required: true
+        type: string
+  push:
+    branches:
+      - main
+      - "cursor/**"
+    paths:
+      - .github/triggers/stop-coolify-control-plane.env
+      - .github/workflows/stop-coolify-control-plane.yml
+
+concurrency:
+  group: stop-coolify-control-plane
+  cancel-in-progress: false
+
+jobs:
+  stop:
+    name: Stop Coolify UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Guardrails
+        id: guard
+        run: |
+          set -euo pipefail
+          CONFIRM=""
+          STATUS=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CONFIRM="${{ inputs.confirm }}"
+          elif [ -f .github/triggers/stop-coolify-control-plane.env ]; then
+            CONFIRM="$(grep -E '^confirm=' .github/triggers/stop-coolify-control-plane.env | cut -d= -f2- | tr -d '[:space:]' || true)"
+            STATUS="$(grep -E '^status=' .github/triggers/stop-coolify-control-plane.env | cut -d= -f2- | tr -d '[:space:]' || true)"
+          fi
+          if [ "${STATUS}" = "done" ] || [ "${STATUS}" = "disarmed" ]; then
+            echo "Trigger disarmed (status=${STATUS}) — Stop übersprungen."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${CONFIRM}" != "STOP" ]; then
+            echo "::error::confirm muss STOP sein (got '${CONFIRM}')."
+            exit 1
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Stop via SSH
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          GWADA_CONFIRM_STOP_COOLIFY: STOP
+        run: |
+          set -euo pipefail
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          chmod +x scripts/vps-stop-coolify-control-plane.sh
+          bash scripts/vps-stop-coolify-control-plane.sh

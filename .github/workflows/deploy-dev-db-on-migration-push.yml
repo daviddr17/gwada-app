@@ -14,6 +14,9 @@ on:
       - "scripts/vps-deploy-dev-db-push-remote.sh"
       - "scripts/vps-finish-dev-db-after-push-remote.sh"
       - "scripts/vps-dev-db-repair-missing-files.sh"
+      - "scripts/vps-reset-dev-db-volume-remote.sh"
+      - "scripts/vps-provision-dev-supabase.sh"
+      - "scripts/vps-refresh-dev-env.sh"
       - ".github/workflows/deploy-dev-db-on-migration-push.yml"
 
 concurrency:
@@ -23,6 +26,8 @@ concurrency:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    # Volume-Reset + pull + Full-Migrate bei korrupter Dev-DB kann >15 Min dauern.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
@@ -55,3 +60,28 @@ jobs:
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           bash scripts/deploy-db-dev-ci.sh
+
+      - name: Download refreshed dev env (nach Volume-Reset)
+        if: success()
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p dev-env-artifact
+          if ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            test -f /tmp/gwada-dev-volume-was-reset; then
+            scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+              "root@${LIVE_VPS_HOST}:/root/gwada-dev-env.development" \
+              dev-env-artifact/gwada-dev-env.development
+            echo "DEV_ENV_REFRESHED=1" >> "$GITHUB_ENV"
+          else
+            echo "Kein Volume-Reset — kein neues Env-Artifact nötig."
+          fi
+
+      - name: Upload refreshed dev env artifact
+        if: env.DEV_ENV_REFRESHED == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-env
+          path: dev-env-artifact/gwada-dev-env.development
+          retention-days: 90

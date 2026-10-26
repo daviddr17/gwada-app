@@ -11,8 +11,8 @@ import {
   isPublicSupabaseProxyEnabled,
 } from "@/lib/public-env";
 import type {
-  SuperadminCoolifyInfo,
   SuperadminDatabaseDetails,
+  SuperadminHostingInfo,
   SuperadminVpsInfo,
 } from "@/lib/types/superadmin-ops-status";
 
@@ -135,37 +135,15 @@ export function buildSuperadminDatabaseDetails(): SuperadminDatabaseDetails {
   };
 }
 
-function resolveCoolifyDashboardUrl(): string | null {
-  const explicit = parseSafeHttpOrigin(process.env.GWADA_COOLIFY_DASHBOARD_URL);
-  if (explicit) return explicit;
-  const host = process.env.GWADA_VPS_PUBLIC_HOST?.trim()?.replace(
-    /^https?:\/\//,
-    "",
-  );
-  if (host) {
-    return `http://${host.split("/")[0]}:8000`;
-  }
-  return null;
-}
-
-export function buildSuperadminCoolifyInfo(): SuperadminCoolifyInfo {
+export function buildSuperadminHostingInfo(): SuperadminHostingInfo {
   const upstream = process.env.SUPABASE_UPSTREAM_URL?.trim() ?? "";
   const supabaseDockerStack = upstream.includes("supabase-kong-");
-  const runtime =
-    process.env.NODE_ENV === "production" ? "production" : "development";
-  const proxyEnabled = isPublicSupabaseProxyEnabled();
-  const hostingDetected = Boolean(
-    process.env.COOLIFY_FQDN?.trim() ||
-      process.env.COOLIFY_RESOURCE_UUID?.trim() ||
-      process.env.GWADA_COOLIFY_APP_UUID?.trim() ||
-      supabaseDockerStack ||
-      (runtime === "production" && proxyEnabled && upstream),
-  );
 
   return {
-    hostingDetected,
+    edgeProxy: "caddy",
+    composeRoot: "/opt/gwada/live",
     supabaseDockerStack,
-    dashboardUrl: resolveCoolifyDashboardUrl(),
+    coolifyControlPlane: "stopped",
   };
 }
 

@@ -349,7 +349,7 @@ export function SuperadminDatabasePanel() {
             <CardTitle className="text-base">Live & Deploy</CardTitle>
             <SectionIntro
               what="Live (gwada.app) vs. origin/main — Deploy läuft über GitHub Actions."
-              does="Push auf origin/main deployt nicht automatisch. Standard: „DB + App“ (deploy-live-full auf GitHub). Verifikation: /api/build-info = origin-SHA. Live-Daten werden nicht überschrieben. Coolify nur Infrastruktur."
+              does="Push auf origin/main deployt nicht automatisch. Standard: „DB + App“ (deploy-live-full auf GitHub → GHCR → Compose unter /opt/gwada/live). Verifikation: /api/build-info = origin-SHA. Live-Daten werden nicht überschrieben."
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -745,7 +745,7 @@ export function SuperadminDatabasePanel() {
             <CardTitle className="text-base">VPS (Contabo)</CardTitle>
             <SectionIntro
               what="App-/DB-Host unter gwada.app (Contabo)."
-              does="Next.js-App (Docker), Supabase und Traefik. Deploys: GitHub Actions → ghcr.io → SSH-Pull. WAHA läuft auf einem eigenen Server — Neustart dort unter Superadmin → WAHA."
+              does="Next.js-App (Docker Compose unter /opt/gwada/live), Supabase und Caddy (TLS). Deploys: GitHub Actions → ghcr.io → SSH-Pull. WAHA läuft auf einem eigenen Server — Neustart dort unter Superadmin → WAHA."
             />
           </CardHeader>
           <CardContent className="space-y-4">
@@ -844,52 +844,56 @@ export function SuperadminDatabasePanel() {
 
         <Card className="border-border/50 shadow-card">
           <CardHeader>
-            <CardTitle className="text-base">Coolify</CardTitle>
+            <CardTitle className="text-base">Hosting</CardTitle>
             <SectionIntro
-              what="Nur Infrastruktur (Domain, TLS, Env, Compose)."
-              does="Kein App-Deploy über Coolify-Webhook/Nixpacks. App und Schema: Superadmin „DB + App“ bzw. deploy-live-full.yml (ruft db + app auf)."
+              what="Edge und App-Stack auf dem Live-VPS (nach Coolify→Caddy-Cutover)."
+              does="Caddy übernimmt TLS und Reverse-Proxy. App läuft per Docker Compose unter /opt/gwada/live. Deploy nur über GitHub Actions / Superadmin „DB + App“ — kein Coolify-Webhook und keine Deploy-Queue."
             />
           </CardHeader>
           <CardContent>
             <dl className="grid gap-3">
               <InfoRow
+                label="Edge / TLS"
+                value={
+                  status.hosting.edgeProxy === "caddy"
+                    ? "Caddy (Ports 80/443)"
+                    : status.hosting.edgeProxy
+                }
+              />
+              <InfoRow
+                label="App-Compose"
+                value={status.hosting.composeRoot}
+                mono
+              />
+              <InfoRow
                 label="App-Deploy"
                 value="GitHub Actions (deploy-live-full / app / db)"
               />
               <InfoRow
-                label="Coolify auf Server"
-                value={
-                  status.coolify.hostingDetected
-                    ? "Erkannt (Hosting/Env)"
-                    : "Nicht erkannt (lokal)"
-                }
+                label="Verifikation"
+                value="/api/build-info = origin-SHA"
+                mono
               />
               <InfoRow
                 label="Supabase Docker-Stack"
                 value={
-                  status.coolify.supabaseDockerStack
+                  status.hosting.supabaseDockerStack
                     ? "Ja (Kong im Docker-Netz)"
                     : "Nein / lokal"
                 }
               />
               <InfoRow
-                label="Coolify-UI"
+                label="Coolify"
                 value={
-                  status.coolify.dashboardUrl ? (
-                    <InfoRowLink
-                      href={status.coolify.dashboardUrl}
-                      label={status.coolify.dashboardUrl}
-                    />
-                  ) : (
-                    "Optional: GWADA_COOLIFY_DASHBOARD_URL"
-                  )
+                  status.hosting.coolifyControlPlane === "stopped"
+                    ? "Gestoppt — kein Control-Plane, kein App-Deploy"
+                    : status.hosting.coolifyControlPlane
                 }
               />
             </dl>
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              Coolify-Deploy-Webhook und Build-Queue für die App nicht mehr
-              nutzen — sonst kann „finished“ angezeigt werden, während live noch
-              ein altes Image läuft.
+              Live-Stand immer über /api/build-info bzw. die Karte „Live & Deploy“
+              prüfen — nicht über eine externe Hosting-UI.
             </p>
           </CardContent>
         </Card>

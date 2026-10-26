@@ -119,11 +119,19 @@ export type SuperadminRepositoryGuide = {
   docLinks: { label: string; path: string }[];
 };
 
-/** Coolify: nur noch Infrastruktur/Hosting — kein App-Deploy mehr */
-export type SuperadminCoolifyInfo = {
-  hostingDetected: boolean;
+/**
+ * Live-Hosting nach Coolify→Caddy-Cutover.
+ * Edge = Caddy; App unter `/opt/gwada/live` (Compose). Coolify-Control-Plane entfernt.
+ */
+export type SuperadminHostingInfo = {
+  /** TLS / Reverse-Proxy vor der App */
+  edgeProxy: "caddy";
+  /** Compose-Root der Live-App auf dem VPS */
+  composeRoot: "/opt/gwada/live";
+  /** Supabase/Kong läuft als Docker-Stack (nicht lokal) */
   supabaseDockerStack: boolean;
-  dashboardUrl: string | null;
+  /** Coolify-UI/Traefik — gestoppt, kein Deploy-Pfad */
+  coolifyControlPlane: "stopped";
 };
 
 export type SuperadminDatabaseStatus = {
@@ -140,7 +148,7 @@ export type SuperadminDatabaseStatus = {
   vps: SuperadminVpsInfo;
   github: SuperadminGithubRepoStatus;
   liveApp: SuperadminLiveAppDeployStatus;
-  coolify: SuperadminCoolifyInfo;
+  hosting: SuperadminHostingInfo;
   repository: SuperadminRepositoryGuide;
   counts: {
     restaurants: number | null;

@@ -24,9 +24,9 @@ import {
   type AssistantStreamToolAcc,
 } from "@/lib/assistant/assistant-stream-tool-acc";
 import { runAssistantOfflineFallback } from "@/lib/assistant/assistant-offline-fallback";
-import { ASSISTANT_TOOL_DEFINITIONS } from "@/lib/assistant/assistant-tool-definitions";
 import type { AssistantToolContext } from "@/lib/assistant/assistant-tool-context";
 import { runAssistantToolByName } from "@/lib/assistant/assistant-tool-dispatch";
+import { assistantToolsForCaller } from "@/lib/assistant/assistant-tool-permissions";
 
 export { accumulateStreamToolCallDelta } from "@/lib/assistant/assistant-stream-tool-acc";
 
@@ -86,8 +86,8 @@ function buildSystemPrompt(input: {
     "Lesen: höchstens kurze Listen (≤8) oder ein Treffer. Ohne Zeitraum = heute. Kein Datum raten.",
     "Wenn ein Tool `ask` liefert: genau diese eine Rückfrage stellen und warten.",
     "Schreiben/Sync/Senden: immer confirm=false. Die App fragt „Jetzt umsetzen?“ — nie still speichern oder senden.",
-    "Kannst du: Reservierungen, Öffnungszeiten, Plattform-Sync, Speisekarte inkl. Rezept, Bestand/Bestellungen, Mitarbeiter/Schichten, Kontakte/Nachrichten senden, Bewertungen, News/Events-Zähler (nicht publizieren), offene Rechnungen, Statistiken, Handbuch.",
-    "Kannst du nicht (ehrlich, App nennen): News/Events/Galerie publizieren, Integrationen verbinden, Display, Buchhaltungsbelege anlegen/senden, Verträge/Rechte, Optionsgruppen/Gerichtsbilder, Superadmin-Daten mit Restaurant-Key.",
+    "Kannst du (je nach User-Recht, Tools sind gefiltert): Reservierungen voll (inkl. Edit/Löschen/Tagesnotiz/Änderungsanfrage); Kontakte CRUD + Thread lesen/gelesen + Nachrichten senden; Review antworten/gelesen; News/Events Entwurf+Publish; Speisekarte inkl. Rezept/Kategorie/Tag/Allergen/Löschen; Bestand Zutat/Bestellung anlegen + Status; Mitarbeiter anlegen/löschen + Schichtplan; Checklisten/ToDos; Dokumente listen+Notiz; Anleitungen/Eigenkontrollen; Kassenbuch-Eintrag; Stammdaten (ohne Secrets); Öffnungszeiten/Sync; Insights; Handbuch.",
+    "Kannst du nicht (ehrlich, App nennen): OAuth/Integrationen verbinden oder Keys hinterlegen; Galerie/POS/Display/Team-Rollen/Billing; Binär-Uploads (Bilder/Dokumente-Dateien); Verträge/Vorschüsse; Massen-Schreiben über alle Häuser; Superadmin-Plattformdaten mit Restaurant-Key.",
     "Nur dieses Haus. restaurant_id nie setzen. Wochentage: weekday_label aus Tools. Handbuch: /docs/handbook/<slug>.",
     `Locale: ${input.locale} · Zeitzone: ${input.timeZone} · Heute: ${today}`,
   ].join("\n");
@@ -178,6 +178,13 @@ export async function streamAssistantChatTurn(input: {
   const toolPayloads: string[] = [];
   emit({ type: "status", phase: "thinking" });
 
+  const tools = await assistantToolsForCaller({
+    sb: input.ctx.sb,
+    restaurantId: input.ctx.restaurantId,
+    skipFilter:
+      input.ctx.callerIsSuperadmin && input.ctx.zone === "superadmin",
+  });
+
   for (let step = 0; step < ASSISTANT_MAX_TOOL_ROUNDS; step++) {
     throwIfAborted(input.signal);
 
@@ -190,7 +197,7 @@ export async function streamAssistantChatTurn(input: {
       const stream = await client.chat.completions.create({
         model: llm.model,
         messages,
-        tools: ASSISTANT_TOOL_DEFINITIONS,
+        tools,
         tool_choice: "auto",
         temperature: 0.5,
         stream: true,

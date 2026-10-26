@@ -11,8 +11,16 @@ import {
   applyAdjustIngredientStockPreview,
   applySetMenuItemActivePreview,
   applySetPurchaseOrderStatusPreview,
-  applyUpdateReservationPreview,
 } from "@/lib/assistant/assistant-module-write-tools";
+import {
+  FULL_OPS_CONFIRM_APPLIERS,
+} from "@/lib/assistant/assistant-full-ops-tools";
+import {
+  applyDeleteReservationPreview,
+  applyResolveReservationChangeRequestPreview,
+  applySetReservationDayNotePreview,
+  applyUpdateReservationPreview,
+} from "@/lib/assistant/assistant-reservation-write-tools";
 import {
   persistOpeningHoursPreview,
   toolSyncPlatforms,
@@ -24,6 +32,7 @@ import { authorizeRestaurantModule } from "@/lib/permissions/authorize-restauran
 import { getSuperadminSession } from "@/lib/superadmin/superadmin-session";
 import { normalizeAppLocale } from "@/i18n/config";
 import { getLocale } from "next-intl/server";
+import type { AppLocale } from "@/i18n/config";
 
 export const dynamic = "force-dynamic";
 
@@ -93,39 +102,34 @@ export async function POST(req: Request) {
     const mutation = preview as { action?: string; args?: Record<string, unknown> };
     const action = mutation.action?.trim() ?? "";
     const args = mutation.args ?? {};
-    let raw = "";
-    switch (action) {
-      case "update_reservation":
-        raw = await applyUpdateReservationPreview(ctx, args, locale);
-        break;
-      case "set_menu_item_active":
-        raw = await applySetMenuItemActivePreview(ctx, args, locale);
-        break;
-      case "adjust_ingredient_stock":
-        raw = await applyAdjustIngredientStockPreview(ctx, args, locale);
-        break;
-      case "set_purchase_order_status":
-        raw = await applySetPurchaseOrderStatusPreview(ctx, args, locale);
-        break;
-      case "sync_platforms":
-        raw = await toolSyncPlatforms(
-          ctx,
-          { ...args, confirm: true },
-          locale,
-        );
-        break;
-      case "upsert_menu_item":
-        raw = await applyUpsertMenuItemPreview(ctx, args, locale);
-        break;
-      case "update_staff":
-        raw = await applyUpdateStaffPreview(ctx, args, locale);
-        break;
-      case "send_contact_message":
-        raw = await applySendContactMessagePreview(ctx, args, locale);
-        break;
-      default:
-        return Response.json({ error: "unknown_action" }, { status: 400 });
+    const legacyAppliers: Record<
+      string,
+      (
+        c: AssistantToolContext,
+        a: Record<string, unknown>,
+        l: AppLocale,
+      ) => Promise<string>
+    > = {
+      update_reservation: applyUpdateReservationPreview,
+      delete_reservation: applyDeleteReservationPreview,
+      set_reservation_day_note: applySetReservationDayNotePreview,
+      resolve_reservation_change_request:
+        applyResolveReservationChangeRequestPreview,
+      set_menu_item_active: applySetMenuItemActivePreview,
+      adjust_ingredient_stock: applyAdjustIngredientStockPreview,
+      set_purchase_order_status: applySetPurchaseOrderStatusPreview,
+      upsert_menu_item: applyUpsertMenuItemPreview,
+      update_staff: applyUpdateStaffPreview,
+      send_contact_message: applySendContactMessagePreview,
+      sync_platforms: (c, a, l) =>
+        toolSyncPlatforms(c, { ...a, confirm: true }, l),
+      ...FULL_OPS_CONFIRM_APPLIERS,
+    };
+    const apply = legacyAppliers[action];
+    if (!apply) {
+      return Response.json({ error: "unknown_action" }, { status: 400 });
     }
+    const raw = await apply(ctx, args, locale);
     const parsed = parseToolResult(raw);
     const success =
       parsed.ok === true &&

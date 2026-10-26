@@ -75,18 +75,42 @@ if [[ -f /tmp/vps-dev-db-repair-missing-files.sh ]]; then
   bash /tmp/vps-dev-db-repair-missing-files.sh "${compose_dir}" "${DB_PORT}" "${PW}"
 fi
 
-# Nach Repair erneut User wählen
+# Ownership/Grants: CLI braucht CREATE am Schema (sonst 42501 "permission denied for schema").
+echo "→ schema_migrations Ownership/Grants härten …"
+docker compose exec -T -e PGPASSWORD="${PW}" db \
+  psql -U postgres -h localhost -p "${DB_PORT}" -d postgres -v ON_ERROR_STOP=0 -c "
+    create schema if not exists supabase_migrations;
+    alter schema supabase_migrations owner to postgres;
+    grant usage, create on schema supabase_migrations to postgres, supabase_admin;
+    grant all on all tables in schema supabase_migrations to postgres, supabase_admin;
+    alter default privileges in schema supabase_migrations
+      grant all on tables to postgres, supabase_admin;
+  " >/dev/null 2>&1 || true
+
+# Nach Repair/Grants: Push als postgres (Superuser) — vermeidet CLI CREATE-Permission-Fail.
+DB_USER="postgres"
 if docker compose exec -T -e PGPASSWORD="${PW}" db \
-  psql -U supabase_admin -h localhost -p "${DB_PORT}" -d postgres -tAc \
-  "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
-  DB_USER="supabase_admin"
-elif docker compose exec -T -e PGPASSWORD="${PW}" db \
   psql -U postgres -h localhost -p "${DB_PORT}" -d postgres -tAc \
   "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
   DB_USER="postgres"
+elif docker compose exec -T -e PGPASSWORD="${PW}" db \
+  psql -U supabase_admin -h localhost -p "${DB_PORT}" -d postgres -tAc \
+  "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
+  DB_USER="supabase_admin"
 fi
 DB_URL="postgresql://${DB_USER}:${ENC_PW}@127.0.0.1:${DB_PORT}/postgres?sslmode=disable"
 echo "→ DB-User für Push: ${DB_USER}"
+
+# Frische DB nach Volume-Reset: kein History-Seed — alle Migrationen wirklich anwenden.
+FRESH_AFTER_RESET=0
+if [[ -f /tmp/gwada-dev-volume-was-reset ]]; then
+  FRESH_AFTER_RESET=1
+fi
+HAS_RESTAURANTS="$(
+  docker compose exec -T -e PGPASSWORD="${PW}" db \
+    psql -U postgres -h localhost -p "${DB_PORT}" -d postgres -tAc \
+    "select to_regclass('public.restaurants') is not null;" 2>/dev/null | tr -d '[:space:]' || echo f
+)"
 
 seed_applied_except_latest() {
   shopt -s nullglob
@@ -128,8 +152,12 @@ done
 shopt -s nullglob
 local_migs=("${mig_root}/supabase/migrations/"*.sql)
 
-if (( remote_count == 0 && ${#local_migs[@]} > 0 )); then
-  echo "  schema_migrations leer — seed außer letzter …"
+if (( FRESH_AFTER_RESET == 1 )) || [[ "${HAS_RESTAURANTS}" != "t" && "${HAS_RESTAURANTS}" != "true" ]]; then
+  echo "  Frische Dev-DB (Volume-Reset oder kein public.restaurants) — kein History-Seed, alle Migrationen pushen."
+  # Leere/teilweise History verwerfen, damit db push wirklich alles anwendet.
+  psql_db -c "truncate supabase_migrations.schema_migrations;" 2>/dev/null || true
+elif (( remote_count == 0 && ${#local_migs[@]} > 0 )); then
+  echo "  schema_migrations leer, Schema existiert — seed außer letzter …"
   seed_applied_except_latest
 else
   for ver in "${REMOTE_VERS[@]+"${REMOTE_VERS[@]}"}"; do
@@ -144,6 +172,20 @@ else
 fi
 
 echo "→ supabase db push (user=${DB_USER}, port=${DB_PORT}) …"
-docker compose exec -T -w /tmp/migrations db \
+if ! docker compose exec -T -w /tmp/migrations db \
   env PGSSLMODE=disable \
-  "${SUPABASE_BIN}" db push --db-url "${DB_URL}" --yes --include-all
+  "${SUPABASE_BIN}" db push --db-url "${DB_URL}" --yes --include-all; then
+  echo "  db push fehlgeschlagen — Retry als postgres mit Schema-CREATE …" >&2
+  docker compose exec -T -e PGPASSWORD="${PW}" db \
+    psql -U postgres -h localhost -p "${DB_PORT}" -d postgres -v ON_ERROR_STOP=1 -c "
+      grant usage, create on schema supabase_migrations to postgres, supabase_admin;
+      alter schema supabase_migrations owner to postgres;
+      alter table if exists supabase_migrations.schema_migrations owner to postgres;
+      grant all on all tables in schema supabase_migrations to postgres, supabase_admin;
+    "
+  DB_USER="postgres"
+  DB_URL="postgresql://postgres:${ENC_PW}@127.0.0.1:${DB_PORT}/postgres?sslmode=disable"
+  docker compose exec -T -w /tmp/migrations db \
+    env PGSSLMODE=disable \
+    "${SUPABASE_BIN}" db push --db-url "${DB_URL}" --yes --include-all
+fi

@@ -46,8 +46,10 @@ if readable supabase_admin || readable postgres; then
   echo "✓ schema_migrations lesbar (owner=${owner:-?}, rows=${count})."
   # Best-effort Grants — Fehler ignorieren
   psql_as postgres -v ON_ERROR_STOP=0 -c \
-    "grant usage on schema supabase_migrations to supabase_admin, postgres;
-     grant all on table supabase_migrations.schema_migrations to supabase_admin, postgres;" \
+    "grant usage, create on schema supabase_migrations to supabase_admin, postgres;
+     grant all on table supabase_migrations.schema_migrations to supabase_admin, postgres;
+     alter schema supabase_migrations owner to postgres;
+     alter table if exists supabase_migrations.schema_migrations owner to postgres;" \
     >/dev/null 2>&1 || true
   exit 0
 fi
@@ -96,8 +98,10 @@ for user in supabase_admin postgres; do
       statements text[],
       name text
     );
-    grant usage on schema supabase_migrations to postgres, supabase_admin;
+    grant usage, create on schema supabase_migrations to postgres, supabase_admin;
     grant all on table supabase_migrations.schema_migrations to postgres, supabase_admin;
+    alter schema supabase_migrations owner to postgres;
+    alter table supabase_migrations.schema_migrations owner to postgres;
   " >/dev/null 2>&1; then
     recreated=1
     echo "  neu angelegt als ${user}"

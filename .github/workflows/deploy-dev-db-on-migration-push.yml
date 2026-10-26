@@ -26,8 +26,8 @@ concurrency:
 jobs:
   migrate:
     runs-on: ubuntu-latest
-    # Volume-Reset + pull + Full-Migrate bei korrupter Dev-DB kann >15 Min dauern.
-    timeout-minutes: 45
+    # Volume-Reset + Full-Migrate (alle Dateien) bei frischer Dev-DB kann lange dauern.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 

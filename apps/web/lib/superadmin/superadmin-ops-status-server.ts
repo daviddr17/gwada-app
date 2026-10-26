@@ -3,7 +3,7 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { META_GRAPH_VERSION } from "@/lib/constants/integration-oauth-scopes";
 import {
-  buildSuperadminCoolifyInfo,
+  buildSuperadminHostingInfo,
   buildSuperadminDatabaseDetails,
   buildSuperadminVpsInfo,
 } from "@/lib/superadmin/dev-infrastructure-server";
@@ -392,14 +392,14 @@ export async function buildSuperadminDatabaseStatus(): Promise<SuperadminDatabas
   const admin = createSupabaseAdminClient();
   const database = buildSuperadminDatabaseDetails();
   const vps = buildSuperadminVpsInfo();
-  const coolify = buildSuperadminCoolifyInfo();
+  const hosting = buildSuperadminHostingInfo();
   const github = await fetchSuperadminGithubRepoStatus();
   const liveApp = await fetchLiveAppDeployStatus(github);
   const repository = buildSuperadminRepositoryGuide(github.defaultBranch);
   const basePayload = {
     database,
     vps,
-    coolify,
+    hosting,
     github,
     liveApp,
     repository,

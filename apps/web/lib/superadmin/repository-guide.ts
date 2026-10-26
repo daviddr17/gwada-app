@@ -29,6 +29,10 @@ export function buildRepositoryGuide(input: {
           "deploy-live-full (DB+App), deploy-live-app/db, reboot-live-vps, WAHA (SSH)",
       },
       {
+        path: "deploy/live/",
+        description: "Compose + Caddy Vorlagen → /opt/gwada/live",
+      },
+      {
         path: "scripts/",
         description: "Deploy-, DB- und WAHA-Hilfsskripte (CI/lokal)",
       },
@@ -39,8 +43,16 @@ export function buildRepositoryGuide(input: {
     ],
     docLinks: [
       {
-        label: "Live-App deployen",
+        label: "Live-App deployen (Compose+Caddy)",
         path: "docs/coolify-live-deploy.md",
+      },
+      {
+        label: "Live-Deploy Kurzreferenz",
+        path: "docs/live-deploy.md",
+      },
+      {
+        label: "Coolify→Caddy Migration",
+        path: "docs/coolify-to-caddy-migration.md",
       },
       {
         label: "Remote-Dev-Supabase",
@@ -49,10 +61,6 @@ export function buildRepositoryGuide(input: {
       {
         label: "GitHub App Deploy-Auth",
         path: "docs/github-app-deploy-auth.md",
-      },
-      {
-        label: "Live-Deploy Kurzreferenz",
-        path: "docs/live-deploy.md",
       },
     ],
   };

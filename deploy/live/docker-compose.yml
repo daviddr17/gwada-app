@@ -1,0 +1,60 @@
+# Gwada Live — App + Caddy (ohne Coolify/Traefik).
+# Zielpfad auf dem VPS: /opt/gwada/live
+# Secrets: .env auf dem Server (nicht committen).
+#
+# Supabase-Stack bleibt separat (bestehende Container/Netz).
+# Authelia bleibt unter /data/coolify/services/authelia-gwada (Netz coolify),
+# bis es ggf. später hierher wandert.
+
+name: gwada-live
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: gwada-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - gwada
+      - coolify
+      - supabase
+    depends_on:
+      - app
+
+  app:
+    image: ${GWADA_APP_IMAGE:-ghcr.io/daviddr17/gwada-app:latest}
+    container_name: gwada-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - HOSTNAME=0.0.0.0
+      - PORT=3000
+    expose:
+      - "3000"
+    networks:
+      - gwada
+      - supabase
+
+networks:
+  gwada:
+    name: gwada_live
+  # Coolify-Default-Netz — Authelia / Studio-Gateway während Übergang
+  coolify:
+    external: true
+    name: coolify
+  # Live-Supabase (Coolify-Service-ID)
+  supabase:
+    external: true
+    name: ${GWADA_SUPABASE_DOCKER_NETWORK:-oogd5syyxiqb1k4g0wy1u9n8}
+
+volumes:
+  caddy_data:
+  caddy_config:

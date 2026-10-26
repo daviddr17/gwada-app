@@ -1,0 +1,32 @@
+# Gwada Live — TLS + Reverse-Proxy (ersetzt Coolify-Traefik)
+# Hosts: docs/gwada-app-domains.md
+
+gwada.app {
+	encode gzip zstd
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	}
+	reverse_proxy app:3000
+}
+
+www.gwada.app {
+	redir https://gwada.app{uri} permanent
+}
+
+new.gwada.app {
+	redir https://gwada.app{uri} permanent
+}
+
+auth.new.gwada.app {
+	encode gzip
+	reverse_proxy authelia-gwada:9091
+}
+
+studio.new.gwada.app {
+	encode gzip
+	forward_auth authelia-gwada:9091 {
+		uri /api/verify?rd=https://auth.new.gwada.app/
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+	reverse_proxy supabase-studio-oogd5syyxiqb1k4g0wy1u9n8:3000
+}

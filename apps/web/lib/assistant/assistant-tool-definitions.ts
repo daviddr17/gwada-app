@@ -66,17 +66,86 @@ export const ASSISTANT_TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionT
       function: {
         name: "update_reservation",
         description:
-          "Reservierungsstatus ändern oder stornieren (action=cancel). confirm immer false.",
+          "Reservierung ändern: Status (set_status), Storno (cancel) oder Felder (edit: Uhrzeit/Datum/Personen/Tisch/Notiz/Name/Telefon). date_ymd = Lookup-Tag; new_date_ymd = neues Datum. confirm immer false.",
         parameters: {
           type: "object",
           properties: {
-            action: { type: "string", description: "set_status | cancel" },
+            action: {
+              type: "string",
+              description: "set_status | cancel | edit",
+            },
             guest_name: { type: "string" },
-            date_ymd: { type: "string" },
+            date_ymd: { type: "string", description: "Tag der bestehenden Reservierung (Lookup)" },
+            new_date_ymd: { type: "string", description: "Neues Datum (edit)" },
+            time_hm: { type: "string", description: "Neue Uhrzeit HH:mm (edit)" },
+            party_size: { type: "integer", minimum: 1 },
+            notes: { type: "string" },
+            table: { type: "string", description: "Tischnummer oder -name" },
+            clear_table: { type: "boolean" },
+            guest_first_name: { type: "string" },
+            guest_last_name: { type: "string" },
+            guest_phone: { type: "string" },
             status_code: {
               type: "string",
               description: "confirmed | pending | cancelled | no_show | …",
             },
+            reservation_id: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "delete_reservation",
+        description:
+          "Reservierung endgültig löschen. confirm immer false — UI bestätigt.",
+        parameters: {
+          type: "object",
+          properties: {
+            guest_name: { type: "string" },
+            date_ymd: { type: "string" },
+            reservation_id: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "set_reservation_day_note",
+        description:
+          "Tagesnotiz für einen Service-Tag anlegen. Ohne date_ymd = heute. confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            date_ymd: { type: "string" },
+            body: { type: "string" },
+            confirm: { type: "boolean" },
+            restaurant_name: { type: "string" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "resolve_reservation_change_request",
+        description:
+          "Gast-Änderungsanfrage annehmen (approve) oder ablehnen (decline). confirm immer false.",
+        parameters: {
+          type: "object",
+          properties: {
+            decision: {
+              type: "string",
+              description: "approve | decline",
+            },
+            guest_name: { type: "string" },
+            date_ymd: { type: "string" },
             reservation_id: { type: "string" },
             confirm: { type: "boolean" },
             restaurant_name: { type: "string" },

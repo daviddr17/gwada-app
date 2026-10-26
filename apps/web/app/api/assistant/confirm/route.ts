@@ -11,8 +11,13 @@ import {
   applyAdjustIngredientStockPreview,
   applySetMenuItemActivePreview,
   applySetPurchaseOrderStatusPreview,
-  applyUpdateReservationPreview,
 } from "@/lib/assistant/assistant-module-write-tools";
+import {
+  applyDeleteReservationPreview,
+  applyResolveReservationChangeRequestPreview,
+  applySetReservationDayNotePreview,
+  applyUpdateReservationPreview,
+} from "@/lib/assistant/assistant-reservation-write-tools";
 import {
   persistOpeningHoursPreview,
   toolSyncPlatforms,
@@ -97,6 +102,19 @@ export async function POST(req: Request) {
     switch (action) {
       case "update_reservation":
         raw = await applyUpdateReservationPreview(ctx, args, locale);
+        break;
+      case "delete_reservation":
+        raw = await applyDeleteReservationPreview(ctx, args, locale);
+        break;
+      case "set_reservation_day_note":
+        raw = await applySetReservationDayNotePreview(ctx, args, locale);
+        break;
+      case "resolve_reservation_change_request":
+        raw = await applyResolveReservationChangeRequestPreview(
+          ctx,
+          args,
+          locale,
+        );
         break;
       case "set_menu_item_active":
         raw = await applySetMenuItemActivePreview(ctx, args, locale);

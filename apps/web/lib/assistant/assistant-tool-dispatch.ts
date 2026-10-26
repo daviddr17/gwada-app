@@ -20,8 +20,13 @@ import {
   toolAdjustIngredientStock,
   toolSetMenuItemActive,
   toolSetPurchaseOrderStatus,
-  toolUpdateReservation,
 } from "@/lib/assistant/assistant-module-write-tools";
+import {
+  toolDeleteReservation,
+  toolResolveReservationChangeRequest,
+  toolSetReservationDayNote,
+  toolUpdateReservation,
+} from "@/lib/assistant/assistant-reservation-write-tools";
 import {
   toolOpenAmounts,
   toolServiceToday,
@@ -100,6 +105,16 @@ export async function runAssistantToolByName(
       );
     case "update_reservation":
       return toolUpdateReservation(ctx, { ...args, confirm: false }, locale);
+    case "delete_reservation":
+      return toolDeleteReservation(ctx, { ...args, confirm: false }, locale);
+    case "set_reservation_day_note":
+      return toolSetReservationDayNote(ctx, { ...args, confirm: false }, locale);
+    case "resolve_reservation_change_request":
+      return toolResolveReservationChangeRequest(
+        ctx,
+        { ...args, confirm: false },
+        locale,
+      );
     case "service_today":
       return toolServiceToday(ctx, args, locale);
     case "stock":

@@ -86,8 +86,8 @@ function buildSystemPrompt(input: {
     "Lesen: höchstens kurze Listen (≤8) oder ein Treffer. Ohne Zeitraum = heute. Kein Datum raten.",
     "Wenn ein Tool `ask` liefert: genau diese eine Rückfrage stellen und warten.",
     "Schreiben/Sync/Senden: immer confirm=false. Die App fragt „Jetzt umsetzen?“ — nie still speichern oder senden.",
-    "Kannst du: Reservierungen, Öffnungszeiten, Plattform-Sync, Speisekarte inkl. Rezept, Bestand/Bestellungen, Mitarbeiter/Schichten, Kontakte/Nachrichten senden, Bewertungen, News/Events-Zähler (nicht publizieren), offene Rechnungen, Statistiken, Handbuch.",
-    "Kannst du nicht (ehrlich, App nennen): News/Events/Galerie publizieren, Integrationen verbinden, Display, Buchhaltungsbelege anlegen/senden, Verträge/Rechte, Optionsgruppen/Gerichtsbilder, Superadmin-Daten mit Restaurant-Key.",
+    "Kannst du: Reservierungen anlegen/ändern (Uhrzeit, Personen, Tisch, Notiz, Status, Storno), löschen, Tagesnotizen, Änderungsanfragen annehmen/ablehnen; Öffnungszeiten; Plattform-Sync; Speisekarte inkl. Rezept; Bestand/Bestellungen; Mitarbeiter/Schichten lesen + Stammdaten; Kontakte/Nachrichten senden; Bewertungen lesen; News/Events-Zähler (nicht publizieren); offene Rechnungen; Statistiken; Handbuch.",
+    "Kannst du nicht (ehrlich, App nennen): News/Events/Galerie publizieren, Integrationen verbinden, Display, Buchhaltungsbelege anlegen/senden, Verträge/Rechte/Schichtplan schreiben, Kontakt-CRUD/Threads, Review-Antworten, Zutaten/Bestellungen anlegen, Optionsgruppen/Gerichtsbilder, Superadmin-Daten mit Restaurant-Key.",
     "Nur dieses Haus. restaurant_id nie setzen. Wochentage: weekday_label aus Tools. Handbuch: /docs/handbook/<slug>.",
     `Locale: ${input.locale} · Zeitzone: ${input.timeZone} · Heute: ${today}`,
   ].join("\n");

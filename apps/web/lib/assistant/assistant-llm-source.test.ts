@@ -273,3 +273,86 @@ test("menu upsert draft carries recipe confirm summary", () => {
   }
   assert.equal(settled.pendingAction.preview.action, "upsert_menu_item");
 });
+
+test("reservation edit draft becomes confirm_mutation with patch", () => {
+  const settled = settleAssistantToolPayloads("Ok.", [
+    JSON.stringify({
+      ok: true,
+      status: "draft",
+      action: "update_reservation",
+      message: "Reservierung Ana ändern: Termin 2026-10-02 20:00, 4 Personen. Jetzt umsetzen?",
+      preview: {
+        mutation: "edit",
+        reservation_id: "res-1",
+        guest_name: "Ana",
+        date_ymd: "2026-10-01",
+        patch: {
+          starts_at: "2026-10-02T18:00:00.000Z",
+          ends_at: "2026-10-02T20:00:00.000Z",
+          party_size: 4,
+        },
+        changes: ["Termin 2026-10-02 20:00", "4 Personen"],
+      },
+    }),
+  ]);
+  assert.equal(settled.pendingAction?.kind, "confirm_mutation");
+  if (settled.pendingAction?.kind !== "confirm_mutation") {
+    assert.fail("expected confirm_mutation");
+  }
+  assert.equal(settled.pendingAction.preview.action, "update_reservation");
+  assert.equal(settled.pendingAction.preview.args.mutation, "edit");
+  assert.equal(
+    (settled.pendingAction.preview.args.patch as { party_size?: number })
+      ?.party_size,
+    4,
+  );
+  assert.match(settled.reply, /Jetzt umsetzen\?/);
+});
+
+test("reservation day note and change-request drafts use confirm_mutation", () => {
+  const note = settleAssistantToolPayloads("Ok.", [
+    JSON.stringify({
+      ok: true,
+      status: "draft",
+      action: "set_reservation_day_note",
+      message: "Tagesnotiz 2026-10-02: „Volles Haus“. Jetzt umsetzen?",
+      preview: { date_ymd: "2026-10-02", body: "Volles Haus" },
+    }),
+  ]);
+  assert.equal(note.pendingAction?.kind, "confirm_mutation");
+  if (note.pendingAction?.kind !== "confirm_mutation") assert.fail("note");
+  assert.equal(note.pendingAction.preview.action, "set_reservation_day_note");
+
+  const change = settleAssistantToolPayloads("Ok.", [
+    JSON.stringify({
+      ok: true,
+      status: "draft",
+      action: "resolve_reservation_change_request",
+      message: "Änderungsanfrage von Ana annehmen. Jetzt umsetzen?",
+      preview: {
+        reservation_id: "res-1",
+        guest_name: "Ana",
+        decision: "approve",
+      },
+    }),
+  ]);
+  assert.equal(change.pendingAction?.kind, "confirm_mutation");
+  if (change.pendingAction?.kind !== "confirm_mutation") assert.fail("change");
+  assert.equal(
+    change.pendingAction.preview.action,
+    "resolve_reservation_change_request",
+  );
+
+  const del = settleAssistantToolPayloads("Ok.", [
+    JSON.stringify({
+      ok: true,
+      status: "draft",
+      action: "delete_reservation",
+      message: "Reservierung Ana endgültig löschen. Jetzt umsetzen?",
+      preview: { reservation_id: "res-1", guest_name: "Ana" },
+    }),
+  ]);
+  assert.equal(del.pendingAction?.kind, "confirm_mutation");
+  if (del.pendingAction?.kind !== "confirm_mutation") assert.fail("delete");
+  assert.equal(del.pendingAction.preview.action, "delete_reservation");
+});

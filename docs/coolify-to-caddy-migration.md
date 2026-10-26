@@ -196,7 +196,7 @@ Deploy-Skripte mit fehlendem `/opt/gwada/live` fallen wieder auf Coolify-Pfad zu
 | Coolify UI | `coolify` / `coolify-db` / `coolify-redis` / `coolify-realtime` **gestoppt** (Container noch vorhanden, nicht gelöscht) |
 | Supabase Live | unverändert (`*-oogd5syyxiqb1k4g0wy1u9n8`) |
 | Trigger-Dateien | disarmed (`status=done`) — Re-Arm nur bewusst |
-| Prune (vollständig) | Workflow `prune-coolify-control-plane.yml` — entfernt Control-Plane + source/proxy/applications; behält services + Netz `coolify` + `/opt/gwada/live` |
+| Prune (vollständig) | Runs [40327953205](https://github.com/daviddr17/gwada-app/actions/runs/40327953205) + [40328236658](https://github.com/daviddr17/gwada-app/actions/runs/40328236658) **success** — Control-Plane weg; `/data/coolify` nur noch `services/`; Live `451bc4a` / Caddy OK |
 
 **Hinweis Agent:** `gh workflow run` war 403 → Cutover/Stop über Push-Trigger `.github/triggers/*.env` (wie `deploy-live.env`).
 

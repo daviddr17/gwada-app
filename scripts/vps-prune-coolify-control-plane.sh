@@ -190,7 +190,8 @@ for path in \
   /data/coolify/backups \
   /data/coolify/sentinel \
   /data/coolify/ssh \
-  /data/coolify/ssl
+  /data/coolify/ssl \
+  /data/coolify/images
 do
   if [[ -d "${path}" ]]; then
     log "Remove Coolify aux path ${path}"

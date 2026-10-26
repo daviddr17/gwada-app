@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Check, Pencil, RefreshCw, SkipForward } from "lucide-react";
+import { Check, Pencil, RefreshCw, SkipForward, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { SocialTemplatePreview } from "@/components/social/social-template-preview";
 import { Button } from "@/components/ui/button";
@@ -43,18 +43,26 @@ import {
   type SocialPostSuggestion,
   type SocialSuggestionAsset,
 } from "@/lib/social/social-suggestion-types";
-import type { SocialBrandKit } from "@/lib/social/social-brand-kit";
+import {
+  defaultSocialBrandKit,
+  SOCIAL_TONE_LABELS,
+  SOCIAL_TONES,
+  type SocialBrandKit,
+  type SocialTone,
+} from "@/lib/social/social-brand-kit";
 import {
   DEFAULT_SOCIAL_FEED_PALETTE,
   SOCIAL_FEED_LAYOUT_IDS,
-  SOCIAL_PHOTO_LOOK_LABELS,
   type SocialFeedLayoutId,
 } from "@/lib/social/social-feed-brand-system";
-import { defaultSocialBrandKit } from "@/lib/social/social-brand-kit";
+import type { SocialAutopilotIdea } from "@/lib/social/social-autopilot-ideas";
 import { contentReasonFromSuggestion } from "@/lib/social/social-autopilot-relevance";
 import { resolveSuggestionFeedLayout } from "@/lib/social/social-feed-layout";
-import { socialPublishPlatformLabel } from "@/lib/social/social-publish-platforms";
-import { isNewsPlatform } from "@/lib/constants/news-platforms";
+import {
+  allSocialPublishPlatformOptions,
+  socialPublishPlatformLabel,
+} from "@/lib/social/social-publish-platforms";
+import { isNewsPlatform, type NewsPlatform } from "@/lib/constants/news-platforms";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +71,8 @@ type AssetOption = SocialSuggestionAsset & {
   group: "gallery" | "menu" | "profile" | "event";
   label: string;
 };
+
+type Phase = "pick" | "generating" | "review";
 
 function formatPlan(iso: string): string {
   try {
@@ -104,6 +114,36 @@ function MetaChip({
   );
 }
 
+function ToggleChip({
+  active,
+  label,
+  onClick,
+  disabled,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        active
+          ? "border-accent/50 bg-accent/15 text-foreground"
+          : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+        disabled && "opacity-50",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function SocialAutopilotScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { profile } = useRestaurantProfile();
@@ -113,6 +153,13 @@ export function SocialAutopilotScreen() {
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
   const [aiProvider, setAiProvider] = useState<"openai" | "grok" | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [phase, setPhase] = useState<Phase>("pick");
+  const [ideas, setIdeas] = useState<SocialAutopilotIdea[]>([]);
+  const [maxSelect, setMaxSelect] = useState(7);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [sessionTone, setSessionTone] = useState<SocialTone>("warm");
+  const [sessionPlatforms, setSessionPlatforms] = useState<NewsPlatform[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [draftTitles, setDraftTitles] = useState<Record<string, string>>({});
   const [draftCaptions, setDraftCaptions] = useState<Record<string, string>>(
@@ -122,124 +169,236 @@ export function SocialAutopilotScreen() {
   const [editId, setEditId] = useState<string | null>(null);
   const [actionsId, setActionsId] = useState<string | null>(null);
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const ideasBootstrapped = useRef(false);
   const showSkeleton = useDeferredSkeleton(loading);
+  const showIdeasSkeleton = useDeferredSkeleton(ideasLoading);
 
-  const load = useCallback(
-    async (opts?: { refresh?: boolean }) => {
-      if (!restaurantId) return;
-      setLoading(true);
+  const applySuggestionDrafts = useCallback((list: SocialPostSuggestion[]) => {
+    const nextTitles: Record<string, string> = {};
+    const nextCaptions: Record<string, string> = {};
+    for (const s of list) {
+      nextTitles[s.id] = s.title?.trim() ?? "";
+      nextCaptions[s.id] = s.caption;
+    }
+    setDraftTitles(nextTitles);
+    setDraftCaptions(nextCaptions);
+  }, []);
+
+  const loadBase = useCallback(async () => {
+    if (!restaurantId) return;
+    setLoading(true);
+    try {
+      const [sugRes, kitRes, optRes] = await Promise.all([
+        fetch(
+          `/api/social/suggestions?restaurantId=${encodeURIComponent(restaurantId)}`,
+        ),
+        fetch(
+          `/api/social/brand-kit?restaurantId=${encodeURIComponent(restaurantId)}`,
+        ),
+        fetch(
+          `/api/social/asset-options?restaurantId=${encodeURIComponent(restaurantId)}`,
+        ),
+      ]);
+      const sugData = (await sugRes.json().catch(() => ({}))) as {
+        suggestions?: SocialPostSuggestion[];
+        tasks?: SocialMediaTask[];
+        generation?: {
+          aiConfigured?: boolean;
+          aiProvider?: "openai" | "grok";
+        };
+      };
+      const kitData = (await kitRes.json().catch(() => ({}))) as {
+        kit?: SocialBrandKit;
+      };
+      const optData = (await optRes.json().catch(() => ({}))) as {
+        options?: AssetOption[];
+      };
+      if (!sugRes.ok) {
+        toast.error("Autopilot konnte nicht geladen werden");
+        return;
+      }
+      const list = sugData.suggestions ?? [];
+      const open = list.filter(
+        (s) => s.status === "pending" || s.status === "needs_asset",
+      );
+      setSuggestions(open);
+      setTasks(sugData.tasks ?? []);
+      const nextKit = kitData.kit ?? defaultSocialBrandKit(restaurantId);
+      setKit(nextKit);
+      setSessionTone(nextKit.tone);
+      setSessionPlatforms(
+        nextKit.publishPlatforms.length > 0
+          ? [...nextKit.publishPlatforms]
+          : ["instagram", "facebook"],
+      );
+      setAssetOptions(optData.options ?? []);
+      applySuggestionDrafts(open);
+      const gen = sugData.generation;
+      if (typeof gen?.aiConfigured === "boolean") {
+        setAiConfigured(gen.aiConfigured);
+      }
+      if (gen?.aiProvider === "openai" || gen?.aiProvider === "grok") {
+        setAiProvider(gen.aiProvider);
+      } else if (gen?.aiConfigured === false) {
+        setAiProvider(null);
+      }
+      if (open.length > 0) setPhase("review");
+    } finally {
+      setLoading(false);
+    }
+  }, [restaurantId, applySuggestionDrafts]);
+
+  const loadIdeas = useCallback(
+    async (opts?: { rotate?: boolean }) => {
+      if (!restaurantId || aiConfigured === false) return;
+      setIdeasLoading(true);
+      setPhase("pick");
       try {
         const qs = new URLSearchParams({ restaurantId });
-        if (opts?.refresh) qs.set("refresh", "1");
-        const [sugRes, kitRes, optRes] = await Promise.all([
-          fetch(`/api/social/suggestions?${qs}`),
-          fetch(
-            `/api/social/brand-kit?restaurantId=${encodeURIComponent(restaurantId)}`,
-          ),
-          fetch(
-            `/api/social/asset-options?restaurantId=${encodeURIComponent(restaurantId)}`,
-          ),
-        ]);
-        const sugData = (await sugRes.json().catch(() => ({}))) as {
-          suggestions?: SocialPostSuggestion[];
-          tasks?: SocialMediaTask[];
-          generation?: {
-            created?: number;
-            skippedReason?: string;
-            aiConfigured?: boolean;
-            aiProvider?: "openai" | "grok";
-            llmApplied?: number;
-          };
+        if (opts?.rotate) qs.set("rotate", "1");
+        const res = await fetch(`/api/social/suggestions/ideas?${qs}`);
+        const data = (await res.json().catch(() => ({}))) as {
+          ideas?: SocialAutopilotIdea[];
+          maxSelect?: number;
+          skippedReason?: string;
+          aiConfigured?: boolean;
+          aiProvider?: "openai" | "grok";
         };
-        const kitData = (await kitRes.json().catch(() => ({}))) as {
-          kit?: SocialBrandKit;
-        };
-        const optData = (await optRes.json().catch(() => ({}))) as {
-          options?: AssetOption[];
-        };
-        if (!sugRes.ok) {
-          toast.error("Vorschläge konnten nicht geladen werden");
+        if (typeof data.aiConfigured === "boolean") {
+          setAiConfigured(data.aiConfigured);
+        }
+        if (data.aiProvider === "openai" || data.aiProvider === "grok") {
+          setAiProvider(data.aiProvider);
+        }
+        if (!res.ok) {
+          toast.error("Ideen konnten nicht geladen werden");
           return;
         }
-        const list = sugData.suggestions ?? [];
-        const open = list.filter(
-          (s) => s.status === "pending" || s.status === "needs_asset",
+        if (data.skippedReason === "ai_not_configured") {
+          toast.error(
+            "Autopilot braucht euren Restaurant-KI-Schlüssel unter Integrationen",
+          );
+          return;
+        }
+        if (data.skippedReason === "disabled") {
+          toast.error("Autopilot ist in der Social-Marke ausgeschaltet");
+          return;
+        }
+        if (data.skippedReason === "needs_media") {
+          toast.error(
+            "Keine Bilder — bitte Galerie, Speisekarte oder Profilfotos hinterlegen",
+          );
+          setIdeas([]);
+          setSelectedIds([]);
+          return;
+        }
+        const next = data.ideas ?? [];
+        setIdeas(next);
+        setMaxSelect(
+          typeof data.maxSelect === "number" && data.maxSelect > 0
+            ? data.maxSelect
+            : 7,
         );
-        setSuggestions(open);
-        setTasks(sugData.tasks ?? []);
-        setKit(kitData.kit ?? defaultSocialBrandKit(restaurantId));
-        setAssetOptions(optData.options ?? []);
-        const gen = sugData.generation;
-        if (typeof gen?.aiConfigured === "boolean") {
-          setAiConfigured(gen.aiConfigured);
-        }
-        if (gen?.aiProvider === "openai" || gen?.aiProvider === "grok") {
-          setAiProvider(gen.aiProvider);
-        } else if (gen?.aiConfigured === false) {
-          setAiProvider(null);
-        }
-
-        const nextTitles: Record<string, string> = {};
-        const nextCaptions: Record<string, string> = {};
-        for (const s of list) {
-          nextTitles[s.id] = s.title?.trim() ?? "";
-          nextCaptions[s.id] = s.caption;
-        }
-        if (opts?.refresh) {
-          setDraftTitles(nextTitles);
-          setDraftCaptions(nextCaptions);
-          setEditId(null);
-          setActionsId(null);
-          if (gen?.skippedReason === "ai_not_configured") {
-            toast.error(
-              "Autopilot braucht euren Restaurant-KI-Schlüssel (OpenAI oder Grok) unter Einstellungen → Integrationen",
-            );
-          } else if (gen?.skippedReason === "disabled") {
-            toast.error("Autopilot ist in der Social-Marke ausgeschaltet");
-          } else if (gen?.skippedReason === "needs_media") {
-            toast.error(
-              "Keine Bilder gefunden — bitte Galerie-, Speisekarten- oder Profilfotos hinterlegen",
-            );
-          } else if ((gen?.created ?? 0) > 0) {
-            const llmHint =
-              (gen?.llmApplied ?? 0) > 0
-                ? " · Texte mit eurer Restaurant-KI"
-                : " · Vorlagen (KI-Antwort unbrauchbar)";
-            toast.success(
-              `${gen!.created} Vorschläge aus Speisekarte, Galerie & Events${llmHint}`,
-            );
-          } else {
-            toast.message(
-              "Keine neuen Vorschläge — prüft Bilder, Events oder die Social-Marke",
-            );
-          }
-        } else {
-          setDraftTitles((prev) => {
-            const next = { ...prev };
-            for (const s of list) {
-              if (next[s.id] == null) next[s.id] = nextTitles[s.id] ?? "";
-            }
-            return next;
-          });
-          setDraftCaptions((prev) => {
-            const next = { ...prev };
-            for (const s of list) {
-              if (next[s.id] == null) next[s.id] = nextCaptions[s.id] ?? "";
-            }
-            return next;
-          });
+        setSelectedIds([]);
+        if (next.length === 0) {
+          toast.message("Keine neuen Ideen — prüft Speisekarte, Galerie oder Events");
+        } else if (opts?.rotate) {
+          toast.message(`${next.length} neue Ideen zur Auswahl`);
         }
       } finally {
-        setLoading(false);
+        setIdeasLoading(false);
       }
     },
-    [restaurantId],
+    [restaurantId, aiConfigured],
   );
 
   useEffect(() => {
     if (!ready || !restaurantId) return;
-    void load();
-  }, [ready, restaurantId, load]);
+    void loadBase();
+  }, [ready, restaurantId, loadBase]);
+
+  useEffect(() => {
+    if (!ready || !restaurantId || loading) return;
+    if (aiConfigured !== true) return;
+    if (ideasBootstrapped.current) return;
+    ideasBootstrapped.current = true;
+    void loadIdeas({ rotate: true });
+  }, [ready, restaurantId, loading, aiConfigured, loadIdeas]);
+
+  const toggleIdea = (id: string) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= maxSelect) {
+        toast.message(`Maximal ${maxSelect} Ideen auf einmal`);
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
+
+  const togglePlatform = (p: NewsPlatform) => {
+    setSessionPlatforms((prev) => {
+      if (prev.includes(p)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((x) => x !== p);
+      }
+      return [...prev, p];
+    });
+  };
+
+  const createFromSelection = async () => {
+    if (!restaurantId || selectedIds.length === 0) return;
+    setPhase("generating");
+    try {
+      const res = await fetch("/api/social/suggestions/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId,
+          ideaIds: selectedIds,
+          tone: sessionTone,
+          platforms: sessionPlatforms,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        generation?: {
+          created?: number;
+          skippedReason?: string;
+          llmApplied?: number;
+        };
+        error?: string;
+      };
+      if (!res.ok || data.error === "selection_required") {
+        toast.error("Bitte mindestens eine Idee auswählen");
+        setPhase("pick");
+        return;
+      }
+      const gen = data.generation;
+      if (gen?.skippedReason === "needs_media") {
+        toast.error("Für die Auswahl fehlen Bilder");
+        setPhase("pick");
+        return;
+      }
+      await loadBase();
+      setIdeas([]);
+      setSelectedIds([]);
+      setPhase("review");
+      const created = gen?.created ?? 0;
+      if (created > 0) {
+        const llmHint =
+          (gen?.llmApplied ?? 0) > 0
+            ? " · Texte mit eurer Restaurant-KI"
+            : " · Vorlagen";
+        toast.success(`${created} Posts erstellt${llmHint}`);
+      } else {
+        toast.message("Keine Posts erstellt");
+        setPhase("pick");
+      }
+    } catch {
+      toast.error("Erstellen fehlgeschlagen");
+      setPhase("pick");
+    }
+  };
 
   const patchSuggestion = useCallback(
     async (
@@ -259,7 +418,6 @@ export function SocialAutopilotScreen() {
       });
       const data = (await res.json().catch(() => ({}))) as {
         suggestion?: SocialPostSuggestion;
-        error?: string;
       };
       if (!res.ok || !data.suggestion) {
         toast.error("Änderung konnte nicht gespeichert werden");
@@ -357,7 +515,7 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId }),
       });
       if (!res.ok) {
-        toast.error("Überspringen fehlgeschlagen");
+        toast.error("Verwerfen fehlgeschlagen");
         return;
       }
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
@@ -402,12 +560,6 @@ export function SocialAutopilotScreen() {
     ? suggestions.find((s) => s.id === actionsId) ?? null
     : null;
 
-  const galleryCount = assetOptions.filter((o) => o.group === "gallery").length;
-  const menuCount = assetOptions.filter((o) => o.group === "menu").length;
-  const profileCount = assetOptions.filter((o) => o.group === "profile").length;
-  const eventCount = assetOptions.filter((o) => o.group === "event").length;
-  const mediaReady = galleryCount + menuCount + profileCount + eventCount > 0;
-
   const aiReady = aiConfigured === true;
   const aiLabel =
     aiProvider === "grok"
@@ -415,6 +567,7 @@ export function SocialAutopilotScreen() {
       : aiProvider === "openai"
         ? "OpenAI"
         : "Restaurant-KI";
+  const platformOptions = allSocialPublishPlatformOptions();
 
   return (
     <div className="space-y-6 pb-4">
@@ -426,7 +579,7 @@ export function SocialAutopilotScreen() {
               <p className="text-sm text-muted-foreground">
                 Autopilot schreibt Captions mit demselben OpenAI- oder
                 Grok-Schlüssel wie der Restaurant-Assistent — euer Abo, eure
-                Kosten. Ohne Schlüssel entstehen keine Vorschläge.
+                Kosten. Ohne Schlüssel entstehen keine Posts.
               </p>
             </div>
             <Button
@@ -441,85 +594,22 @@ export function SocialAutopilotScreen() {
         </Card>
       ) : (
         <Card className="border-border/50 shadow-card">
-          <CardContent className="space-y-2 pt-5">
-            <p className="text-sm font-medium">So funktioniert Autopilot</p>
+          <CardContent className="space-y-1.5 pt-5">
+            <p className="text-sm font-medium">Was willst du posten?</p>
             <p className="text-sm text-muted-foreground">
-              Mischt eure Speisekarte, Galerie und nahe Events zu Post-Vorschlägen
-              mit Bild und Social-Marke. Texte schreibt{" "}
+              Wähl Ideen aus Speisekarte, Galerie und Events. Texte schreibt{" "}
               <span className="text-foreground">{aiLabel}</span> über euren
               Schlüssel unter Integrationen — Gwada verbraucht keinen eigenen
-              KI-Key dafür. Feiertage nur, wenn sie in den nächsten Tagen liegen.
+              KI-Key.
             </p>
             {!logoUrl ? (
               <p className="text-xs text-muted-foreground">
-                Tipp: Logo/Avatar im Restaurant-Profil hinterlegen — dann erscheint
-                es in der Vorschau.
+                Tipp: Logo im Profil hinterlegen — erscheint in der Vorschau.
               </p>
             ) : null}
           </CardContent>
         </Card>
       )}
-
-      <Button
-        type="button"
-        size="lg"
-        className={modulePrimaryAddButtonFullWidthClassName}
-        onClick={() => void load({ refresh: true })}
-        disabled={loading || aiConfigured === false}
-      >
-        <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-        Neu vorschlagen
-      </Button>
-
-      {kit ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/25 px-3 py-2.5">
-          <div className="min-w-0 space-y-0.5">
-            <p className="text-sm text-muted-foreground">
-              Social-Marke · {SOCIAL_PHOTO_LOOK_LABELS[photoLook]}
-              {preferredLayouts.length > 0
-                ? ` · ${preferredLayouts.length} Layouts`
-                : null}
-            </p>
-            <p className="text-xs text-muted-foreground/90">
-              Bilder: {galleryCount} Galerie · {menuCount} Speisekarte
-              {eventCount > 0 ? ` · ${eventCount} Events` : null}
-              {profileCount > 0 ? ` · ${profileCount} Profil` : null}
-              {aiReady ? ` · Texte: euer ${aiLabel}` : null}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full border-border/60"
-            render={<Link href={APP_ROUTES.settings.restaurant} />}
-          >
-            Anpassen
-          </Button>
-        </div>
-      ) : null}
-
-      {aiReady && !mediaReady && !loading ? (
-        <Card className="border-border/50 shadow-card">
-          <CardContent className="space-y-3 pt-5">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Bilder fehlen</p>
-              <p className="text-sm text-muted-foreground">
-                Ohne Galerie-, Speisekarten- oder Profilfotos erzeugt Autopilot
-                keine Text-only-Posts. Ladet Fotos hoch, dann erneut vorschlagen.
-              </p>
-            </div>
-            <Button
-              type="button"
-              size="lg"
-              className={cn("w-full", brandActionButtonRoundedClassName)}
-              render={<Link href={APP_ROUTES.galerie.overview} />}
-            >
-              Zur Galerie
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
 
       {tasks.length > 0 ? (
         <div className="space-y-3">
@@ -536,10 +626,7 @@ export function SocialAutopilotScreen() {
                   <Button
                     type="button"
                     size="lg"
-                    className={cn(
-                      "w-full",
-                      brandActionButtonRoundedClassName,
-                    )}
+                    className={cn("w-full", brandActionButtonRoundedClassName)}
                     render={<Link href={APP_ROUTES.galerie.overview} />}
                   >
                     Zur Galerie
@@ -573,142 +660,303 @@ export function SocialAutopilotScreen() {
         <div className="space-y-4" aria-busy>
           {[0, 1].map((i) => (
             <SkeletonCardFrame key={i} className="space-y-3">
-              <Skeleton className="aspect-square w-full max-w-md rounded-xl" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-12 w-full" />
+              <Skeleton className="aspect-[4/3] w-full rounded-xl" />
+              <Skeleton className="h-4 w-2/3" />
             </SkeletonCardFrame>
           ))}
         </div>
-      ) : suggestions.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Keine offenen Vorschläge. „Neu vorschlagen“ baut Posts aus eurer
-          Speisekarte, Galerie und nahen Events — mit Bild und eurer Restaurant-KI.
-        </p>
-      ) : (
-        <div className="space-y-5">
-          {suggestions.map((s) => {
-            const title = draftTitles[s.id] ?? s.title?.trim() ?? "";
-            const caption = draftCaptions[s.id] ?? s.caption;
-            const layout = layoutForSuggestion(s);
-            const reason = contentReasonFromSuggestion({
-              slotKind: s.slotKind,
-              title: s.title,
-              assetLabel: s.asset.imageLabel ?? null,
-              source: s.source,
-            });
-            const sourceLabel =
-              s.asset.source === "gallery"
-                ? "Galerie"
-                : s.asset.source === "menu"
-                  ? "Speisekarte"
-                  : s.asset.source === "event"
-                    ? "Event"
-                    : s.asset.source === "profile"
-                      ? "Profil / Logo"
-                      : "Bild fehlt";
-            return (
-              <Card
-                key={s.id}
-                className="overflow-hidden border-border/50 shadow-card"
-              >
-                <CardContent className="space-y-4 pt-5">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <MetaChip className="border-accent/40 bg-accent/10 text-foreground">
-                        {reason.label}
-                      </MetaChip>
-                      <MetaChip>{sourceLabel}</MetaChip>
-                      <MetaChip>
-                        {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}
-                      </MetaChip>
-                      {s.platforms.filter(isNewsPlatform).map((p) => (
-                        <MetaChip key={p}>
-                          {socialPublishPlatformLabel(p)}
-                        </MetaChip>
-                      ))}
-                      {publishStories &&
-                      (s.platforms.includes("facebook") ||
-                        s.platforms.includes("instagram")) ? (
-                        <MetaChip>+ Story</MetaChip>
-                      ) : null}
-                      <MetaChip>{formatPlan(s.plannedAt)}</MetaChip>
-                      {s.status === "needs_asset" || !s.asset.imageUrl ? (
-                        <MetaChip className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200">
-                          Bild fehlt
-                        </MetaChip>
-                      ) : null}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Bezug: {reason.detail}
-                    </p>
-                  </div>
+      ) : null}
 
-                  <div className="mx-auto w-full max-w-md">
-                    <SocialTemplatePreview
-                      feedLayout={layout}
-                      feedPalette={feedPalette}
-                      photoLook={photoLook}
-                      restaurantName={restaurantName}
-                      title={title}
-                      caption={caption}
-                      ctaLabel={ctaLabel}
-                      imageUrl={s.asset.imageUrl}
-                      logoUrl={logoUrl}
-                    />
-                  </div>
+      {!showSkeleton && aiReady && phase !== "generating" ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium text-foreground">Ideen</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full border-border/60"
+              disabled={ideasLoading}
+              onClick={() => void loadIdeas({ rotate: true })}
+            >
+              <RefreshCw
+                className={cn("size-3.5", ideasLoading && "animate-spin")}
+              />
+              Neu vorschlagen
+            </Button>
+          </div>
 
-                  <div className="space-y-1">
-                    {title ? (
-                      <p className="text-sm font-medium text-foreground">
-                        {title}
-                      </p>
-                    ) : null}
-                    <p className="line-clamp-2 text-sm text-muted-foreground">
-                      {caption || "Kein Text"}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <Button
+          {showIdeasSkeleton ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-busy>
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <SkeletonCardFrame key={i} className="space-y-2 p-2">
+                  <Skeleton className="aspect-square w-full rounded-lg" />
+                  <Skeleton className="h-3 w-3/4" />
+                </SkeletonCardFrame>
+              ))}
+            </div>
+          ) : ideas.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
+              Noch keine Ideen. „Neu vorschlagen“ lädt Speisekarte, Galerie und
+              nahe Events — ohne etwas zu speichern.
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {ideas.map((idea) => {
+                  const selected = selectedIds.includes(idea.id);
+                  return (
+                    <button
+                      key={idea.id}
                       type="button"
-                      size="lg"
+                      onClick={() => toggleIdea(idea.id)}
+                      aria-pressed={selected}
                       className={cn(
-                        "w-full",
-                        brandActionButtonRoundedClassName,
+                        "overflow-hidden rounded-xl border text-left transition-colors",
+                        selected
+                          ? "border-accent ring-2 ring-accent/40"
+                          : "border-border/50 hover:border-border",
                       )}
-                      disabled={busyId === s.id}
-                      onClick={() => setActionsId(s.id)}
                     >
-                      <Check className="size-4" />
-                      Freigeben …
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-12 w-full rounded-xl"
-                      disabled={busyId === s.id}
-                      onClick={() => setEditId(s.id)}
-                    >
-                      <Pencil className="size-4" />
-                      Bearbeiten
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-11 w-full rounded-xl text-muted-foreground"
-                      disabled={busyId === s.id}
-                      onClick={() => void skip(s.id)}
-                    >
-                      <SkipForward className="size-4" />
-                      Überspringen
-                    </Button>
+                      <div className="relative aspect-square bg-muted/40">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={idea.imageUrl}
+                          alt=""
+                          className="size-full object-cover"
+                        />
+                        {selected ? (
+                          <span className="absolute top-2 right-2 flex size-6 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
+                            <Check className="size-3.5" />
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="space-y-0.5 px-2.5 py-2">
+                        <p className="text-[11px] font-medium text-muted-foreground">
+                          {idea.reasonLabel}
+                        </p>
+                        <p className="line-clamp-2 text-xs font-medium text-foreground">
+                          {idea.reasonDetail}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 px-3 py-3">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Ton (optional)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SOCIAL_TONES.map((tone) => (
+                      <ToggleChip
+                        key={tone}
+                        active={sessionTone === tone}
+                        label={SOCIAL_TONE_LABELS[tone]}
+                        onClick={() => setSessionTone(tone)}
+                      />
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Kanäle (optional)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {platformOptions.map((opt) => (
+                      <ToggleChip
+                        key={opt.value}
+                        active={sessionPlatforms.includes(opt.value)}
+                        label={opt.label}
+                        onClick={() => togglePlatform(opt.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                size="lg"
+                className={modulePrimaryAddButtonFullWidthClassName}
+                disabled={selectedIds.length === 0 || ideasLoading}
+                onClick={() => void createFromSelection()}
+              >
+                <Sparkles className="size-4" />
+                {selectedIds.length === 0
+                  ? "Ideen auswählen"
+                  : `${selectedIds.length} Post${selectedIds.length === 1 ? "" : "s"} erstellen`}
+              </Button>
+            </>
+          )}
         </div>
-      )}
+      ) : null}
+
+      {phase === "generating" ? (
+        <div className="space-y-4" aria-busy>
+          <p className="text-sm text-muted-foreground">
+            {aiLabel} schreibt Captions für eure Auswahl …
+          </p>
+          {[0, 1, 2].map((i) => (
+            <SkeletonCardFrame key={i} className="space-y-3">
+              <Skeleton className="mx-auto aspect-square w-full max-w-md rounded-xl" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-10 w-full" />
+            </SkeletonCardFrame>
+          ))}
+        </div>
+      ) : null}
+
+      {!showSkeleton && suggestions.length > 0 && phase !== "generating" ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium text-foreground">Zur Freigabe</p>
+              <p className="text-xs text-muted-foreground">
+                Vorschau prüfen, anpassen oder verwerfen — dann planen oder
+                posten.
+              </p>
+            </div>
+            {phase === "review" && ideas.length === 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full border-border/60"
+                onClick={() => void loadIdeas({ rotate: true })}
+              >
+                Weitere Ideen
+              </Button>
+            ) : null}
+          </div>
+
+          <div className="space-y-5">
+            {suggestions.map((s) => {
+              const title = draftTitles[s.id] ?? s.title?.trim() ?? "";
+              const caption = draftCaptions[s.id] ?? s.caption;
+              const layout = layoutForSuggestion(s);
+              const reason = contentReasonFromSuggestion({
+                slotKind: s.slotKind,
+                title: s.title,
+                assetLabel: s.asset.imageLabel ?? null,
+                source: s.source,
+              });
+              const sourceLabel =
+                s.asset.source === "gallery"
+                  ? "Galerie"
+                  : s.asset.source === "menu"
+                    ? "Speisekarte"
+                    : s.asset.source === "event"
+                      ? "Event"
+                      : s.asset.source === "profile"
+                        ? "Profil / Logo"
+                        : "Bild fehlt";
+              return (
+                <Card
+                  key={s.id}
+                  className="overflow-hidden border-border/50 shadow-card"
+                >
+                  <CardContent className="space-y-4 pt-5">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <MetaChip className="border-accent/40 bg-accent/10 text-foreground">
+                          {reason.label}
+                        </MetaChip>
+                        <MetaChip>{sourceLabel}</MetaChip>
+                        <MetaChip>
+                          {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}
+                        </MetaChip>
+                        {s.platforms.filter(isNewsPlatform).map((p) => (
+                          <MetaChip key={p}>
+                            {socialPublishPlatformLabel(p)}
+                          </MetaChip>
+                        ))}
+                        {publishStories &&
+                        (s.platforms.includes("facebook") ||
+                          s.platforms.includes("instagram")) ? (
+                          <MetaChip>+ Story</MetaChip>
+                        ) : null}
+                        <MetaChip>{formatPlan(s.plannedAt)}</MetaChip>
+                        {s.status === "needs_asset" || !s.asset.imageUrl ? (
+                          <MetaChip className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200">
+                            Bild fehlt
+                          </MetaChip>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Bezug: {reason.detail}
+                      </p>
+                    </div>
+
+                    <div className="mx-auto w-full max-w-md">
+                      <SocialTemplatePreview
+                        feedLayout={layout}
+                        feedPalette={feedPalette}
+                        photoLook={photoLook}
+                        restaurantName={restaurantName}
+                        title={title}
+                        caption={caption}
+                        ctaLabel={ctaLabel}
+                        imageUrl={s.asset.imageUrl}
+                        logoUrl={logoUrl}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      {title ? (
+                        <p className="text-sm font-medium text-foreground">
+                          {title}
+                        </p>
+                      ) : null}
+                      <p className="line-clamp-2 text-sm text-muted-foreground">
+                        {caption || "Kein Text"}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        type="button"
+                        size="lg"
+                        className={cn(
+                          "w-full",
+                          brandActionButtonRoundedClassName,
+                        )}
+                        disabled={busyId === s.id}
+                        onClick={() => setActionsId(s.id)}
+                      >
+                        <Check className="size-4" />
+                        Freigeben …
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-12 w-full rounded-xl"
+                        disabled={busyId === s.id}
+                        onClick={() => setEditId(s.id)}
+                      >
+                        <Pencil className="size-4" />
+                        Bearbeiten
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-11 w-full rounded-xl text-muted-foreground"
+                        disabled={busyId === s.id}
+                        onClick={() => void skip(s.id)}
+                      >
+                        <SkipForward className="size-4" />
+                        Verwerfen
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <Drawer
         direction="bottom"
@@ -722,7 +970,7 @@ export function SocialAutopilotScreen() {
           <DrawerHeader className="text-left">
             <DrawerTitle>Vorschlag bearbeiten</DrawerTitle>
             <DrawerDescription>
-              Bild aus Galerie oder Speisekarte, Layout, Titel und Caption.
+              Bild, Layout, Titel und Caption anpassen.
             </DrawerDescription>
           </DrawerHeader>
           {editing ? (
@@ -786,12 +1034,6 @@ export function SocialAutopilotScreen() {
                       );
                     },
                   )}
-                  {assetOptions.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border/60 px-3 py-4 text-sm text-muted-foreground">
-                      Keine Bilder in Galerie oder Speisekarte. Lade Fotos in der
-                      Galerie hoch, dann „Neu vorschlagen“.
-                    </p>
-                  ) : null}
                 </div>
 
                 <div className="space-y-2">
@@ -801,25 +1043,17 @@ export function SocialAutopilotScreen() {
                       const active =
                         layoutForSuggestion(editing) === layoutId;
                       return (
-                        <button
+                        <ToggleChip
                           key={layoutId}
-                          type="button"
-                          className={cn(
-                            "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                            active
-                              ? "border-accent/50 bg-accent/15 text-foreground"
-                              : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
-                          )}
-                          aria-pressed={active}
+                          active={active}
+                          label={SOCIAL_FEED_LAYOUT_CHIP_LABELS[layoutId]}
                           disabled={busyId === editing.id}
                           onClick={() =>
                             void patchSuggestion(editing.id, {
                               feedLayout: layoutId,
                             })
                           }
-                        >
-                          {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layoutId]}
-                        </button>
+                        />
                       );
                     })}
                   </div>

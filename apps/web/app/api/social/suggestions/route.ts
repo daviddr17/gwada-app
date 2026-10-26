@@ -6,10 +6,7 @@ import {
 } from "@/lib/social/social-autopilot-bounds";
 import { fetchSocialBrandKitFromDb } from "@/lib/social/social-brand-kit-db";
 import { resolveSuggestionFeedLayout } from "@/lib/social/social-feed-layout";
-import {
-  generateSocialSuggestionsForRestaurant,
-  type SocialSuggestionGenerateResult,
-} from "@/lib/social/social-suggestion-generate-server";
+import type { SocialSuggestionGenerateResult } from "@/lib/social/social-suggestion-generate-server";
 import {
   listOpenSocialTasksFromDb,
   listSocialSuggestionsFromDb,
@@ -41,7 +38,6 @@ async function peekSocialAutopilotAiStatus(
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const restaurantId = url.searchParams.get("restaurantId")?.trim() ?? "";
-  const refresh = url.searchParams.get("refresh") === "1";
 
   const auth = await authorizeSocialNewsRestaurant(restaurantId);
   if (!auth.ok) {
@@ -53,13 +49,8 @@ export async function GET(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  // LLM-Autopilot nur bei explizitem Refresh („Neu vorschlagen“) —
-  // kein Token-Verbrauch beim bloßen Öffnen der Seite.
-  const generation = refresh
-    ? await generateSocialSuggestionsForRestaurant(admin, restaurantId, {
-        force: true,
-      })
-    : await peekSocialAutopilotAiStatus(restaurantId);
+  // Nur Status + bestehende Drafts — kein Blind-Generate mehr bei refresh.
+  const generation = await peekSocialAutopilotAiStatus(restaurantId);
 
   const [rawSuggestions, tasks, kit] = await Promise.all([
     listSocialSuggestionsFromDb(admin, restaurantId, {
@@ -70,8 +61,6 @@ export async function GET(req: Request) {
     fetchSocialBrandKitFromDb(admin, restaurantId),
   ]);
 
-  // Signierte URLs immer frisch — gespeicherte Preview-URLs laufen ab.
-  // Layout an aktuelle Social-Marke (preferredLayouts) anbinden.
   const suggestions = await Promise.all(
     rawSuggestions.map(async (s) => {
       const imageUrl = await resolveSocialSuggestionImageUrl(

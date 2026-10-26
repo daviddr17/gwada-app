@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  parseSocialAutopilotIdeaId,
+  socialAutopilotIdeaId,
+} from "./social-autopilot-ideas";
+import {
   contentReasonFromSuggestion,
   filterRelevantHolidays,
   isEventRelevantSoon,
@@ -60,6 +64,16 @@ test("rotateBySeed changes order deterministically", () => {
   assert.notDeepEqual(a, items);
   // Different seeds usually differ; if equal, still a valid rotation.
   assert.equal(c.length, 4);
+});
+
+test("socialAutopilotIdeaId round-trips through parse", () => {
+  const id = socialAutopilotIdeaId("menu", "abc-123");
+  assert.equal(id, "menu:abc-123");
+  assert.deepEqual(parseSocialAutopilotIdeaId(id), {
+    kind: "menu_dish",
+    ref: "abc-123",
+  });
+  assert.equal(parseSocialAutopilotIdeaId("nope"), null);
 });
 
 test("contentReasonFromSuggestion maps slot to restaurant content labels", () => {

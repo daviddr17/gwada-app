@@ -17,6 +17,10 @@ import {
   resolveConnectedPublishPlatforms,
   resolveConnectedStoryPlatforms,
 } from "@/lib/social/social-publish-platforms-server";
+import {
+  parseSocialMediaFormatId,
+  publishFormatsForPlatforms,
+} from "@/lib/social/social-media-formats";
 import { renderAndUploadSocialTemplate } from "@/lib/social/social-template-render-server";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
 import {
@@ -86,6 +90,16 @@ async function renderPublishMedia(params: {
     typeof overlayRaw === "string" && overlayRaw.trim()
       ? overlayRaw.trim()
       : null;
+  const preferredFormat = parseSocialMediaFormatId(
+    suggestion?.source?.mediaFormat,
+  );
+  const platforms = (suggestion?.platforms ?? []).filter(isNewsPlatform);
+  const { feed: feedFormat } = publishFormatsForPlatforms({
+    platforms: platforms.length ? platforms : kit.publishPlatforms,
+    publishStories: kit.publishStories,
+    preferredFeedFormat: preferredFormat,
+  });
+
   const rendered = await renderAndUploadSocialTemplate({
     sb: params.sb,
     restaurantId: params.restaurantId,
@@ -99,6 +113,7 @@ async function renderPublishMedia(params: {
     feedPalette: kit.feedPalette,
     photoLook: kit.photoLook,
     overlayLine,
+    formatId: feedFormat,
   });
   if (!rendered.ok) {
     // Fallback: without composed template — still need a storage path for news.
@@ -114,8 +129,8 @@ async function renderPublishMedia(params: {
       storagePath: rendered.storagePath,
       mimeType: "image/jpeg",
       sortOrder: 0,
-      width: 1080,
-      height: 1080,
+      width: rendered.width,
+      height: rendered.height,
     },
   ];
   return { ok: true, media, storagePath: rendered.storagePath };

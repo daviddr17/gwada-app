@@ -258,6 +258,8 @@ export async function updateSocialSuggestionFieldsInDb(
     asset?: SocialSuggestionAsset;
     feedLayout?: SocialFeedLayoutId;
     status?: SocialSuggestionStatus;
+    platforms?: string[];
+    mediaFormat?: string | null;
   },
 ): Promise<
   | { ok: true; suggestion: SocialPostSuggestion }
@@ -269,7 +271,11 @@ export async function updateSocialSuggestionFieldsInDb(
     params.suggestionId,
   );
   if (!existing) return { ok: false, error: "not_found" };
-  if (existing.status !== "pending" && existing.status !== "needs_asset") {
+  if (
+    existing.status !== "pending" &&
+    existing.status !== "needs_asset" &&
+    existing.status !== "saved"
+  ) {
     return { ok: false, error: "invalid_status" };
   }
 
@@ -289,19 +295,30 @@ export async function updateSocialSuggestionFieldsInDb(
   }
   if (params.asset !== undefined) {
     patch.asset_json = params.asset;
-    patch.status =
-      params.asset.imageUrl || params.status === "pending"
-        ? "pending"
-        : "needs_asset";
+    if (existing.status !== "saved") {
+      patch.status =
+        params.asset.imageUrl || params.status === "pending"
+          ? "pending"
+          : "needs_asset";
+    }
   }
   if (params.status !== undefined && params.asset === undefined) {
     patch.status = params.status;
+  }
+  if (params.platforms !== undefined) {
+    patch.platforms = params.platforms.slice(0, 8);
   }
   if (params.feedLayout !== undefined) {
     patch.template_id = feedLayoutToLegacyTemplate(params.feedLayout);
     nextSource = {
       ...(nextSource ?? existing.source),
       feedLayout: params.feedLayout,
+    };
+  }
+  if (params.mediaFormat !== undefined) {
+    nextSource = {
+      ...(nextSource ?? existing.source),
+      mediaFormat: params.mediaFormat,
     };
   }
   if (nextSource) {
@@ -412,6 +429,39 @@ export async function ensureSocialUploadTaskInDb(
   if (error) {
     console.warn("[gwada] ensureSocialUploadTaskInDb", error.message);
   }
+}
+
+/** Entwurf als Vorlage speichern — bleibt parallel zu neuen Ideen nutzbar. */
+export async function saveSocialSuggestionAsTemplateInDb(
+  sb: SupabaseClient,
+  params: { restaurantId: string; suggestionId: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return updateSocialSuggestionStatusInDb(sb, {
+    restaurantId: params.restaurantId,
+    suggestionId: params.suggestionId,
+    status: "saved",
+  });
+}
+
+/** Gespeicherte Vorlage wieder in die Freigabe-Queue holen. */
+export async function restoreSavedSocialSuggestionInDb(
+  sb: SupabaseClient,
+  params: { restaurantId: string; suggestionId: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const existing = await fetchSocialSuggestionFromDb(
+    sb,
+    params.restaurantId,
+    params.suggestionId,
+  );
+  if (!existing) return { ok: false, error: "not_found" };
+  if (existing.status !== "saved") return { ok: false, error: "invalid_status" };
+  const nextStatus =
+    existing.asset.imageUrl ? "pending" : "needs_asset";
+  return updateSocialSuggestionStatusInDb(sb, {
+    restaurantId: params.restaurantId,
+    suggestionId: params.suggestionId,
+    status: nextStatus,
+  });
 }
 
 export async function completeSocialTaskInDb(

@@ -52,37 +52,47 @@ export async function GET(req: Request) {
   // Nur Status + bestehende Drafts — kein Blind-Generate mehr bei refresh.
   const generation = await peekSocialAutopilotAiStatus(restaurantId);
 
-  const [rawSuggestions, tasks, kit] = await Promise.all([
+  const [rawSuggestions, rawSaved, tasks, kit] = await Promise.all([
     listSocialSuggestionsFromDb(admin, restaurantId, {
       statuses: ["pending", "needs_asset", "approved"],
       limit: 40,
+    }),
+    listSocialSuggestionsFromDb(admin, restaurantId, {
+      statuses: ["saved"],
+      limit: 24,
     }),
     listOpenSocialTasksFromDb(admin, restaurantId),
     fetchSocialBrandKitFromDb(admin, restaurantId),
   ]);
 
-  const suggestions = await Promise.all(
-    rawSuggestions.map(async (s) => {
-      const imageUrl = await resolveSocialSuggestionImageUrl(
-        admin,
-        restaurantId,
-        s.asset,
-      );
-      return {
-        ...s,
-        feedLayout: resolveSuggestionFeedLayout({
-          slotKind: s.slotKind,
-          templateId: s.templateId,
-          source: s.source,
-          preferredLayouts: kit.preferredLayouts,
-        }),
-        asset: { ...s.asset, imageUrl },
-      };
-    }),
-  );
+  const mapSuggestion = async (
+    s: (typeof rawSuggestions)[number],
+  ) => {
+    const imageUrl = await resolveSocialSuggestionImageUrl(
+      admin,
+      restaurantId,
+      s.asset,
+    );
+    return {
+      ...s,
+      feedLayout: resolveSuggestionFeedLayout({
+        slotKind: s.slotKind,
+        templateId: s.templateId,
+        source: s.source,
+        preferredLayouts: kit.preferredLayouts,
+      }),
+      asset: { ...s.asset, imageUrl },
+    };
+  };
+
+  const [suggestions, saved] = await Promise.all([
+    Promise.all(rawSuggestions.map(mapSuggestion)),
+    Promise.all(rawSaved.map(mapSuggestion)),
+  ]);
 
   return Response.json({
     suggestions,
+    saved,
     tasks,
     generation,
   });

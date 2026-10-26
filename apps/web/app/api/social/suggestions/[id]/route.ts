@@ -1,6 +1,8 @@
+import { isNewsPlatform } from "@/lib/constants/news-platforms";
 import { authorizeSocialNewsRestaurant } from "@/lib/social/route-auth";
 import { SOCIAL_FEED_LAYOUT_IDS } from "@/lib/social/social-feed-brand-system";
 import type { SocialFeedLayoutId } from "@/lib/social/social-feed-brand-system";
+import { parseSocialMediaFormatId } from "@/lib/social/social-media-formats";
 import {
   fetchSocialSuggestionFromDb,
   updateSocialSuggestionFieldsInDb,
@@ -70,6 +72,8 @@ export async function PATCH(
     caption?: string;
     asset?: unknown;
     feedLayout?: string;
+    platforms?: unknown;
+    mediaFormat?: unknown;
   };
   const restaurantId = body.restaurantId?.trim() ?? "";
   const auth = await authorizeSocialNewsRestaurant(restaurantId, {
@@ -90,6 +94,16 @@ export async function PATCH(
       ? (body.feedLayout as SocialFeedLayoutId)
       : undefined;
 
+  const platforms = Array.isArray(body.platforms)
+    ? body.platforms.filter(
+        (p): p is string => typeof p === "string" && isNewsPlatform(p),
+      )
+    : undefined;
+  const mediaFormat =
+    body.mediaFormat === null
+      ? null
+      : parseSocialMediaFormatId(body.mediaFormat);
+
   const result = await updateSocialSuggestionFieldsInDb(admin, {
     restaurantId,
     suggestionId,
@@ -97,6 +111,11 @@ export async function PATCH(
     caption: typeof body.caption === "string" ? body.caption : undefined,
     asset: body.asset !== undefined ? parseAsset(body.asset) ?? undefined : undefined,
     feedLayout,
+    platforms,
+    mediaFormat:
+      body.mediaFormat === undefined
+        ? undefined
+        : mediaFormat,
   });
 
   if (!result.ok) {

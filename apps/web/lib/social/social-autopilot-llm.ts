@@ -29,6 +29,11 @@ export type SocialAutopilotLlmOutcome = {
   llmCalls: number;
   results: SocialAutopilotCaptionResult[];
   error?: string;
+  usage?: {
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+  };
 };
 
 function toneLabel(tone: SocialBrandKit["tone"]): string {
@@ -157,6 +162,15 @@ export async function rewriteAutopilotCaptionsWithLlm(params: {
       max_tokens: SOCIAL_AUTOPILOT_MAX_COMPLETION_TOKENS,
     });
 
+    const usageRaw = completion.usage;
+    const usage = usageRaw
+      ? {
+          promptTokens: usageRaw.prompt_tokens ?? null,
+          completionTokens: usageRaw.completion_tokens ?? null,
+          totalTokens: usageRaw.total_tokens ?? null,
+        }
+      : undefined;
+
     const content = completion.choices[0]?.message?.content ?? "";
     const results = parseAutopilotCaptionResponse(
       content,
@@ -168,9 +182,10 @@ export async function rewriteAutopilotCaptionsWithLlm(params: {
         llmCalls: 1,
         results: [],
         error: "empty_or_unparsed",
+        usage,
       };
     }
-    return { ok: true, llmCalls: 1, results };
+    return { ok: true, llmCalls: 1, results, usage };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "llm_error";
     console.warn("[social-autopilot] llm", params.llm.provider, msg);

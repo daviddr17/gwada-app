@@ -15,6 +15,11 @@ import { overlayLineFromCaption } from "@/lib/social/social-caption-templates";
 import { loadSocialImageBuffer } from "@/lib/social/social-asset-resolve-server";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
 import { resolveRestaurantProfileImageSignedUrl } from "@/lib/restaurant/restaurant-profile-image";
+import { adaptSocialImageToFormat } from "@/lib/social/social-media-format-adapt";
+import {
+  SOCIAL_MEDIA_FORMATS,
+  type SocialMediaFormatId,
+} from "@/lib/social/social-media-formats";
 import { normalizeHex } from "@/lib/theme/color-utils";
 
 const SIZE = 1080;
@@ -432,7 +437,7 @@ async function renderPremiumFeedLayout(params: {
     .toBuffer();
 }
 
-/** Rendert Premium-Feed-Layout und lädt es in news-media (signed URL). */
+/** Rendert Premium-Feed-Layout (Master 1:1) und lädt es; optional Crop auf Ziel-Format. */
 export async function renderAndUploadSocialTemplate(params: {
   sb: SupabaseClient;
   restaurantId: string;
@@ -446,12 +451,21 @@ export async function renderAndUploadSocialTemplate(params: {
   feedPalette?: SocialFeedPalette;
   photoLook?: SocialPhotoLook;
   overlayLine?: string | null;
+  /** Ohne LLM: Master croppen auf Plattform-Format. */
+  formatId?: SocialMediaFormatId | null;
 }): Promise<
-  | { ok: true; imageUrl: string; storagePath: string }
+  | {
+      ok: true;
+      imageUrl: string;
+      storagePath: string;
+      width: number;
+      height: number;
+      formatId: SocialMediaFormatId;
+    }
   | { ok: false; error: string }
 > {
   try {
-    const jpeg = await renderPremiumFeedLayout({
+    const master = await renderPremiumFeedLayout({
       sb: params.sb,
       restaurantId: params.restaurantId,
       feedLayout: params.feedLayout,
@@ -464,7 +478,13 @@ export async function renderAndUploadSocialTemplate(params: {
       ctaLabel: params.ctaLabel?.trim() || "Reservieren",
       overlayLine: params.overlayLine,
     });
-    const storagePath = `${params.restaurantId}/social-autopilot/${params.suggestionId}/${randomUUID()}.jpg`;
+    const formatId = params.formatId ?? "square_1x1";
+    const format = SOCIAL_MEDIA_FORMATS[formatId];
+    const jpeg =
+      formatId === "square_1x1"
+        ? master
+        : await adaptSocialImageToFormat(master, formatId);
+    const storagePath = `${params.restaurantId}/social-autopilot/${params.suggestionId}/${formatId}-${randomUUID()}.jpg`;
     const upload = await params.sb.storage
       .from(NEWS_MEDIA_BUCKET)
       .upload(storagePath, jpeg, {
@@ -480,7 +500,14 @@ export async function renderAndUploadSocialTemplate(params: {
     if (!data?.signedUrl) {
       return { ok: false, error: "signed_url_failed" };
     }
-    return { ok: true, imageUrl: data.signedUrl, storagePath };
+    return {
+      ok: true,
+      imageUrl: data.signedUrl,
+      storagePath,
+      width: format.width,
+      height: format.height,
+      formatId,
+    };
   } catch (e) {
     const message = e instanceof Error ? e.message : "render_failed";
     console.warn("[gwada] renderAndUploadSocialTemplate", message);

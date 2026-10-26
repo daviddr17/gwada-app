@@ -76,6 +76,7 @@ export function SocialTemplatePreview({
 
   const shell = cn(
     "relative aspect-square overflow-hidden rounded-xl border border-border/50 shadow-card",
+    // Aufrufer können Format-Aspect setzen (z. B. 4:5) — überschreibt square.
     className,
   );
 

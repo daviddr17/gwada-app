@@ -9,7 +9,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Check, Pencil, RefreshCw, SkipForward, Sparkles } from "lucide-react";
+import {
+  Bookmark,
+  Check,
+  Pencil,
+  RefreshCw,
+  SkipForward,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { SocialTemplatePreview } from "@/components/social/social-template-preview";
 import { Button } from "@/components/ui/button";
@@ -59,12 +66,33 @@ import type { SocialAutopilotIdea } from "@/lib/social/social-autopilot-ideas";
 import { contentReasonFromSuggestion } from "@/lib/social/social-autopilot-relevance";
 import { resolveSuggestionFeedLayout } from "@/lib/social/social-feed-layout";
 import {
+  cssAspectRatioForFormat,
+  parseSocialMediaFormatId,
+  SOCIAL_MEDIA_FORMAT_IDS,
+  SOCIAL_MEDIA_FORMATS,
+  type SocialMediaFormatId,
+} from "@/lib/social/social-media-formats";
+import {
   allSocialPublishPlatformOptions,
   socialPublishPlatformLabel,
 } from "@/lib/social/social-publish-platforms";
 import { isNewsPlatform, type NewsPlatform } from "@/lib/constants/news-platforms";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
+
+type AiUsageSummary = {
+  events30d: number;
+  tokens30d: number | null;
+};
+
+type VoiceLearnDraft = {
+  voiceNotes: string;
+  goldCaptions: string[];
+  tone: SocialTone | null;
+  sampleCount: number;
+  sourcePlatforms: string[];
+  fromLlm: boolean;
+};
 
 type AssetOption = SocialSuggestionAsset & {
   id: string;
@@ -148,10 +176,16 @@ export function SocialAutopilotScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { profile } = useRestaurantProfile();
   const [suggestions, setSuggestions] = useState<SocialPostSuggestion[]>([]);
+  const [savedTemplates, setSavedTemplates] = useState<SocialPostSuggestion[]>(
+    [],
+  );
   const [tasks, setTasks] = useState<SocialMediaTask[]>([]);
   const [kit, setKit] = useState<SocialBrandKit | null>(null);
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
   const [aiProvider, setAiProvider] = useState<"openai" | "grok" | null>(null);
+  const [aiUsage, setAiUsage] = useState<AiUsageSummary | null>(null);
+  const [voiceDraft, setVoiceDraft] = useState<VoiceLearnDraft | null>(null);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [phase, setPhase] = useState<Phase>("pick");
@@ -160,6 +194,8 @@ export function SocialAutopilotScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sessionTone, setSessionTone] = useState<SocialTone>("warm");
   const [sessionPlatforms, setSessionPlatforms] = useState<NewsPlatform[]>([]);
+  const [sessionFormat, setSessionFormat] =
+    useState<SocialMediaFormatId>("square_1x1");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [draftTitles, setDraftTitles] = useState<Record<string, string>>({});
   const [draftCaptions, setDraftCaptions] = useState<Record<string, string>>(
@@ -188,7 +224,7 @@ export function SocialAutopilotScreen() {
     if (!restaurantId) return;
     setLoading(true);
     try {
-      const [sugRes, kitRes, optRes] = await Promise.all([
+      const [sugRes, kitRes, optRes, usageRes] = await Promise.all([
         fetch(
           `/api/social/suggestions?restaurantId=${encodeURIComponent(restaurantId)}`,
         ),
@@ -198,15 +234,23 @@ export function SocialAutopilotScreen() {
         fetch(
           `/api/social/asset-options?restaurantId=${encodeURIComponent(restaurantId)}`,
         ),
+        fetch(
+          `/api/social/ai-usage?restaurantId=${encodeURIComponent(restaurantId)}`,
+        ),
       ]);
       const sugData = (await sugRes.json().catch(() => ({}))) as {
         suggestions?: SocialPostSuggestion[];
+        saved?: SocialPostSuggestion[];
         tasks?: SocialMediaTask[];
         generation?: {
           aiConfigured?: boolean;
           aiProvider?: "openai" | "grok";
         };
       };
+      const usageData = (await usageRes.json().catch(() => ({}))) as {
+        usage?: AiUsageSummary;
+      };
+      if (usageData.usage) setAiUsage(usageData.usage);
       const kitData = (await kitRes.json().catch(() => ({}))) as {
         kit?: SocialBrandKit;
       };
@@ -222,6 +266,7 @@ export function SocialAutopilotScreen() {
         (s) => s.status === "pending" || s.status === "needs_asset",
       );
       setSuggestions(open);
+      setSavedTemplates(sugData.saved ?? []);
       setTasks(sugData.tasks ?? []);
       const nextKit = kitData.kit ?? defaultSocialBrandKit(restaurantId);
       setKit(nextKit);
@@ -231,6 +276,7 @@ export function SocialAutopilotScreen() {
           ? [...nextKit.publishPlatforms]
           : ["instagram", "facebook"],
       );
+      setSessionFormat("square_1x1");
       setAssetOptions(optData.options ?? []);
       applySuggestionDrafts(open);
       const gen = sugData.generation;
@@ -358,6 +404,7 @@ export function SocialAutopilotScreen() {
           ideaIds: selectedIds,
           tone: sessionTone,
           platforms: sessionPlatforms,
+          mediaFormat: sessionFormat,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -408,6 +455,8 @@ export function SocialAutopilotScreen() {
         caption?: string;
         asset?: SocialSuggestionAsset;
         feedLayout?: SocialFeedLayoutId;
+        platforms?: NewsPlatform[];
+        mediaFormat?: SocialMediaFormatId | null;
       },
     ) => {
       if (!restaurantId) return;
@@ -424,6 +473,9 @@ export function SocialAutopilotScreen() {
         return;
       }
       setSuggestions((prev) =>
+        prev.map((s) => (s.id === id ? data.suggestion! : s)),
+      );
+      setSavedTemplates((prev) =>
         prev.map((s) => (s.id === id ? data.suggestion! : s)),
       );
     },
@@ -540,6 +592,116 @@ export function SocialAutopilotScreen() {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const saveAsTemplate = async (id: string) => {
+    if (!restaurantId) return;
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/social/suggestions/${id}/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId }),
+      });
+      if (!res.ok) {
+        toast.error("Vorlage speichern fehlgeschlagen");
+        return;
+      }
+      toast.success("Als Vorlage gespeichert — du kannst parallel weiter erstellen");
+      await loadBase();
+      setPhase("pick");
+      void loadIdeas({ rotate: true });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const restoreTemplate = async (id: string) => {
+    if (!restaurantId) return;
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/social/suggestions/${id}/restore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId }),
+      });
+      if (!res.ok) {
+        toast.error("Vorlage konnte nicht geöffnet werden");
+        return;
+      }
+      toast.success("Vorlage zur Freigabe bereit");
+      await loadBase();
+      setPhase("review");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const learnVoice = async () => {
+    if (!restaurantId) return;
+    setVoiceBusy(true);
+    try {
+      const res = await fetch("/api/social/brand-kit/learn-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        draft?: VoiceLearnDraft;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(
+          data.error === "not_enough_posts"
+            ? "Zu wenig IG/FB-Posts im Cache — zuerst News syncen"
+            : "Stimme konnte nicht gelernt werden",
+        );
+        return;
+      }
+      if (data.draft) setVoiceDraft(data.draft);
+      // Usage aktualisieren
+      const usageRes = await fetch(
+        `/api/social/ai-usage?restaurantId=${encodeURIComponent(restaurantId)}`,
+      );
+      const usageData = (await usageRes.json().catch(() => ({}))) as {
+        usage?: AiUsageSummary;
+      };
+      if (usageData.usage) setAiUsage(usageData.usage);
+    } finally {
+      setVoiceBusy(false);
+    }
+  };
+
+  const confirmVoiceDraft = async () => {
+    if (!restaurantId || !kit || !voiceDraft) return;
+    setVoiceBusy(true);
+    try {
+      const nextKit: SocialBrandKit = {
+        ...kit,
+        voiceNotes: voiceDraft.voiceNotes,
+        goldCaptions:
+          voiceDraft.goldCaptions.length > 0
+            ? voiceDraft.goldCaptions
+            : kit.goldCaptions,
+        tone: voiceDraft.tone ?? kit.tone,
+      };
+      const res = await fetch("/api/social/brand-kit", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, kit: nextKit }),
+      });
+      if (!res.ok) {
+        toast.error("Social-Marke konnte nicht gespeichert werden");
+        return;
+      }
+      setKit(nextKit);
+      if (voiceDraft.tone) setSessionTone(voiceDraft.tone);
+      setVoiceDraft(null);
+      toast.success("Stimme in Social-Marke übernommen");
+    } finally {
+      setVoiceBusy(false);
+    }
+  };
+
+
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
@@ -594,18 +756,91 @@ export function SocialAutopilotScreen() {
         </Card>
       ) : (
         <Card className="border-border/50 shadow-card">
-          <CardContent className="space-y-1.5 pt-5">
-            <p className="text-sm font-medium">Was willst du posten?</p>
-            <p className="text-sm text-muted-foreground">
-              Wähl Ideen aus Speisekarte, Galerie und Events. Texte schreibt{" "}
-              <span className="text-foreground">{aiLabel}</span> über euren
-              Schlüssel unter Integrationen — Gwada verbraucht keinen eigenen
-              KI-Key.
-            </p>
+          <CardContent className="space-y-3 pt-5">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Was willst du posten?</p>
+              <p className="text-sm text-muted-foreground">
+                Wähl Ideen aus Speisekarte, Galerie und Events. Texte schreibt{" "}
+                <span className="text-foreground">{aiLabel}</span> über euren
+                Schlüssel unter Integrationen — Gwada verbraucht keinen eigenen
+                KI-Key.
+              </p>
+            </div>
+            {aiUsage ? (
+              <p className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Dein Verbrauch</span>
+                {" · "}
+                {aiUsage.events30d} KI-Läufe (30 Tage)
+                {aiUsage.tokens30d != null
+                  ? ` · ~${aiUsage.tokens30d.toLocaleString("de-DE")} Tokens`
+                  : " · Token-Zähler je nach Anbieter"}
+              </p>
+            ) : null}
             {!logoUrl ? (
               <p className="text-xs text-muted-foreground">
                 Tipp: Logo im Profil hinterlegen — erscheint in der Vorschau.
               </p>
+            ) : null}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full border-border/60"
+                disabled={voiceBusy}
+                onClick={() => void learnVoice()}
+              >
+                {voiceBusy ? "Lerne …" : "Stimme aus Social lernen"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full border-border/60"
+                render={<Link href={APP_ROUTES.settings.restaurant} />}
+              >
+                Social-Marke
+              </Button>
+            </div>
+            {voiceDraft ? (
+              <div className="space-y-2 rounded-xl border border-border/50 bg-muted/20 px-3 py-3">
+                <p className="text-xs font-medium text-foreground">
+                  Vorschlag aus {voiceDraft.sampleCount} Posts
+                  {voiceDraft.fromLlm ? ` · ${aiLabel}` : " · Heuristik"}
+                </p>
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                  {voiceDraft.voiceNotes}
+                </p>
+                {voiceDraft.goldCaptions.length > 0 ? (
+                  <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+                    {voiceDraft.goldCaptions.slice(0, 3).map((c) => (
+                      <li key={c} className="line-clamp-2">
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className={cn("rounded-full", brandActionButtonRoundedClassName)}
+                    disabled={voiceBusy}
+                    onClick={() => void confirmVoiceDraft()}
+                  >
+                    In Social-Marke übernehmen
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => setVoiceDraft(null)}
+                  >
+                    Verwerfen
+                  </Button>
+                </div>
+              </div>
             ) : null}
           </CardContent>
         </Card>
@@ -762,7 +997,7 @@ export function SocialAutopilotScreen() {
                 </div>
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground">
-                    Kanäle (optional)
+                    Veröffentlichen auf
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {platformOptions.map((opt) => (
@@ -774,6 +1009,27 @@ export function SocialAutopilotScreen() {
                       />
                     ))}
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Format (Master einmal — Crop ohne extra KI)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SOCIAL_MEDIA_FORMAT_IDS.filter((id) => id !== "story_9x16").map(
+                      (id) => (
+                        <ToggleChip
+                          key={id}
+                          active={sessionFormat === id}
+                          label={`${SOCIAL_MEDIA_FORMATS[id].ratioLabel} · ${SOCIAL_MEDIA_FORMATS[id].label}`}
+                          onClick={() => setSessionFormat(id)}
+                        />
+                      ),
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Stories (9:16) werden beim Publish automatisch aus dem Master
+                    zugeschnitten, wenn Stories aktiv sind.
+                  </p>
                 </div>
               </div>
 
@@ -809,14 +1065,54 @@ export function SocialAutopilotScreen() {
         </div>
       ) : null}
 
+      {!showSkeleton && savedTemplates.length > 0 && phase !== "generating" ? (
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Vorlagen</p>
+            <p className="text-xs text-muted-foreground">
+              Gespeicherte Designs — später freigeben, parallel weiter erstellen.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {savedTemplates.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                disabled={busyId === s.id}
+                onClick={() => void restoreTemplate(s.id)}
+                className="overflow-hidden rounded-xl border border-border/50 text-left transition-colors hover:border-border"
+              >
+                <div className="relative aspect-square bg-muted/40">
+                  {s.asset.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={s.asset.imageUrl}
+                      alt=""
+                      className="size-full object-cover"
+                    />
+                  ) : null}
+                </div>
+                <div className="space-y-0.5 px-2.5 py-2">
+                  <p className="line-clamp-1 text-xs font-medium">
+                    {s.title?.trim() || "Vorlage"}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Zur Freigabe öffnen
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {!showSkeleton && suggestions.length > 0 && phase !== "generating" ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="text-sm font-medium text-foreground">Zur Freigabe</p>
               <p className="text-xs text-muted-foreground">
-                Vorschau prüfen, anpassen oder verwerfen — dann planen oder
-                posten.
+                Vorschau prüfen, Kanäle/Format setzen, speichern oder posten.
               </p>
             </div>
             {phase === "review" && ideas.length === 0 ? (
@@ -843,6 +1139,9 @@ export function SocialAutopilotScreen() {
                 assetLabel: s.asset.imageLabel ?? null,
                 source: s.source,
               });
+              const mediaFormat =
+                parseSocialMediaFormatId(s.source.mediaFormat) ??
+                sessionFormat;
               const sourceLabel =
                 s.asset.source === "gallery"
                   ? "Galerie"
@@ -853,6 +1152,7 @@ export function SocialAutopilotScreen() {
                       : s.asset.source === "profile"
                         ? "Profil / Logo"
                         : "Bild fehlt";
+              const activePlatforms = s.platforms.filter(isNewsPlatform);
               return (
                 <Card
                   key={s.id}
@@ -868,15 +1168,18 @@ export function SocialAutopilotScreen() {
                         <MetaChip>
                           {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}
                         </MetaChip>
-                        {s.platforms.filter(isNewsPlatform).map((p) => (
+                        <MetaChip>
+                          {SOCIAL_MEDIA_FORMATS[mediaFormat].ratioLabel}
+                        </MetaChip>
+                        {activePlatforms.map((p) => (
                           <MetaChip key={p}>
                             {socialPublishPlatformLabel(p)}
                           </MetaChip>
                         ))}
                         {publishStories &&
-                        (s.platforms.includes("facebook") ||
-                          s.platforms.includes("instagram")) ? (
-                          <MetaChip>+ Story</MetaChip>
+                        (activePlatforms.includes("facebook") ||
+                          activePlatforms.includes("instagram")) ? (
+                          <MetaChip>+ Story 9:16</MetaChip>
                         ) : null}
                         <MetaChip>{formatPlan(s.plannedAt)}</MetaChip>
                         {s.status === "needs_asset" || !s.asset.imageUrl ? (
@@ -890,7 +1193,12 @@ export function SocialAutopilotScreen() {
                       </p>
                     </div>
 
-                    <div className="mx-auto w-full max-w-md">
+                    <div
+                      className="mx-auto w-full max-w-md"
+                      style={{
+                        aspectRatio: cssAspectRatioForFormat(mediaFormat),
+                      }}
+                    >
                       <SocialTemplatePreview
                         feedLayout={layout}
                         feedPalette={feedPalette}
@@ -901,7 +1209,57 @@ export function SocialAutopilotScreen() {
                         ctaLabel={ctaLabel}
                         imageUrl={s.asset.imageUrl}
                         logoUrl={logoUrl}
+                        className="!aspect-auto size-full max-h-none"
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Veröffentlichen auf
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {platformOptions.map((opt) => {
+                          const on = activePlatforms.includes(opt.value);
+                          return (
+                            <ToggleChip
+                              key={opt.value}
+                              active={on}
+                              label={opt.label}
+                              disabled={busyId === s.id}
+                              onClick={() => {
+                                const next = on
+                                  ? activePlatforms.filter((p) => p !== opt.value)
+                                  : [...activePlatforms, opt.value];
+                                if (next.length === 0) return;
+                                void patchSuggestion(s.id, {
+                                  platforms: next,
+                                });
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Format
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {SOCIAL_MEDIA_FORMAT_IDS.filter(
+                          (id) => id !== "story_9x16",
+                        ).map((id) => (
+                          <ToggleChip
+                            key={id}
+                            active={mediaFormat === id}
+                            label={SOCIAL_MEDIA_FORMATS[id].ratioLabel}
+                            disabled={busyId === s.id}
+                            onClick={() =>
+                              void patchSuggestion(s.id, { mediaFormat: id })
+                            }
+                          />
+                        ))}
+                      </div>
                     </div>
 
                     <div className="space-y-1">
@@ -938,6 +1296,16 @@ export function SocialAutopilotScreen() {
                       >
                         <Pencil className="size-4" />
                         Bearbeiten
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-12 w-full rounded-xl"
+                        disabled={busyId === s.id}
+                        onClick={() => void saveAsTemplate(s.id)}
+                      >
+                        <Bookmark className="size-4" />
+                        Als Vorlage speichern
                       </Button>
                       <Button
                         type="button"

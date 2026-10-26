@@ -11,6 +11,8 @@ export const SOCIAL_SUGGESTION_STATUSES = [
   "skipped",
   "expired",
   "needs_asset",
+  /** Gespeicherte Vorlage — bleibt nutzbar, parallel zu neuen Ideen. */
+  "saved",
 ] as const;
 export type SocialSuggestionStatus =
   (typeof SOCIAL_SUGGESTION_STATUSES)[number];

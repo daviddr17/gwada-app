@@ -42,6 +42,11 @@ import {
 } from "@/lib/social/social-suggestions-db";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
 import { parseSocialPublishPlatforms } from "@/lib/social/social-publish-platforms";
+import {
+  parseSocialMediaFormatId,
+  type SocialMediaFormatId,
+} from "@/lib/social/social-media-formats";
+import { insertRestaurantAiUsageEvent } from "@/lib/supabase/restaurant-ai-usage-db";
 import { fetchRestaurantAssistantRuntime } from "@/lib/supabase/restaurant-assistant-key-db";
 
 function startOfWeekMonday(d = new Date()): Date {
@@ -269,6 +274,7 @@ export async function generateSocialSuggestionsForRestaurant(
     /** Session-Override aus der Auswahl-UI (sonst Brand Kit). */
     tone?: SocialTone;
     platforms?: string[];
+    mediaFormat?: SocialMediaFormatId;
   },
 ): Promise<SocialSuggestionGenerateResult> {
   const caps = {
@@ -409,6 +415,9 @@ export async function generateSocialSuggestionsForRestaurant(
     return plannedAtForDay(weekStart, day, 11 + (slotIndex % 2));
   };
 
+  const mediaFormat =
+    parseSocialMediaFormatId(opts?.mediaFormat) ?? "square_1x1";
+
   const drafts: Draft[] = [];
   for (const idea of picked) {
     const avoid = recentLayouts.slice(-2);
@@ -426,7 +435,10 @@ export async function generateSocialSuggestionsForRestaurant(
       plannedAt: nextPlan(),
       feedLayout,
     });
-    if (draft) drafts.push(draft);
+    if (draft) {
+      draft.source = { ...draft.source, mediaFormat };
+      drafts.push(draft);
+    }
   }
 
   if (drafts.length === 0) {
@@ -478,6 +490,23 @@ export async function generateSocialSuggestionsForRestaurant(
     restaurantName,
     jobs: captionJobs,
   });
+
+  if (llmOutcome.llmCalls > 0) {
+    await insertRestaurantAiUsageEvent(sb, {
+      restaurantId,
+      source: "autopilot",
+      provider: llmRuntime.provider,
+      model: llmRuntime.model,
+      promptTokens: llmOutcome.usage?.promptTokens ?? null,
+      completionTokens: llmOutcome.usage?.completionTokens ?? null,
+      totalTokens: llmOutcome.usage?.totalTokens ?? null,
+      meta: {
+        jobs: captionJobs.length,
+        llmApplied: llmOutcome.results.length,
+        ok: llmOutcome.ok,
+      },
+    });
+  }
 
   const applied = applyAutopilotCaptionResults({
     captions: drafts.map((d) => d.caption),

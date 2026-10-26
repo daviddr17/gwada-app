@@ -1,5 +1,6 @@
 import { authorizeSocialNewsRestaurant } from "@/lib/social/route-auth";
 import { SOCIAL_TONES, type SocialTone } from "@/lib/social/social-brand-kit";
+import { parseSocialMediaFormatId } from "@/lib/social/social-media-formats";
 import { generateSocialSuggestionsForRestaurant } from "@/lib/social/social-suggestion-generate-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -12,6 +13,7 @@ export async function POST(req: Request) {
     ideaIds?: unknown;
     tone?: unknown;
     platforms?: unknown;
+    mediaFormat?: unknown;
   };
   const restaurantId = body.restaurantId?.trim() ?? "";
   const ideaIds = Array.isArray(body.ideaIds)
@@ -25,6 +27,7 @@ export async function POST(req: Request) {
   const platforms = Array.isArray(body.platforms)
     ? body.platforms.filter((p): p is string => typeof p === "string")
     : undefined;
+  const mediaFormat = parseSocialMediaFormatId(body.mediaFormat) ?? undefined;
 
   const auth = await authorizeSocialNewsRestaurant(restaurantId, {
     requireManage: true,
@@ -48,7 +51,7 @@ export async function POST(req: Request) {
   const generation = await generateSocialSuggestionsForRestaurant(
     admin,
     restaurantId,
-    { ideaIds, tone, platforms },
+    { ideaIds, tone, platforms, mediaFormat },
   );
 
   return Response.json({ ok: true, generation });

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Dev-DB: schema_migrations lesbar machen (58P01 / Ownership). Nicht hart an ALTER OWNER scheitern.
+# Dev-DB: schema_migrations lesbar machen (58P01 / Ownership).
+# Recreate bewusst einfach — ALTER OWNER separat und best-effort.
 set -euo pipefail
 
 compose_dir="${1:?compose_dir}"
@@ -14,7 +15,6 @@ if [[ -z "${pw}" ]]; then
   [[ -n "${pw}" ]] || pw="$(grep -m1 '^POSTGRES_PASSWORD=' .env | sed 's/^POSTGRES_PASSWORD=//' | tr -d '\r\n')"
 fi
 
-# Versuche postgres, dann supabase_admin (je nach Owner der Tabelle).
 psql_as() {
   local user="$1"
   shift
@@ -28,6 +28,16 @@ readable() {
     "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1
 }
 
+harden_grants() {
+  # Best-effort — darf den Migrate-Lauf nicht killen.
+  psql_as postgres -v ON_ERROR_STOP=0 -c "
+    grant usage, create on schema supabase_migrations to postgres, supabase_admin;
+    grant all on all tables in schema supabase_migrations to postgres, supabase_admin;
+    alter schema supabase_migrations owner to postgres;
+    alter table if exists supabase_migrations.schema_migrations owner to postgres;
+  " 2>&1 | tail -5 || true
+}
+
 echo "→ Dev-DB: schema_migrations Health-Check …"
 
 if readable supabase_admin || readable postgres; then
@@ -37,26 +47,31 @@ if readable supabase_admin || readable postgres; then
       2>/dev/null | tr -d '[:space:]' || true
   )"
   count="$(
-    if readable supabase_admin; then
-      psql_as supabase_admin -tAc "select count(*) from supabase_migrations.schema_migrations;" | tr -d '[:space:]'
-    else
+    if readable postgres; then
       psql_as postgres -tAc "select count(*) from supabase_migrations.schema_migrations;" | tr -d '[:space:]'
+    else
+      psql_as supabase_admin -tAc "select count(*) from supabase_migrations.schema_migrations;" | tr -d '[:space:]'
     fi
   )"
   echo "✓ schema_migrations lesbar (owner=${owner:-?}, rows=${count})."
-  # Best-effort Grants — Fehler ignorieren
-  psql_as postgres -v ON_ERROR_STOP=0 -c \
-    "grant usage, create on schema supabase_migrations to supabase_admin, postgres;
-     grant all on table supabase_migrations.schema_migrations to supabase_admin, postgres;
-     alter schema supabase_migrations owner to postgres;
-     alter table if exists supabase_migrations.schema_migrations owner to postgres;" \
-    >/dev/null 2>&1 || true
+  harden_grants
   exit 0
 fi
 
 echo "  unlesbar — Indexes droppen / Tabelle neu anlegen …"
 
-# Indexes droppen (beide Rollen versuchen)
+# Diagnose (sichtbar in CI-Logs)
+psql_as postgres -v ON_ERROR_STOP=0 -c "
+  select n.nspname, c.relname, pg_get_userbyid(c.relowner) as owner
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'supabase_migrations';
+" 2>&1 | tail -20 || true
+psql_as postgres -v ON_ERROR_STOP=0 -c "
+  select count(*) as idx_count from pg_indexes
+  where schemaname='supabase_migrations' and tablename='schema_migrations';
+" 2>&1 | tail -10 || true
+
 for user in postgres supabase_admin; do
   psql_as "${user}" -v ON_ERROR_STOP=0 -c "
     do \$\$
@@ -84,35 +99,48 @@ done
 
 if readable supabase_admin || readable postgres; then
   echo "✓ schema_migrations nach Index-Drop wieder lesbar."
+  harden_grants
   exit 0
 fi
 
-echo "  DROP + CREATE als Owner-fähigem User …"
+echo "  DROP + CREATE (postgres zuerst, ohne ALTER OWNER im selben Block) …"
 recreated=0
-for user in supabase_admin postgres; do
-  if psql_as "${user}" -v ON_ERROR_STOP=1 -c "
-    create schema if not exists supabase_migrations;
-    drop table if exists supabase_migrations.schema_migrations cascade;
-    create table supabase_migrations.schema_migrations (
-      version text primary key,
-      statements text[],
-      name text
-    );
-    grant usage, create on schema supabase_migrations to postgres, supabase_admin;
-    grant all on table supabase_migrations.schema_migrations to postgres, supabase_admin;
-    alter schema supabase_migrations owner to postgres;
-    alter table supabase_migrations.schema_migrations owner to postgres;
-  " >/dev/null 2>&1; then
+last_err=""
+for user in postgres supabase_admin; do
+  echo "  Versuch als ${user} …"
+  set +e
+  out="$(
+    psql_as "${user}" -v ON_ERROR_STOP=1 -c "
+      create schema if not exists supabase_migrations;
+      drop table if exists supabase_migrations.schema_migrations cascade;
+      create table supabase_migrations.schema_migrations (
+        version text primary key,
+        statements text[],
+        name text
+      );
+      grant usage, create on schema supabase_migrations to postgres, supabase_admin;
+      grant all on table supabase_migrations.schema_migrations to postgres, supabase_admin;
+    " 2>&1
+  )"
+  rc=$?
+  set -e
+  if (( rc == 0 )); then
     recreated=1
     echo "  neu angelegt als ${user}"
     break
   fi
+  last_err="${out}"
+  echo "  ${user} fehlgeschlagen:" >&2
+  echo "${out}" | tail -30 >&2
 done
 
 if (( recreated == 0 )); then
   echo "FEHLER: schema_migrations konnte nicht neu angelegt werden." >&2
+  echo "${last_err}" | tail -40 >&2
   exit 1
 fi
+
+harden_grants
 
 if readable supabase_admin || readable postgres; then
   echo "✓ schema_migrations neu initialisiert und lesbar."

@@ -72,22 +72,54 @@ psql_db() {
 DB_URL="postgresql://${DB_USER}:${ENC_PW}@127.0.0.1:${DB_PORT}/postgres?sslmode=disable"
 
 if [[ -f /tmp/vps-dev-db-repair-missing-files.sh ]]; then
-  bash /tmp/vps-dev-db-repair-missing-files.sh "${compose_dir}" "${DB_PORT}" "${PW}"
+  if ! bash /tmp/vps-dev-db-repair-missing-files.sh "${compose_dir}" "${DB_PORT}" "${PW}"; then
+    echo "  Repair-Skript meldete Fehler — Fallback-Recreate inline …" >&2
+  fi
 fi
 
-# Ownership/Grants: CLI braucht CREATE am Schema (sonst 42501 "permission denied for schema").
+ensure_schema_migrations_table() {
+  local user="$1"
+  docker compose exec -T -e PGPASSWORD="${PW}" db \
+    psql -U "${user}" -h localhost -p "${DB_PORT}" -d postgres -v ON_ERROR_STOP=1 -c "
+      create schema if not exists supabase_migrations;
+      create table if not exists supabase_migrations.schema_migrations (
+        version text primary key,
+        statements text[],
+        name text
+      );
+      grant usage, create on schema supabase_migrations to postgres, supabase_admin;
+      grant all on table supabase_migrations.schema_migrations to postgres, supabase_admin;
+    "
+}
+
+# Ownership/Grants + Fallback falls Repair scheiterte.
 echo "→ schema_migrations Ownership/Grants härten …"
+if ! docker compose exec -T -e PGPASSWORD="${PW}" db \
+  psql -U postgres -h localhost -p "${DB_PORT}" -d postgres -v ON_ERROR_STOP=1 -tAc \
+  "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
+  echo "  Tabelle fehlt/unlesbar — inline recreate …"
+  set +e
+  ensure_schema_migrations_table postgres
+  rc=$?
+  if (( rc != 0 )); then
+    ensure_schema_migrations_table supabase_admin
+    rc=$?
+  fi
+  set -e
+  if (( rc != 0 )); then
+    echo "FEHLER: schema_migrations inline recreate fehlgeschlagen." >&2
+    exit 1
+  fi
+fi
 docker compose exec -T -e PGPASSWORD="${PW}" db \
   psql -U postgres -h localhost -p "${DB_PORT}" -d postgres -v ON_ERROR_STOP=0 -c "
-    create schema if not exists supabase_migrations;
-    alter schema supabase_migrations owner to postgres;
     grant usage, create on schema supabase_migrations to postgres, supabase_admin;
     grant all on all tables in schema supabase_migrations to postgres, supabase_admin;
-    alter default privileges in schema supabase_migrations
-      grant all on tables to postgres, supabase_admin;
+    alter schema supabase_migrations owner to postgres;
+    alter table if exists supabase_migrations.schema_migrations owner to postgres;
   " >/dev/null 2>&1 || true
 
-# Nach Repair/Grants: Push als postgres (Superuser) — vermeidet CLI CREATE-Permission-Fail.
+# Push als postgres (Superuser) — vermeidet CLI CREATE-Permission-Fail.
 DB_USER="postgres"
 if docker compose exec -T -e PGPASSWORD="${PW}" db \
   psql -U postgres -h localhost -p "${DB_PORT}" -d postgres -tAc \
@@ -97,6 +129,9 @@ elif docker compose exec -T -e PGPASSWORD="${PW}" db \
   psql -U supabase_admin -h localhost -p "${DB_PORT}" -d postgres -tAc \
   "select count(*) from supabase_migrations.schema_migrations;" >/dev/null 2>&1; then
   DB_USER="supabase_admin"
+else
+  echo "FEHLER: schema_migrations nach Harden weiterhin unlesbar." >&2
+  exit 1
 fi
 DB_URL="postgresql://${DB_USER}:${ENC_PW}@127.0.0.1:${DB_PORT}/postgres?sslmode=disable"
 echo "→ DB-User für Push: ${DB_USER}"

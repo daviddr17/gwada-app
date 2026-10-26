@@ -1,0 +1,81 @@
+# Entfernt Coolify-Control-Plane nach Cutover+Stop (Container/Images/Volumes/source/proxy/applications).
+# Behält Live-App (/opt/gwada/live), Supabase-Service, Authelia, Netz coolify, Dev-DB.
+name: Prune Coolify control plane
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Muss exakt PRUNE sein
+        required: true
+        type: string
+  push:
+    branches:
+      - main
+      - "cursor/**"
+    paths:
+      - .github/triggers/prune-coolify-control-plane.env
+      - .github/workflows/prune-coolify-control-plane.yml
+      - scripts/vps-prune-coolify-control-plane.sh
+
+concurrency:
+  group: prune-coolify-control-plane
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Prune Coolify remnants
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Guardrails
+        id: guard
+        run: |
+          set -euo pipefail
+          CONFIRM=""
+          STATUS=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CONFIRM="${{ inputs.confirm }}"
+          elif [ -f .github/triggers/prune-coolify-control-plane.env ]; then
+            CONFIRM="$(grep -E '^confirm=' .github/triggers/prune-coolify-control-plane.env | cut -d= -f2- | tr -d '[:space:]' || true)"
+            STATUS="$(grep -E '^status=' .github/triggers/prune-coolify-control-plane.env | cut -d= -f2- | tr -d '[:space:]' || true)"
+          fi
+          if [ "${STATUS}" = "done" ] || [ "${STATUS}" = "disarmed" ]; then
+            echo "Trigger disarmed (status=${STATUS}) — Prune übersprungen."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${CONFIRM}" != "PRUNE" ]; then
+            echo "::error::confirm muss PRUNE sein (got '${CONFIRM}')."
+            exit 1
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Prune via SSH
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          GWADA_CONFIRM_PRUNE_COOLIFY: PRUNE
+        run: |
+          set -euo pipefail
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          chmod +x scripts/vps-prune-coolify-control-plane.sh
+          bash scripts/vps-prune-coolify-control-plane.sh
+          echo "Post-prune public verify:"
+          curl -fsS https://gwada.app/api/build-info
+          echo
+          curl -fsS -o /dev/null -w "home:%{http_code}\n" https://gwada.app/
+          curl -fsS -o /dev/null -w "login:%{http_code}\n" https://gwada.app/login

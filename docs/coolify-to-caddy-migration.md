@@ -137,8 +137,11 @@ Smoke: `gh workflow run deploy-live-app.yml --ref main` → neuer SHA in build-i
 
 1. Coolify-UI/Container stoppen (`coolify`, `coolify-db`, …) — **nicht** Supabase-Service-Compose löschen.
 2. Port 8000 bleibt zu (bereits gehärtet).
-3. Nach Stabilität (Tage): Coolify-Images/Volumes aufräumen; App-Env-Backup unter `/opt/gwada/live/.env` behalten.
-4. Docs: `docs/coolify-live-deploy.md` → Verweis auf Compose+Caddy / dieses Runbook.
+3. **Vollständig entfernen (Prune):** Control-Plane-Container + Images + Volumes + `/data/coolify/{source,proxy,applications}` — **nicht** `/data/coolify/services/` (Live-Supabase + Authelia), **nicht** Netz `coolify`, **nicht** `/opt/gwada/live`, **nicht** Dev-DB.
+   - Skript: `scripts/vps-prune-coolify-control-plane.sh` (`GWADA_CONFIRM_PRUNE_COOLIFY=PRUNE`)
+   - Workflow: `prune-coolify-control-plane.yml` (Dispatch `confirm=PRUNE` oder Push-Trigger `.github/triggers/prune-coolify-control-plane.env`)
+4. App-Env-Backup unter `/opt/gwada/live/.env` behalten.
+5. Docs: `docs/coolify-live-deploy.md` → Verweis auf Compose+Caddy / dieses Runbook.
 
 ---
 
@@ -193,6 +196,7 @@ Deploy-Skripte mit fehlendem `/opt/gwada/live` fallen wieder auf Coolify-Pfad zu
 | Coolify UI | `coolify` / `coolify-db` / `coolify-redis` / `coolify-realtime` **gestoppt** (Container noch vorhanden, nicht gelöscht) |
 | Supabase Live | unverändert (`*-oogd5syyxiqb1k4g0wy1u9n8`) |
 | Trigger-Dateien | disarmed (`status=done`) — Re-Arm nur bewusst |
+| Prune (vollständig) | Workflow `prune-coolify-control-plane.yml` — entfernt Control-Plane + source/proxy/applications; behält services + Netz `coolify` + `/opt/gwada/live` |
 
 **Hinweis Agent:** `gh workflow run` war 403 → Cutover/Stop über Push-Trigger `.github/triggers/*.env` (wie `deploy-live.env`).
 

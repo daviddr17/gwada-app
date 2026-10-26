@@ -2,7 +2,7 @@
 
 **Production-Domain:** `https://gwada.app` — Domain-Architektur: [gwada-app-domains.md](./gwada-app-domains.md)
 
-**Infra-Ziel:** Coolify/Traefik → **Docker Compose + Caddy** unter `/opt/gwada/live` (Musterungsfuchs-Modell). Runbook: [coolify-to-caddy-migration.md](./coolify-to-caddy-migration.md). Solange `/opt/gwada/live` fehlt, bleibt der Coolify-App-Compose-Pfad aktiv (`scripts/vps-deploy-live-app.sh`).
+**Infra-Ziel:** Coolify/Traefik → **Docker Compose + Caddy** unter `/opt/gwada/live` (Musterungsfuchs-Modell). Runbook: [coolify-to-caddy-migration.md](./coolify-to-caddy-migration.md). Nach Cutover+Stop: Coolify-Control-Plane optional vollständig entfernen (`prune-coolify-control-plane.yml`). Live-Supabase/Authelia bleiben unter `/data/coolify/services/`. Solange `/opt/gwada/live` fehlt, bleibt der Coolify-App-Compose-Pfad aktiv (`scripts/vps-deploy-live-app.sh`).
 
 ## Ablauf (seit 2026-07)
 

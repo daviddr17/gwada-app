@@ -47,6 +47,15 @@ jobs:
             CONFIRM="$(grep -E '^confirm=' .github/triggers/cutover-coolify-to-caddy.env | cut -d= -f2- | tr -d '[:space:]' || true)"
             SNAPSHOT="$(grep -E '^snapshot_done=' .github/triggers/cutover-coolify-to-caddy.env | cut -d= -f2- | tr -d '[:space:]' || true)"
           fi
+          STATUS=""
+          if [ -f .github/triggers/cutover-coolify-to-caddy.env ]; then
+            STATUS="$(grep -E '^status=' .github/triggers/cutover-coolify-to-caddy.env | cut -d= -f2- | tr -d '[:space:]' || true)"
+          fi
+          if [ "${STATUS}" = "done" ] || [ "${STATUS}" = "disarmed" ]; then
+            echo "Trigger disarmed (status=${STATUS}) — Cutover übersprungen."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ "${CONFIRM}" != "CUTOVER" ]; then
             echo "::error::confirm muss CUTOVER sein (got '${CONFIRM}')."
             exit 1
@@ -55,9 +64,11 @@ jobs:
             echo "::error::snapshot_done muss yes sein (got '${SNAPSHOT}')."
             exit 1
           fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "Guardrails OK (confirm=CUTOVER, snapshot_done=yes)."
 
       - name: Run cutover over SSH
+        if: steps.guard.outputs.skip != 'true'
         env:
           LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}

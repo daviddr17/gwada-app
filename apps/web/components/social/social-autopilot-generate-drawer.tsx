@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Filter, RefreshCw, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
-  countAutopilotIdeaActiveFilters,
-  SocialAutopilotIdeasFilterDrawer,
-} from "@/components/social/social-autopilot-ideas-filter-drawer";
+  SocialAutopilotAssetPickerDrawer,
+  type AutopilotAssetPick,
+} from "@/components/social/social-autopilot-asset-picker-drawer";
 import { SocialAutopilotOptionsDrawer } from "@/components/social/social-autopilot-options-drawer";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -19,19 +18,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
-import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
-import type {
-  SocialAutopilotIdea,
-  SocialAutopilotIdeaHint,
-} from "@/lib/social/social-autopilot-ideas";
-import {
-  filterSocialAutopilotIdeas,
-  groupSocialAutopilotIdeas,
-  SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS,
-  type SocialAutopilotIdeaFilter,
-} from "@/lib/social/social-autopilot-idea-sort";
-import { SOCIAL_AUTOPILOT_IDEAS_FETCH_TIMEOUT_MS } from "@/lib/social/social-autopilot-bounds";
 import type { SocialTone } from "@/lib/social/social-brand-kit";
 import {
   SOCIAL_MEDIA_FORMATS,
@@ -40,101 +27,15 @@ import {
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
-import {
-  autopilotPrimaryButtonClassName,
-  autopilotSecondaryButtonClassName,
-} from "@/lib/ui/social-autopilot-buttons";
+import { autopilotPrimaryButtonClassName } from "@/lib/ui/social-autopilot-buttons";
 import { cn } from "@/lib/utils";
 
-type Phase = "setup" | "ideas" | "creating";
-
-type IdeasLoadError =
-  | "timeout"
-  | "network"
-  | "ai_not_configured"
-  | "disabled"
-  | "needs_media"
-  | "load_failed"
-  | null;
-
-/** Quellen vor dem Laden — Speisekarte / Galerie / KI, alles optional. */
-type SourcePref = "menu" | "gallery" | "ai";
-
-const SOURCE_PREF_ORDER: readonly SourcePref[] = [
-  "menu",
-  "gallery",
-  "ai",
-] as const;
-
-const SOURCE_PREF_LABELS: Record<SourcePref, string> = {
-  menu: "Speisekarte",
-  gallery: "Galerie",
-  ai: "KI-Ideen",
-};
-
-const DEFAULT_SOURCE_PREFS: SourcePref[] = ["menu", "gallery", "ai"];
-
-function ideaHintFromIdea(idea: SocialAutopilotIdea): SocialAutopilotIdeaHint {
-  return {
-    ...(idea.theme ? { theme: idea.theme } : {}),
-    ...(idea.captionDirection
-      ? { captionDirection: idea.captionDirection }
-      : {}),
-    ...(idea.suggestedFormat
-      ? { suggestedFormat: idea.suggestedFormat }
-      : {}),
-  };
-}
-
-function ideasErrorCopy(error: Exclude<IdeasLoadError, null>): {
-  title: string;
-  detail: string;
-  linkHref?: string;
-  linkLabel?: string;
-} {
-  switch (error) {
-    case "ai_not_configured":
-      return {
-        title: "KI noch nicht verbunden",
-        detail:
-          "Speisekarte und Galerie gehen trotzdem — zum Schreiben braucht Autopilot einmal OpenAI oder Grok.",
-        linkHref: APP_ROUTES.settings.integrations,
-        linkLabel: "KI verbinden",
-      };
-    case "disabled":
-      return {
-        title: "Autopilot ist aus",
-        detail: "Unter Schreibstil könnt ihr ihn wieder einschalten.",
-      };
-    case "needs_media":
-      return {
-        title: "Noch keine Fotos",
-        detail: "Galerie oder Speisekarte mit Bildern ergänzen — dann gibt’s Ideen.",
-        linkHref: APP_ROUTES.galerie.overview,
-        linkLabel: "Zur Galerie",
-      };
-    case "timeout":
-      return {
-        title: "Dauert zu lange",
-        detail:
-          "Die Ideen-Anfrage wurde abgebrochen. Speisekarte/Galerie könnt ihr erneut laden.",
-      };
-    case "network":
-      return {
-        title: "Keine Verbindung",
-        detail: "Netz prüfen und nochmal „Andere Ideen“ tippen.",
-      };
-    default:
-      return {
-        title: "Ideen nicht geladen",
-        detail: "Kurz warten und nochmal versuchen.",
-      };
-  }
-}
+type Phase = "setup" | "creating";
 
 /**
- * Bottom Sheet: Quellen tippen → erstellen.
- * Ergebnis = Entwurf auf der Hauptseite.
+ * KI-Post: leichte Vorgaben → ein Generieren → ein Entwurf.
+ * Kein Ideas-Preload, kein Pitch-LLM beim Tab-Öffnen.
+ * Caption/Bild über Restaurant-KI (OpenAI/Grok aus Integrationen).
  */
 export function SocialAutopilotGenerateDrawer({
   open,
@@ -146,9 +47,7 @@ export function SocialAutopilotGenerateDrawer({
   initialPlatforms,
   initialFormat,
   onCreated,
-  /** Ohne eigenen Drawer — Inhalt im „Neue News“-Sheet. */
   embedded = false,
-  /** Sofort als News-Entwürfe materialisieren (Standard für Neue-News-KI). */
   asNewsDrafts = true,
 }: {
   open: boolean;
@@ -159,22 +58,17 @@ export function SocialAutopilotGenerateDrawer({
   initialTone: SocialTone;
   initialPlatforms: NewsPlatform[];
   initialFormat: SocialMediaFormatId;
-  /** Nach erfolgreichem Generate — Entwürfe in der News-Liste neu laden. */
   onCreated: () => void | Promise<void>;
   embedded?: boolean;
   asNewsDrafts?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>("setup");
-  const [ideasLoading, setIdeasLoading] = useState(false);
-  const [ideas, setIdeas] = useState<SocialAutopilotIdea[]>([]);
-  const [ideasError, setIdeasError] = useState<IdeasLoadError>(null);
-  const [ideaFilter, setIdeaFilter] =
-    useState<SocialAutopilotIdeaFilter>("all");
-  const [sourcePrefs, setSourcePrefs] =
-    useState<SourcePref[]>(DEFAULT_SOURCE_PREFS);
-  const [ideasFilterOpen, setIdeasFilterOpen] = useState(false);
-  const [maxSelect, setMaxSelect] = useState(7);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [menuPick, setMenuPick] = useState<AutopilotAssetPick | null>(null);
+  const [galleryPick, setGalleryPick] = useState<AutopilotAssetPick | null>(
+    null,
+  );
+  const [menuPickerOpen, setMenuPickerOpen] = useState(false);
+  const [galleryPickerOpen, setGalleryPickerOpen] = useState(false);
   const [sessionTone, setSessionTone] = useState<SocialTone>(initialTone);
   const [sessionPlatforms, setSessionPlatforms] =
     useState<NewsPlatform[]>(initialPlatforms);
@@ -182,172 +76,30 @@ export function SocialAutopilotGenerateDrawer({
     useState<SocialMediaFormatId>(initialFormat);
   const [formatTouched, setFormatTouched] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const loadAbortRef = useRef<AbortController | null>(null);
-  /** true = Sheet geschlossen / Tab gewechselt — Abbruch ohne Fehler-Toast. */
   const dismissAbortRef = useRef(false);
-  const showIdeasSkeleton = useDeferredSkeleton(ideasLoading);
-
-  const filteredIdeas = useMemo(() => {
-    const byFilter = filterSocialAutopilotIdeas(ideas, ideaFilter);
-    if (sourcePrefs.length >= SOURCE_PREF_ORDER.length) return byFilter;
-    const allow = new Set(sourcePrefs);
-    return byFilter.filter((idea) => allow.has(idea.sourceBucket as SourcePref));
-  }, [ideas, ideaFilter, sourcePrefs]);
-  const ideaGroups = useMemo(
-    () => groupSocialAutopilotIdeas(filteredIdeas),
-    [filteredIdeas],
-  );
-  const ideaFilterActiveCount = countAutopilotIdeaActiveFilters(ideaFilter);
-  const ideasById = useMemo(() => {
-    const map = new Map<string, SocialAutopilotIdea>();
-    for (const idea of ideas) map.set(idea.id, idea);
-    return map;
-  }, [ideas]);
-
-  const loadIdeas = useCallback(
-    async (opts?: { rotate?: boolean }) => {
-      if (!restaurantId) return;
-
-      dismissAbortRef.current = false;
-      loadAbortRef.current?.abort();
-      const controller = new AbortController();
-      loadAbortRef.current = controller;
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, SOCIAL_AUTOPILOT_IDEAS_FETCH_TIMEOUT_MS);
-
-      setPhase("ideas");
-      setIdeasLoading(true);
-      setIdeasError(null);
-      try {
-        const qs = new URLSearchParams({ restaurantId });
-        if (opts?.rotate) qs.set("rotate", "1");
-        // Kein forceSkip — Entwürfe auf der Hauptseite bleiben.
-        const res = await fetch(`/api/social/suggestions/ideas?${qs}`, {
-          signal: controller.signal,
-        });
-        const data = (await res.json().catch(() => ({}))) as {
-          ideas?: SocialAutopilotIdea[];
-          maxSelect?: number;
-          skippedReason?: string;
-          aiConfigured?: boolean;
-        };
-        if (controller.signal.aborted) return;
-
-        if (!res.ok) {
-          setIdeas([]);
-          setSelectedIds([]);
-          setIdeasError("load_failed");
-          toast.error("Ideen konnten nicht geladen werden");
-          return;
-        }
-        if (data.skippedReason === "disabled") {
-          setIdeas([]);
-          setSelectedIds([]);
-          setIdeasError("disabled");
-          return;
-        }
-        if (data.skippedReason === "needs_media") {
-          setIdeas([]);
-          setSelectedIds([]);
-          setIdeasError("needs_media");
-          return;
-        }
-
-        const next = data.ideas ?? [];
-        setIdeas(next);
-        // Vorab gewählte Quellen als Filter, wenn genau eine; sonst Alle.
-        if (sourcePrefs.length === 1) {
-          setIdeaFilter(sourcePrefs[0]!);
-        } else {
-          setIdeaFilter("all");
-        }
-        setMaxSelect(
-          typeof data.maxSelect === "number" && data.maxSelect >= 0
-            ? data.maxSelect
-            : 7,
-        );
-        setSelectedIds([]);
-        setFormatTouched(false);
-
-        if (next.length === 0) {
-          if (
-            data.skippedReason === "ai_not_configured" ||
-            data.aiConfigured === false ||
-            aiConfigured === false
-          ) {
-            setIdeasError("ai_not_configured");
-          }
-          return;
-        }
-
-        if (data.aiConfigured === false || aiConfigured === false) {
-          // Katalog da, aber Schreiben braucht KI — Hinweis, kein Block.
-          setIdeasError("ai_not_configured");
-        }
-      } catch (err) {
-        if (controller.signal.aborted) {
-          // Sheet geschlossen / Tab gewechselt → still.
-          if (dismissAbortRef.current) return;
-          // Neuer Request oder Timeout — nur Timeout als Fehler zeigen,
-          // wenn dieser Controller noch der aktuelle ist.
-          if (loadAbortRef.current === controller) {
-            setIdeas([]);
-            setSelectedIds([]);
-            setIdeasError("timeout");
-            toast.error("Ideen-Laden abgebrochen — zu lange keine Antwort");
-          }
-          return;
-        }
-        const isAbort =
-          err instanceof DOMException && err.name === "AbortError";
-        if (dismissAbortRef.current) return;
-        setIdeas([]);
-        setSelectedIds([]);
-        setIdeasError(isAbort ? "timeout" : "network");
-        toast.error(
-          isAbort
-            ? "Ideen-Laden abgebrochen — zu lange keine Antwort"
-            : "Ideen konnten nicht geladen werden",
-        );
-      } finally {
-        clearTimeout(timeoutId);
-        if (loadAbortRef.current === controller) {
-          setIdeasLoading(false);
-        }
-      }
-    },
-    [restaurantId, aiConfigured, sourcePrefs],
-  );
+  const generateAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!open) {
       dismissAbortRef.current = true;
-      loadAbortRef.current?.abort();
-      loadAbortRef.current = null;
+      generateAbortRef.current?.abort();
+      generateAbortRef.current = null;
       setPhase("setup");
       setOptionsOpen(false);
-      setIdeasFilterOpen(false);
-      setSelectedIds([]);
-      setIdeas([]);
-      setIdeasError(null);
-      setIdeasLoading(false);
-      setSourcePrefs(DEFAULT_SOURCE_PREFS);
+      setMenuPickerOpen(false);
+      setGalleryPickerOpen(false);
+      setMenuPick(null);
+      setGalleryPick(null);
+      setFormatTouched(false);
       return;
     }
-    // Tab öffnen = nur leichtes Setup. Kein Ideen-LLM / kein Skeleton.
     dismissAbortRef.current = false;
-    setFormatTouched(false);
     setPhase("setup");
-    setIdeas([]);
-    setSelectedIds([]);
-    setIdeasError(null);
-    setIdeasLoading(false);
-    setSourcePrefs(DEFAULT_SOURCE_PREFS);
+    setMenuPick(null);
+    setGalleryPick(null);
+    setFormatTouched(false);
   }, [open]);
 
-  // Brand-Kit Defaults nachziehen, solange der User noch im Setup ist
-  // (kein Reset der Ideen-Liste, wenn Kit spät nachlädt).
   useEffect(() => {
     if (!open || phase !== "setup") return;
     setSessionTone(initialTone);
@@ -369,90 +121,45 @@ export function SocialAutopilotGenerateDrawer({
   useEffect(() => {
     return () => {
       dismissAbortRef.current = true;
-      loadAbortRef.current?.abort();
+      generateAbortRef.current?.abort();
     };
   }, []);
 
-  const toggleSourcePref = (pref: SourcePref) => {
-    setSourcePrefs((prev) => {
-      if (prev.includes(pref)) {
-        if (prev.length <= 1) {
-          toast.message("Mindestens eine Quelle bleibt aktiv");
-          return prev;
-        }
-        return prev.filter((p) => p !== pref);
-      }
-      return [...prev, pref];
-    });
-  };
+  const platformsSummary =
+    sessionPlatforms.length === 0
+      ? "Keine Kanäle"
+      : sessionPlatforms.length <= 2
+        ? sessionPlatforms.join(", ")
+        : `${sessionPlatforms.length} Kanäle`;
 
-  const toggleIdea = (id: string) => {
-    setSelectedIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (maxSelect <= 0) {
-        toast.message(
-          "Wochenziel voll — erst Entwürfe in der News-Liste handeln",
-        );
-        return prev;
-      }
-      if (prev.length >= maxSelect) {
-        toast.message(`Maximal ${maxSelect} Ideen auf einmal`);
-        return prev;
-      }
-      const next = [...prev, id];
-      if (!formatTouched) {
-        const idea = ideasById.get(id);
-        if (idea?.suggestedFormat) {
-          setSessionFormat(idea.suggestedFormat);
-        }
-      }
-      return next;
-    });
-  };
-
-  const openOptionsForGenerate = () => {
+  const generateOne = async () => {
+    if (!restaurantId) return;
     if (aiConfigured === false) {
       toast.error("Bitte zuerst KI unter Integrationen verbinden");
       return;
     }
-    if (!formatTouched && selectedIds.length > 0) {
-      const first = ideasById.get(selectedIds[0]!);
-      if (first?.suggestedFormat) {
-        setSessionFormat(first.suggestedFormat);
-      }
-    }
-    setOptionsOpen(true);
-  };
 
-  const createFromSelection = async () => {
-    if (!restaurantId || selectedIds.length === 0) return;
-    if (aiConfigured === false) {
-      toast.error("Bitte zuerst KI unter Integrationen verbinden");
-      setPhase("ideas");
-      return;
-    }
-    if (maxSelect <= 0) {
-      toast.message(
-        "Wochenziel voll — erst Entwürfe speichern, posten oder planen",
-      );
-      return;
-    }
-    setOptionsOpen(false);
+    dismissAbortRef.current = false;
+    generateAbortRef.current?.abort();
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
+
     setPhase("creating");
-    const ideaHints: Record<string, SocialAutopilotIdeaHint> = {};
-    for (const id of selectedIds) {
-      const idea = ideasById.get(id);
-      if (!idea) continue;
-      ideaHints[id] = ideaHintFromIdea(idea);
-    }
+    const menuIds = menuPick ? [menuPick.sourceId] : [];
+    const galleryIds = galleryPick ? [galleryPick.sourceId] : [];
+    const styleOnly = menuIds.length === 0 && galleryIds.length === 0;
+
     try {
       const res = await fetch("/api/social/suggestions/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           restaurantId,
-          ideaIds: selectedIds,
-          ideaHints,
+          menuIds,
+          galleryIds,
+          styleOnly,
+          count: 1,
           tone: sessionTone,
           platforms: sessionPlatforms,
           mediaFormat: sessionFormat,
@@ -464,71 +171,70 @@ export function SocialAutopilotGenerateDrawer({
           created?: number;
           newsDraftsCreated?: number;
           skippedReason?: string;
-          llmApplied?: number;
         };
         error?: string;
       };
-      if (!res.ok || data.error === "selection_required") {
-        toast.error("Bitte etwas auswählen");
-        setPhase("ideas");
+
+      if (controller.signal.aborted || dismissAbortRef.current) return;
+
+      if (!res.ok && data.error === "selection_required") {
+        toast.error("Bitte Vorgaben prüfen");
+        setPhase("setup");
         return;
       }
       const gen = data.generation;
       if (gen?.skippedReason === "ai_not_configured") {
         toast.error("Bitte zuerst KI unter Integrationen verbinden");
-        setIdeasError("ai_not_configured");
-        setPhase("ideas");
+        setPhase("setup");
         return;
       }
       if (gen?.skippedReason === "needs_media") {
-        toast.error("Dafür fehlen noch Fotos");
-        setPhase("ideas");
+        toast.error(
+          "Dafür fehlt noch ein Foto — Speisekarte, Galerie oder Titelbild",
+        );
+        setPhase("setup");
         return;
       }
       if (gen?.skippedReason === "week_full") {
         toast.message("Genug für diese Woche — erst Entwürfe posten");
-        setPhase("ideas");
+        setPhase("setup");
         return;
       }
+      if (gen?.skippedReason === "disabled") {
+        toast.error("Autopilot ist aus — unter Autopilot-Einstellungen an");
+        setPhase("setup");
+        return;
+      }
+
       const drafts =
         typeof gen?.newsDraftsCreated === "number"
           ? gen.newsDraftsCreated
           : (gen?.created ?? 0);
       if (drafts > 0) {
         toast.success(
-          drafts === 1
-            ? "Entwurf in der News-Liste — dort freigeben oder bearbeiten"
-            : `${drafts} Entwürfe in der News-Liste — dort freigeben oder bearbeiten`,
+          "Entwurf in der News-Liste — dort freigeben oder bearbeiten",
         );
         onOpenChange(false);
         void onCreated();
         return;
       }
-      toast.message("Keine Entwürfe erstellt");
-      setPhase("ideas");
-    } catch {
+      toast.message("Kein Entwurf erstellt");
+      setPhase("setup");
+    } catch (err) {
+      if (
+        dismissAbortRef.current ||
+        (err instanceof DOMException && err.name === "AbortError")
+      ) {
+        return;
+      }
       toast.error("Generieren fehlgeschlagen");
-      setPhase("ideas");
+      setPhase("setup");
+    } finally {
+      if (generateAbortRef.current === controller) {
+        generateAbortRef.current = null;
+      }
     }
   };
-
-  const errorCopy = ideasError ? ideasErrorCopy(ideasError) : null;
-  const showIdeasList =
-    phase === "ideas" && !showIdeasSkeleton && ideas.length > 0;
-  const showEmpty =
-    phase === "ideas" &&
-    !showIdeasSkeleton &&
-    ideas.length === 0 &&
-    !ideasError;
-  const showErrorBanner =
-    phase === "ideas" && !showIdeasSkeleton && Boolean(errorCopy);
-
-  const platformsSummary =
-    sessionPlatforms.length === 0
-      ? "Keine Kanäle"
-      : sessionPlatforms.length <= 2
-        ? sessionPlatforms.join(", ")
-        : `${sessionPlatforms.length} Kanäle`;
 
   const setupBody = (
     <>
@@ -540,33 +246,41 @@ export function SocialAutopilotGenerateDrawer({
         )}
       >
         <div className="space-y-2">
-          <p className="text-sm font-medium text-foreground">Quellen</p>
+          <p className="text-sm font-medium text-foreground">Vorgaben</p>
           <p className="text-sm text-muted-foreground">
-            Was soll die KI nutzen? Noch nichts wird erstellt.
+            Speisekarte und Galerie optional. Ohne Auswahl schreibt die KI im
+            euren Stil (Marke).
           </p>
-          <ul className="space-y-2">
-            {SOURCE_PREF_ORDER.map((pref) => {
-              const on = sourcePrefs.includes(pref);
-              return (
-                <li key={pref}>
-                  <button
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => toggleSourcePref(pref)}
-                    className={cn(
-                      "flex h-12 w-full items-center justify-between gap-3 rounded-xl border px-3.5 text-left text-sm font-medium touch-manipulation transition-colors",
-                      on
-                        ? "border-accent/50 bg-accent/10 text-foreground"
-                        : "border-border/60 bg-card text-muted-foreground",
-                    )}
-                  >
-                    <span>{SOURCE_PREF_LABELS[pref]}</span>
-                    {on ? <Check className="size-4 shrink-0" /> : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+
+          <button
+            type="button"
+            onClick={() => setMenuPickerOpen(true)}
+            className="flex h-12 w-full items-center justify-between gap-3 rounded-xl border border-border/60 bg-card px-3.5 text-left text-sm touch-manipulation transition-colors hover:border-border"
+          >
+            <span className="min-w-0 truncate">
+              <span className="font-medium text-foreground">Speisekarte</span>
+              <span className="text-muted-foreground">
+                {" · "}
+                {menuPick?.label ?? "optional"}
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setGalleryPickerOpen(true)}
+            className="flex h-12 w-full items-center justify-between gap-3 rounded-xl border border-border/60 bg-card px-3.5 text-left text-sm touch-manipulation transition-colors hover:border-border"
+          >
+            <span className="min-w-0 truncate">
+              <span className="font-medium text-foreground">Galerie</span>
+              <span className="text-muted-foreground">
+                {" · "}
+                {galleryPick?.label ?? "optional"}
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -579,14 +293,29 @@ export function SocialAutopilotGenerateDrawer({
             <span className="min-w-0 truncate text-muted-foreground">
               {platformsSummary}
               {" · "}
-              {SOCIAL_MEDIA_FORMATS[sessionFormat]?.ratioLabel ??
-                sessionFormat}
+              {SOCIAL_MEDIA_FORMATS[sessionFormat]?.ratioLabel ?? sessionFormat}
             </span>
             <span className="shrink-0 text-xs font-medium text-foreground">
               Ändern
             </span>
           </button>
         </div>
+
+        {aiConfigured === false ? (
+          <div className="space-y-2 rounded-xl border border-dashed border-border/60 px-3 py-4 text-center">
+            <p className="text-sm font-medium">KI noch nicht verbunden</p>
+            <p className="text-sm text-muted-foreground">
+              OpenAI oder Grok unter Integrationen hinterlegen.
+            </p>
+            <Button
+              type="button"
+              className={autopilotPrimaryButtonClassName}
+              render={<Link href={APP_ROUTES.settings.integrations} />}
+            >
+              KI verbinden
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -598,304 +327,92 @@ export function SocialAutopilotGenerateDrawer({
         <Button
           type="button"
           className={autopilotPrimaryButtonClassName}
-          disabled={sourcePrefs.length === 0}
-          onClick={() => void loadIdeas({ rotate: true })}
+          disabled={aiConfigured === false}
+          onClick={() => void generateOne()}
         >
           <Sparkles className="size-4" />
-          Vorschläge laden
+          Generieren
         </Button>
       </div>
     </>
   );
 
-  const mainBody =
-    phase === "creating" ? (
-      <div
-        className={cn(
-          embedded ? "min-h-0 flex-1 space-y-4 overflow-y-auto px-1" : drawerScrollAreaClassName(6),
-          !embedded && "space-y-4",
-        )}
-        aria-busy
-      >
-        <p className="text-sm text-muted-foreground">
-          {aiLabel} schreibt Bild und Text für euch …
-        </p>
-        {[0, 1, 2].map((i) => (
-          <SkeletonCardFrame key={i} className="space-y-3">
-            <Skeleton className="mx-auto aspect-square w-full max-w-xs rounded-xl" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-8 w-full" />
-          </SkeletonCardFrame>
-        ))}
-      </div>
-    ) : phase === "setup" ? (
-      setupBody
-    ) : (
-      <>
-        <div
-          className={cn(
-            embedded
-              ? "min-h-0 flex-1 space-y-4 overflow-y-auto px-1"
-              : cn(drawerScrollAreaClassName(6), "space-y-4"),
-          )}
-        >
-                <div className="flex items-start gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn("flex-1", autopilotSecondaryButtonClassName)}
-                    disabled={ideasLoading}
-                    onClick={() => {
-                      setPhase("setup");
-                      setIdeas([]);
-                      setSelectedIds([]);
-                      setIdeasError(null);
-                    }}
-                  >
-                    Quellen
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn("flex-1", autopilotSecondaryButtonClassName)}
-                    disabled={ideasLoading}
-                    onClick={() => void loadIdeas({ rotate: true })}
-                  >
-                    <RefreshCw
-                      className={cn(
-                        "size-3.5",
-                        ideasLoading && "animate-spin",
-                      )}
-                    />
-                    Andere Ideen
-                  </Button>
-                  <div className="relative shrink-0">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      className="rounded-full border-border/60"
-                      aria-label="Quellen filtern"
-                      disabled={ideas.length === 0}
-                      onClick={() => setIdeasFilterOpen(true)}
-                    >
-                      <Filter className="size-4" />
-                    </Button>
-                    {ideaFilterActiveCount > 0 ? (
-                      <Badge
-                        variant="secondary"
-                        className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
-                      >
-                        {ideaFilterActiveCount}
-                      </Badge>
-                    ) : null}
-                  </div>
-                </div>
+  const creatingBody = (
+    <div
+      className={cn(
+        embedded
+          ? "min-h-0 flex-1 space-y-4 overflow-y-auto px-1"
+          : drawerScrollAreaClassName(6),
+        !embedded && "space-y-4",
+      )}
+      aria-busy
+    >
+      <p className="text-sm text-muted-foreground">
+        {aiLabel} schreibt einen Post für euch …
+      </p>
+      {[0, 1].map((i) => (
+        <SkeletonCardFrame key={i} className="space-y-3">
+          <Skeleton className="mx-auto aspect-square w-full max-w-xs rounded-xl" />
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-8 w-full" />
+        </SkeletonCardFrame>
+      ))}
+    </div>
+  );
 
-                {maxSelect <= 0 ? (
-                  <p className="rounded-xl border border-dashed border-border/60 px-3 py-3 text-center text-xs text-muted-foreground">
-                    Genug Entwürfe für diese Woche — erst posten oder speichern.
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Tippen und erstellen
-                    {maxSelect < 7 ? ` (max. ${maxSelect})` : ""}.
-                    {ideaFilter !== "all"
-                      ? ` Nur ${SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS[ideaFilter]}.`
-                      : ""}
-                  </p>
-                )}
+  const mainBody = phase === "creating" ? creatingBody : setupBody;
 
-                {showErrorBanner && errorCopy ? (
-                  <div className="space-y-3 rounded-xl border border-dashed border-border/60 px-3 py-4">
-                    <div className="space-y-1 text-center">
-                      <p className="text-sm font-medium text-foreground">
-                        {errorCopy.title}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {errorCopy.detail}
-                      </p>
-                    </div>
-                    {errorCopy.linkHref && errorCopy.linkLabel ? (
-                      <Button
-                        type="button"
-                        className={autopilotPrimaryButtonClassName}
-                        render={<Link href={errorCopy.linkHref} />}
-                      >
-                        {errorCopy.linkLabel}
-                      </Button>
-                    ) : ideasError === "timeout" ||
-                      ideasError === "network" ||
-                      ideasError === "load_failed" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={autopilotSecondaryButtonClassName}
-                        disabled={ideasLoading}
-                        onClick={() => void loadIdeas({ rotate: true })}
-                      >
-                        Nochmal laden
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {showIdeasSkeleton ? (
-                  <div className="space-y-3" aria-busy>
-                    {[0, 1, 2, 3].map((i) => (
-                      <SkeletonCardFrame
-                        key={i}
-                        className="flex gap-3 p-3"
-                      >
-                        <Skeleton className="size-16 shrink-0 rounded-lg" />
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <Skeleton className="h-3 w-1/3" />
-                          <Skeleton className="h-4 w-4/5" />
-                          <Skeleton className="h-8 w-full" />
-                        </div>
-                      </SkeletonCardFrame>
-                    ))}
-                  </div>
-                ) : null}
-
-                {showEmpty ? (
-                  <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-                    Gerade keine Ideen — später nochmal oder Fotos ergänzen.
-                  </p>
-                ) : null}
-
-                {showIdeasList ? (
-                  filteredIdeas.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-                      Nichts in dieser Quelle — Filter zurücksetzen.
-                    </p>
-                  ) : (
-                    <div className="space-y-5">
-                      {ideaGroups.map((group) => (
-                        <div key={group.sourceBucket} className="space-y-2">
-                          <p className="text-sm font-medium text-foreground">
-                            {group.label}
-                          </p>
-                          <div className="space-y-2">
-                            {group.ideas.map((idea) => {
-                              const selected = selectedIds.includes(idea.id);
-                              const theme =
-                                idea.theme?.trim() || idea.title.trim();
-                              const direction =
-                                idea.captionDirection?.trim() ||
-                                idea.reasonDetail;
-                              return (
-                                <button
-                                  key={idea.id}
-                                  type="button"
-                                  aria-pressed={selected}
-                                  onClick={() => toggleIdea(idea.id)}
-                                  className={cn(
-                                    "flex w-full gap-3 rounded-xl border p-3 text-left touch-manipulation transition-colors",
-                                    selected
-                                      ? "border-accent/50 bg-accent/10 ring-2 ring-accent/30"
-                                      : "border-border/50 hover:border-border",
-                                  )}
-                                >
-                                  <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted/40">
-                                    {idea.imageUrl ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img
-                                        src={idea.imageUrl}
-                                        alt=""
-                                        className="size-full object-cover"
-                                      />
-                                    ) : null}
-                                    {selected ? (
-                                      <span className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-accent text-accent-foreground shadow">
-                                        <Check className="size-3" />
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <div className="min-w-0 flex-1 space-y-0.5">
-                                    <p className="line-clamp-2 text-sm font-medium leading-snug">
-                                      {theme}
-                                    </p>
-                                    <p className="line-clamp-2 text-[12px] leading-snug text-muted-foreground">
-                                      {direction}
-                                    </p>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                ) : null}
-              </div>
-
-        <div
-          className={cn(
-            "shrink-0 border-t border-border/50 py-3",
-            embedded ? "px-0" : "px-6",
-          )}
-        >
-          <Button
-            type="button"
-            className={autopilotPrimaryButtonClassName}
-            disabled={
-              selectedIds.length === 0 || ideasLoading || maxSelect <= 0
-            }
-            onClick={openOptionsForGenerate}
-          >
-            <Sparkles className="size-4" />
-            {selectedIds.length === 0
-              ? "Etwas auswählen"
-              : selectedIds.length === 1
-                ? "Als Entwurf erstellen"
-                : `${selectedIds.length} als Entwürfe`}
-          </Button>
-        </div>
-      </>
-    );
+  const sheets = (
+    <>
+      <SocialAutopilotAssetPickerDrawer
+        open={menuPickerOpen && open}
+        onOpenChange={setMenuPickerOpen}
+        restaurantId={restaurantId}
+        group="menu"
+        selectedId={menuPick?.sourceId ?? null}
+        onSelect={setMenuPick}
+      />
+      <SocialAutopilotAssetPickerDrawer
+        open={galleryPickerOpen && open}
+        onOpenChange={setGalleryPickerOpen}
+        restaurantId={restaurantId}
+        group="gallery"
+        selectedId={galleryPick?.sourceId ?? null}
+        onSelect={setGalleryPick}
+      />
+      <SocialAutopilotOptionsDrawer
+        open={optionsOpen && open && phase === "setup"}
+        onOpenChange={setOptionsOpen}
+        title="Kanäle & Format"
+        tone={sessionTone}
+        onToneChange={setSessionTone}
+        platforms={sessionPlatforms}
+        onPlatformsChange={setSessionPlatforms}
+        format={sessionFormat}
+        onFormatChange={(next) => {
+          setFormatTouched(true);
+          setSessionFormat(next);
+        }}
+        doneLabel="Fertig"
+        onDone={() => setOptionsOpen(false)}
+        defaults={{
+          tone: initialTone,
+          platforms:
+            initialPlatforms.length > 0
+              ? [...initialPlatforms]
+              : ["instagram", "facebook"],
+          format: initialFormat,
+        }}
+      />
+    </>
+  );
 
   if (embedded) {
     if (!open) return null;
     return (
       <>
         <div className="flex min-h-0 flex-1 flex-col">{mainBody}</div>
-        <SocialAutopilotIdeasFilterDrawer
-          open={ideasFilterOpen}
-          onOpenChange={setIdeasFilterOpen}
-          ideas={ideas}
-          filter={ideaFilter}
-          onFilterChange={setIdeaFilter}
-        />
-        <SocialAutopilotOptionsDrawer
-          open={optionsOpen && open && phase !== "creating"}
-          onOpenChange={setOptionsOpen}
-          title={phase === "setup" ? "Kanäle & Format" : "Wohin posten?"}
-          tone={sessionTone}
-          onToneChange={setSessionTone}
-          platforms={sessionPlatforms}
-          onPlatformsChange={setSessionPlatforms}
-          format={sessionFormat}
-          onFormatChange={(next) => {
-            setFormatTouched(true);
-            setSessionFormat(next);
-          }}
-          doneLabel={phase === "setup" ? "Fertig" : "Entwürfe erstellen"}
-          onDone={
-            phase === "setup"
-              ? () => setOptionsOpen(false)
-              : () => void createFromSelection()
-          }
-          defaults={{
-            tone: initialTone,
-            platforms:
-              initialPlatforms.length > 0
-                ? [...initialPlatforms]
-                : ["instagram", "facebook"],
-            format: initialFormat,
-          }}
-        />
+        {sheets}
       </>
     );
   }
@@ -914,60 +431,18 @@ export function SocialAutopilotGenerateDrawer({
         <DrawerContent className={drawerContentClassName("mediaTall")}>
           <DrawerHeader className="text-left">
             <DrawerTitle>
-              {phase === "creating"
-                ? "Einen Moment …"
-                : phase === "setup"
-                  ? "KI-Post"
-                  : "Vorschläge"}
+              {phase === "creating" ? "Einen Moment …" : "KI-Post"}
             </DrawerTitle>
             <DrawerDescription>
               {phase === "creating"
-                ? `${aiLabel} schreibt Bild und Text für euch.`
-                : phase === "setup"
-                  ? "Quellen und Kanäle wählen — Laden startet erst auf Knopfdruck."
-                  : "Tippen, dann als Entwurf erstellen."}
+                ? `${aiLabel} schreibt einen Post für euch.`
+                : "Vorgaben wählen — Generieren erstellt genau einen Entwurf."}
             </DrawerDescription>
           </DrawerHeader>
           {mainBody}
         </DrawerContent>
       </Drawer>
-
-      <SocialAutopilotIdeasFilterDrawer
-        open={ideasFilterOpen}
-        onOpenChange={setIdeasFilterOpen}
-        ideas={ideas}
-        filter={ideaFilter}
-        onFilterChange={setIdeaFilter}
-      />
-
-      <SocialAutopilotOptionsDrawer
-        open={optionsOpen && open && phase !== "creating"}
-        onOpenChange={setOptionsOpen}
-        title={phase === "setup" ? "Kanäle & Format" : "Wohin posten?"}
-        tone={sessionTone}
-        onToneChange={setSessionTone}
-        platforms={sessionPlatforms}
-        onPlatformsChange={setSessionPlatforms}
-        format={sessionFormat}
-        onFormatChange={(next) => {
-          setFormatTouched(true);
-          setSessionFormat(next);
-        }}
-        doneLabel={phase === "setup" ? "Fertig" : "Entwürfe erstellen"}
-        onDone={
-          phase === "setup"
-            ? () => setOptionsOpen(false)
-            : () => void createFromSelection()
-        }
-        defaults={{
-          tone: initialTone,
-          platforms:
-            initialPlatforms.length > 0
-              ? [...initialPlatforms]
-              : ["instagram", "facebook"],
-          format: initialFormat,
-        }}
-      />
+      {sheets}
     </>
   );
 }

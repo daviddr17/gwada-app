@@ -15,11 +15,16 @@ import {
   rewriteAutopilotCaptionsWithLlm,
   type SocialAutopilotCaptionJob,
 } from "@/lib/social/social-autopilot-llm";
-import type { SocialAutopilotIdeaHint } from "@/lib/social/social-autopilot-ideas";
+import type {
+  SocialAutopilotIdeaHint,
+  SocialAutopilotSourceBucket,
+} from "@/lib/social/social-autopilot-ideas";
+import { SOCIAL_AUTOPILOT_SOURCE_BUCKETS } from "@/lib/social/social-autopilot-ideas";
 import {
   listSocialAutopilotIdeas,
   type SocialAutopilotCatalogIdea,
 } from "@/lib/social/social-autopilot-ideas-server";
+import { resolveAutopilotSingleSelection } from "@/lib/social/social-autopilot-selection-server";
 import { fetchSocialBrandKitFromDb } from "@/lib/social/social-brand-kit-db";
 import {
   feedLayoutToLegacyTemplate,
@@ -277,9 +282,33 @@ function draftFromIdea(params: {
   };
 }
 
+export function parseSocialAutopilotSources(
+  raw: unknown,
+): SocialAutopilotSourceBucket[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SocialAutopilotSourceBucket[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const v = item.trim();
+    if (
+      !SOCIAL_AUTOPILOT_SOURCE_BUCKETS.includes(
+        v as SocialAutopilotSourceBucket,
+      )
+    ) {
+      continue;
+    }
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v as SocialAutopilotSourceBucket);
+  }
+  return out;
+}
+
 /**
- * Erzeugt Drafts nur für vom User gewählte Ideen.
- * Ohne `ideaIds` → keine Blind-Generierung (Auswahlpflicht).
+ * Erzeugt Drafts für gewählte Ideen — oder **einen** Post aus
+ * Speisekarte-/Galerie-Auswahl (+ Restaurant-KI Caption).
+ * Ohne Medien: Stil-only (Marke), wenn `styleOnly`.
  */
 export async function generateSocialSuggestionsForRestaurant(
   sb: SupabaseClient,
@@ -288,6 +317,19 @@ export async function generateSocialSuggestionsForRestaurant(
     ideaIds?: string[];
     /** Pitches aus dem Ideas-Sheet (Thema/Richtung/Format). */
     ideaHints?: Record<string, SocialAutopilotIdeaHint>;
+    /** Speisekarte-Artikel (UUIDs) — Generieren nutzt den ersten Treffer. */
+    menuIds?: string[];
+    /** Galerie-Bilder (UUIDs) — Fallback wenn kein Gericht. */
+    galleryIds?: string[];
+    /** Ohne Medien: Marken-/Stil-Post mit Restaurant-KI. */
+    styleOnly?: boolean;
+    /**
+     * Legacy: Katalog nach Quelle (ohne konkrete IDs).
+     * Neu: lieber menuIds/galleryIds/styleOnly.
+     */
+    sources?: SocialAutopilotSourceBucket[];
+    /** Bei Auswahl-/Quellen-Modus immer 1 Post. */
+    count?: number;
     force?: boolean;
     /** Session-Override aus der Auswahl-UI (sonst Brand Kit). */
     tone?: SocialTone;
@@ -324,8 +366,18 @@ export async function generateSocialSuggestionsForRestaurant(
   const ideaIds = (opts?.ideaIds ?? [])
     .map((id) => id.trim())
     .filter(Boolean);
-  // force ohne Auswahl = früherer Blind-Pfad — nicht mehr erlaubt.
-  if (ideaIds.length === 0) {
+  const menuIds = opts?.menuIds ?? [];
+  const galleryIds = opts?.galleryIds ?? [];
+  const styleOnly = opts?.styleOnly === true;
+  const selectionMode =
+    menuIds.length > 0 || galleryIds.length > 0 || styleOnly;
+  const sources = opts?.sources ?? [];
+  const sourceMode =
+    ideaIds.length === 0 && !selectionMode && sources.length > 0;
+  const sourceCount = 1; // KI-Post = immer genau ein Post
+
+  // Weder Ideen noch Auswahl/Quellen → keine Blind-Generierung.
+  if (ideaIds.length === 0 && !selectionMode && !sourceMode) {
     const existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
       statuses: ["pending", "needs_asset"],
       limit: 40,
@@ -367,22 +419,6 @@ export async function generateSocialSuggestionsForRestaurant(
       : {}),
   };
 
-  const ideasResult = await listSocialAutopilotIdeas(sb, restaurantId, {
-    rotate: false,
-    enrichWithAi: false,
-  });
-  if (ideasResult.skippedReason === "needs_media") {
-    return {
-      created: 0,
-      pending: ideasResult.pendingOpen,
-      tasksCreated: ideasResult.tasksCreated,
-      skippedReason: "needs_media",
-      aiConfigured,
-      aiProvider,
-      caps,
-    };
-  }
-
   const existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
     statuses: ["pending", "needs_asset"],
     limit: 80,
@@ -398,7 +434,7 @@ export async function generateSocialSuggestionsForRestaurant(
     return {
       created: 0,
       pending: existing.length,
-      tasksCreated: ideasResult.tasksCreated,
+      tasksCreated: false,
       skippedReason: "week_full",
       aiConfigured,
       aiProvider,
@@ -406,39 +442,112 @@ export async function generateSocialSuggestionsForRestaurant(
     };
   }
 
-  const hints = opts?.ideaHints ?? {};
-  const byId = new Map(ideasResult.catalog.map((c) => [c.id, c]));
   const selected: SocialAutopilotCatalogIdea[] = [];
-  const seen = new Set<string>();
-  for (const id of ideaIds) {
-    if (seen.has(id)) continue;
-    if (usedOpen.ideaIds.has(id)) continue; // schon offener Draft
-    const hit = byId.get(id);
-    if (!hit?.asset.imageUrl) continue;
-    seen.add(id);
-    const hint = hints[id];
-    selected.push(
-      hint
-        ? {
-            ...hit,
-            theme: hint.theme ?? hit.theme,
-            captionDirection: hint.captionDirection ?? hit.captionDirection,
-            suggestedFormat: hint.suggestedFormat ?? hit.suggestedFormat,
-            title: hint.theme?.trim() || hit.title,
-            aiSuggested: Boolean(hint.theme || hint.captionDirection),
-          }
-        : hit,
-    );
+  let tasksCreated = false;
+
+  if (selectionMode) {
+    // Direkte Vorgaben: Speisekarte / Galerie / Stil — kein Ideas-Pitch-LLM.
+    const resolved = await resolveAutopilotSingleSelection(sb, restaurantId, {
+      menuIds,
+      galleryIds,
+      styleOnly: styleOnly || (menuIds.length === 0 && galleryIds.length === 0),
+    });
+    if (resolved.skippedReason === "needs_media") {
+      return {
+        created: 0,
+        pending: existing.length,
+        tasksCreated: false,
+        skippedReason: "needs_media",
+        aiConfigured,
+        aiProvider,
+        caps,
+      };
+    }
+    if (!resolved.idea) {
+      return {
+        created: 0,
+        pending: existing.length,
+        tasksCreated: false,
+        skippedReason: "selection_required",
+        aiConfigured,
+        aiProvider,
+        caps,
+      };
+    }
+    selected.push(resolved.idea);
+  } else {
+    // Legacy: Ideas-Katalog (Pitch-LLM aus) + ideaIds / sources.
+    const ideasResult = await listSocialAutopilotIdeas(sb, restaurantId, {
+      rotate: sourceMode,
+      enrichWithAi: false,
+    });
+    tasksCreated = ideasResult.tasksCreated;
+    if (ideasResult.skippedReason === "needs_media") {
+      return {
+        created: 0,
+        pending: ideasResult.pendingOpen,
+        tasksCreated: ideasResult.tasksCreated,
+        skippedReason: "needs_media",
+        aiConfigured,
+        aiProvider,
+        caps,
+      };
+    }
+
+    const hints = opts?.ideaHints ?? {};
+    const byId = new Map(ideasResult.catalog.map((c) => [c.id, c]));
+    const seen = new Set<string>();
+
+    if (sourceMode) {
+      const allow = new Set(sources);
+      for (const hit of ideasResult.catalog) {
+        if (selected.length >= sourceCount) break;
+        if (!allow.has(hit.sourceBucket)) continue;
+        if (usedOpen.ideaIds.has(hit.id)) continue;
+        if (!hit.asset.imageUrl) continue;
+        if (seen.has(hit.id)) continue;
+        seen.add(hit.id);
+        selected.push(hit);
+      }
+    } else {
+      for (const id of ideaIds) {
+        if (seen.has(id)) continue;
+        if (usedOpen.ideaIds.has(id)) continue;
+        const hit = byId.get(id);
+        if (!hit?.asset.imageUrl) continue;
+        seen.add(id);
+        const hint = hints[id];
+        selected.push(
+          hint
+            ? {
+                ...hit,
+                theme: hint.theme ?? hit.theme,
+                captionDirection:
+                  hint.captionDirection ?? hit.captionDirection,
+                suggestedFormat: hint.suggestedFormat ?? hit.suggestedFormat,
+                title: hint.theme?.trim() || hit.title,
+                aiSuggested: Boolean(hint.theme || hint.captionDirection),
+              }
+            : hit,
+        );
+      }
+    }
   }
 
-  const need = clampAutopilotItemCount(Math.min(selected.length, room));
+  const need = clampAutopilotItemCount(
+    Math.min(
+      selected.length,
+      room,
+      selectionMode || sourceMode ? sourceCount : selected.length,
+    ),
+  );
   const picked = selected.slice(0, need);
 
   if (picked.length === 0) {
     return {
       created: 0,
       pending: existing.length,
-      tasksCreated: ideasResult.tasksCreated,
+      tasksCreated,
       skippedReason: "selection_required",
       aiConfigured,
       aiProvider,
@@ -503,7 +612,7 @@ export async function generateSocialSuggestionsForRestaurant(
     return {
       created: 0,
       pending: existing.length,
-      tasksCreated: ideasResult.tasksCreated,
+      tasksCreated,
       skippedReason: "needs_media",
       aiConfigured,
       aiProvider,
@@ -609,7 +718,7 @@ export async function generateSocialSuggestionsForRestaurant(
     suggestionIds: inserted.ids,
     newsDraftsCreated,
     pending: existing.length + inserted.count,
-    tasksCreated: ideasResult.tasksCreated,
+    tasksCreated,
     aiConfigured,
     aiProvider,
     llmCalls: llmOutcome.llmCalls,

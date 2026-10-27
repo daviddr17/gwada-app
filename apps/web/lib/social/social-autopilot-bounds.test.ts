@@ -3,6 +3,8 @@ import { test } from "node:test";
 import {
   clampAutopilotItemCount,
   parseAutopilotCaptionResponse,
+  SOCIAL_AUTOPILOT_IDEAS_MAX_COMPLETION_TOKENS,
+  SOCIAL_AUTOPILOT_IDEAS_MAX_LLM_CALLS,
   SOCIAL_AUTOPILOT_MAX_COMPLETION_TOKENS,
   SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
   SOCIAL_AUTOPILOT_MAX_LLM_CALLS,
@@ -12,6 +14,8 @@ test("autopilot caps stay hard-bounded", () => {
   assert.equal(SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN, 7);
   assert.equal(SOCIAL_AUTOPILOT_MAX_LLM_CALLS, 1);
   assert.equal(SOCIAL_AUTOPILOT_MAX_COMPLETION_TOKENS, 1200);
+  assert.equal(SOCIAL_AUTOPILOT_IDEAS_MAX_LLM_CALLS, 1);
+  assert.equal(SOCIAL_AUTOPILOT_IDEAS_MAX_COMPLETION_TOKENS, 900);
   assert.equal(clampAutopilotItemCount(99), 7);
   assert.equal(clampAutopilotItemCount(3), 3);
   assert.equal(clampAutopilotItemCount(0), 0);

@@ -729,8 +729,8 @@ export function SocialAutopilotScreen() {
               Entwürfe & Designs
             </p>
             <p className="text-xs text-muted-foreground">
-              „Neu generieren“ wählt Ideen im Sheet. Ergebnis = Entwurf hier —
-              jederzeit speichern, posten oder planen. Texte:{" "}
+              „Neu generieren“: Quellen wählen (Speisekarte / Galerie / KI-Stil)
+              → generieren → hier speichern, posten oder planen. Key:{" "}
               <span className="text-foreground">{aiLabel}</span>.
             </p>
             {aiUsage ? (
@@ -810,8 +810,8 @@ export function SocialAutopilotScreen() {
 
           {sortedSuggestions.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-              Noch keine Entwürfe. Tippe „Neu generieren“, wähle Ideen, dann
-              landen die Ergebnisse hier.
+              Noch keine Entwürfe. Tippe „Neu generieren“, wähle KI-Ideen,
+              generiere — Ergebnisse landen hier.
             </p>
           ) : (
             <div className="space-y-5">

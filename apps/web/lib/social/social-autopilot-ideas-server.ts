@@ -21,8 +21,14 @@ import {
 } from "@/lib/social/social-autopilot-dedupe";
 import {
   socialAutopilotIdeaId,
+  sourceBucketForSlot,
   type SocialAutopilotIdea,
 } from "@/lib/social/social-autopilot-ideas";
+import { pitchAutopilotIdeasWithLlm } from "@/lib/social/social-autopilot-ideas-llm";
+import {
+  applyIdeaPitchesToCatalog,
+  heuristicIdeaPitch,
+} from "@/lib/social/social-autopilot-ideas-pitch";
 import { fetchSocialBrandKitFromDb } from "@/lib/social/social-brand-kit-db";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
 import {
@@ -31,6 +37,7 @@ import {
   pruneStaleHolidaySocialSuggestionsInDb,
   skipPendingSocialSuggestionsInDb,
 } from "@/lib/social/social-suggestions-db";
+import { insertRestaurantAiUsageEvent } from "@/lib/supabase/restaurant-ai-usage-db";
 import { fetchRestaurantAssistantRuntime } from "@/lib/supabase/restaurant-assistant-key-db";
 
 /** Mehr Auswahl als Wochenziel — User pickt, was erstellt wird. */
@@ -64,6 +71,9 @@ export type SocialAutopilotIdeasResult = {
   pendingOpen: number;
   /** Wie viele offene Drafts beim Force-Refresh verworfen wurden. */
   forceSkipped?: number;
+  /** true wenn Restaurant-KI Thema/Richtung geliefert hat. */
+  ideasAiEnriched?: boolean;
+  ideasLlmCalls?: number;
 };
 
 function ymd(d: Date): string {
@@ -203,22 +213,48 @@ function toClientIdea(c: SocialAutopilotCatalogIdea): SocialAutopilotIdea {
   return {
     id: c.id,
     slotKind: c.slotKind,
+    sourceBucket: c.sourceBucket ?? sourceBucketForSlot(c.slotKind),
     title: c.title,
     reasonLabel: c.reasonLabel,
     reasonDetail: c.reasonDetail,
     imageUrl: c.imageUrl,
     imageLabel: c.imageLabel,
+    theme: c.theme,
+    captionDirection: c.captionDirection,
+    suggestedFormat: c.suggestedFormat,
+    aiSuggested: c.aiSuggested,
   };
 }
 
+function withBucket(
+  idea: Omit<SocialAutopilotCatalogIdea, "sourceBucket"> & {
+    sourceBucket?: SocialAutopilotCatalogIdea["sourceBucket"];
+  },
+): SocialAutopilotCatalogIdea {
+  const sourceBucket =
+    idea.sourceBucket ?? sourceBucketForSlot(idea.slotKind);
+  const reasonLabel =
+    sourceBucket === "menu"
+      ? "Speisekarte"
+      : sourceBucket === "gallery"
+        ? "Galerie"
+        : "KI-Stil";
+  return { ...idea, sourceBucket, reasonLabel };
+}
+
 /**
- * Ideen-Katalog ohne LLM und ohne DB-Insert.
- * „Neue Vorschläge“ = `forceSkipOpen` (stale pending verwerfen) + rotieren.
+ * Ideen-Katalog (+ optional KI-Pitches) ohne Draft-Insert.
+ * Generate übergibt `enrichWithAi: false` und nutzt Client-Hints.
  */
 export async function listSocialAutopilotIdeas(
   sb: SupabaseClient,
   restaurantId: string,
-  opts?: { rotate?: boolean; forceSkipOpen?: boolean },
+  opts?: {
+    rotate?: boolean;
+    forceSkipOpen?: boolean;
+    /** Default true für Ideas-API; Generate = false (Hints vom Client). */
+    enrichWithAi?: boolean;
+  },
 ): Promise<SocialAutopilotIdeasResult> {
   const llmRuntime = await fetchRestaurantAssistantRuntime(restaurantId);
   const aiConfigured = Boolean(llmRuntime?.apiKey);
@@ -338,66 +374,72 @@ export async function listSocialAutopilotIdeas(
   const catalog: SocialAutopilotCatalogIdea[] = [];
 
   for (const ev of events) {
-    catalog.push({
-      id: socialAutopilotIdeaId("event", ev.id),
-      slotKind: "event",
-      title: ev.title,
-      reasonLabel: "Euer Event",
-      reasonDetail: ev.title,
-      imageUrl: ev.coverUrl,
-      imageLabel: ev.title,
-      eventStartAt: ev.startAt,
-      asset: {
+    catalog.push(
+      withBucket({
+        id: socialAutopilotIdeaId("event", ev.id),
+        slotKind: "event",
+        title: ev.title,
+        reasonLabel: "KI-Stil",
+        reasonDetail: ev.title,
         imageUrl: ev.coverUrl,
         imageLabel: ev.title,
-        source: "event",
-        sourceId: ev.id,
-        storageBucket: "events-media",
-        storagePath: ev.coverStoragePath ?? undefined,
-      },
-    });
+        eventStartAt: ev.startAt,
+        asset: {
+          imageUrl: ev.coverUrl,
+          imageLabel: ev.title,
+          source: "event",
+          sourceId: ev.id,
+          storageBucket: "events-media",
+          storagePath: ev.coverStoragePath ?? undefined,
+        },
+      }),
+    );
   }
 
   for (const dish of dishes) {
-    catalog.push({
-      id: socialAutopilotIdeaId("menu", dish.id),
-      slotKind: "menu_dish",
-      title: dish.name,
-      reasonLabel: "Speisekarte",
-      reasonDetail: dish.name,
-      imageUrl: dish.imageUrl,
-      imageLabel: dish.name,
-      dishDescription: dish.description || undefined,
-      asset: {
+    catalog.push(
+      withBucket({
+        id: socialAutopilotIdeaId("menu", dish.id),
+        slotKind: "menu_dish",
+        title: dish.name,
+        reasonLabel: "Speisekarte",
+        reasonDetail: dish.name,
         imageUrl: dish.imageUrl,
         imageLabel: dish.name,
-        source: "menu",
-        sourceId: dish.id,
-      },
-    });
+        dishDescription: dish.description || undefined,
+        asset: {
+          imageUrl: dish.imageUrl,
+          imageLabel: dish.name,
+          source: "menu",
+          sourceId: dish.id,
+        },
+      }),
+    );
   }
 
   for (const g of gallery) {
-    catalog.push({
-      id: socialAutopilotIdeaId("gallery", g.id),
-      slotKind: "ambient",
-      title: g.label === "Galerie" ? "Ambiente" : g.label,
-      reasonLabel: "Galerie",
-      reasonDetail: g.label,
-      imageUrl: g.imageUrl,
-      imageLabel: g.label,
-      asset: {
+    catalog.push(
+      withBucket({
+        id: socialAutopilotIdeaId("gallery", g.id),
+        slotKind: "ambient",
+        title: g.label === "Galerie" ? "Ambiente" : g.label,
+        reasonLabel: "Galerie",
+        reasonDetail: g.label,
         imageUrl: g.imageUrl,
         imageLabel: g.label,
-        source: "gallery",
-        sourceId: g.id,
-        storageBucket: "gallery-media",
-        storagePath: g.storagePath,
-      },
-    });
+        asset: {
+          imageUrl: g.imageUrl,
+          imageLabel: g.label,
+          source: "gallery",
+          sourceId: g.id,
+          storageBucket: "gallery-media",
+          storagePath: g.storagePath,
+        },
+      }),
+    );
   }
 
-  // Feiertag nur mit Profilbild — max. 1, media-first, kein Spam.
+  // Feiertag nur mit Profilbild — max. 1, als KI-Stil.
   for (const h of holidays.slice(0, 1)) {
     let asset: SocialSuggestionAsset | null = null;
     if (coverAsset?.imageUrl && !usedProfileIds.has("cover")) {
@@ -408,48 +450,50 @@ export async function listSocialAutopilotIdeas(
       usedProfileIds.add("avatar");
     }
     if (!asset?.imageUrl) break;
-    catalog.push({
-      id: socialAutopilotIdeaId("holiday", h.date),
-      slotKind: "holiday",
-      title: h.name,
-      reasonLabel: "Naher Feiertag",
-      reasonDetail: `${h.name} · ${h.date}`,
-      imageUrl: asset.imageUrl,
-      imageLabel: asset.imageLabel ?? h.name,
-      holidayDate: h.date,
-      holidayName: h.name,
-      asset,
-    });
+    catalog.push(
+      withBucket({
+        id: socialAutopilotIdeaId("holiday", h.date),
+        slotKind: "holiday",
+        title: h.name,
+        reasonLabel: "KI-Stil",
+        reasonDetail: `${h.name} · ${h.date}`,
+        imageUrl: asset.imageUrl,
+        imageLabel: asset.imageLabel ?? h.name,
+        holidayDate: h.date,
+        holidayName: h.name,
+        asset,
+      }),
+    );
   }
 
-  if (coverAsset?.imageUrl && !usedProfileIds.has("cover")) {
-    usedProfileIds.add("cover");
-    catalog.push({
-      id: socialAutopilotIdeaId("brand", "cover"),
-      slotKind: "brand",
-      title: restaurant.name?.trim() || "Marke",
-      reasonLabel: "Social-Marke",
-      reasonDetail: "Titelbild",
-      imageUrl: coverAsset.imageUrl,
-      imageLabel: "Titelbild",
-      asset: coverAsset,
-    });
-  } else if (avatarAsset?.imageUrl && !usedProfileIds.has("avatar")) {
-    usedProfileIds.add("avatar");
-    catalog.push({
-      id: socialAutopilotIdeaId("brand", "avatar"),
-      slotKind: "brand",
-      title: restaurant.name?.trim() || "Marke",
-      reasonLabel: "Social-Marke",
-      reasonDetail: "Logo",
-      imageUrl: avatarAsset.imageUrl,
-      imageLabel: "Logo",
-      asset: avatarAsset,
-    });
+  // KI-Stil aus Brand Kit (optional) — Profilmedien als Bildträger.
+  const brandAsset =
+    coverAsset?.imageUrl && !usedProfileIds.has("cover")
+      ? coverAsset
+      : avatarAsset?.imageUrl && !usedProfileIds.has("avatar")
+        ? avatarAsset
+        : null;
+  if (brandAsset?.imageUrl) {
+    if (brandAsset.sourceId === "cover") usedProfileIds.add("cover");
+    if (brandAsset.sourceId === "avatar") usedProfileIds.add("avatar");
+    catalog.push(
+      withBucket({
+        id: socialAutopilotIdeaId("ai", "voice"),
+        slotKind: "brand",
+        sourceBucket: "ai",
+        title: restaurant.name?.trim() || "Marke",
+        reasonLabel: "KI-Stil",
+        reasonDetail: kit.voiceNotes?.trim()
+          ? "Aus Brand-Stimme"
+          : "Aus Brand Kit",
+        imageUrl: brandAsset.imageUrl,
+        imageLabel: brandAsset.imageLabel ?? "Marke",
+        asset: brandAsset,
+      }),
+    );
   }
 
-  // Abwechslung: Events zuerst, dann rotierte Speisekarte/Galerie, Feiertag/Marke am Ende.
-  // Zusätzlich ideaId-Dedupe (falls Source-Heuristik etwas durchließ).
+  // Quellen optional: Speisekarte · Galerie · KI-Stil (Events/Feiertag/Marke/Stimme).
   const seenIdea = new Set<string>();
   const dedupedCatalog = catalog.filter((c) => {
     if (usedIdeaIds.has(c.id) || seenIdea.has(c.id)) return false;
@@ -457,17 +501,16 @@ export async function listSocialAutopilotIdeas(
     return true;
   });
 
-  const eventsPart = dedupedCatalog.filter((c) => c.slotKind === "event");
-  const mediaPart = rotateBySeed(
-    dedupedCatalog.filter(
-      (c) => c.slotKind === "menu_dish" || c.slotKind === "ambient",
-    ),
-    `${rotateSeed}:pick`,
+  const menuPart = rotateBySeed(
+    dedupedCatalog.filter((c) => c.sourceBucket === "menu"),
+    `${rotateSeed}:menu`,
   );
-  const restPart = dedupedCatalog.filter(
-    (c) => c.slotKind === "holiday" || c.slotKind === "brand",
+  const galleryPart = rotateBySeed(
+    dedupedCatalog.filter((c) => c.sourceBucket === "gallery"),
+    `${rotateSeed}:gallery`,
   );
-  const ordered = [...eventsPart, ...mediaPart, ...restPart].slice(
+  const aiPart = dedupedCatalog.filter((c) => c.sourceBucket === "ai");
+  const ordered = [...menuPart, ...galleryPart, ...aiPart].slice(
     0,
     SOCIAL_AUTOPILOT_MAX_IDEAS_SHOWN,
   );
@@ -479,14 +522,68 @@ export async function listSocialAutopilotIdeas(
     maxPerRun: SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
   });
 
+  const restaurantName = restaurant.name?.trim() || "Unser Restaurant";
+  const enrichWithAi = opts?.enrichWithAi !== false;
+  let pitched = ordered;
+  let ideasAiEnriched = false;
+  let ideasLlmCalls = 0;
+
+  if (enrichWithAi && llmRuntime?.apiKey) {
+    const llmOutcome = await pitchAutopilotIdeasWithLlm({
+      llm: llmRuntime,
+      kit,
+      restaurantName,
+      ideas: ordered,
+    });
+    ideasLlmCalls = llmOutcome.llmCalls;
+    if (llmOutcome.llmCalls > 0) {
+      await insertRestaurantAiUsageEvent(sb, {
+        restaurantId,
+        source: "autopilot",
+        provider: llmRuntime.provider,
+        model: llmRuntime.model,
+        promptTokens: llmOutcome.usage?.promptTokens ?? null,
+        completionTokens: llmOutcome.usage?.completionTokens ?? null,
+        totalTokens: llmOutcome.usage?.totalTokens ?? null,
+        meta: {
+          phase: "ideas",
+          inputs: ordered.length,
+          pitched: llmOutcome.pitches.length,
+          ok: llmOutcome.ok,
+        },
+      });
+    }
+    pitched = applyIdeaPitchesToCatalog({
+      catalog: ordered,
+      pitches: llmOutcome.pitches,
+      kit,
+      fromLlm: llmOutcome.ok && llmOutcome.pitches.length > 0,
+    });
+    ideasAiEnriched = llmOutcome.ok && llmOutcome.pitches.length > 0;
+  } else {
+    pitched = ordered.map((idea) => {
+      const pitch = heuristicIdeaPitch(idea, kit);
+      return {
+        ...idea,
+        theme: pitch.theme,
+        captionDirection: pitch.captionDirection,
+        suggestedFormat: pitch.suggestedFormat,
+        title: pitch.theme,
+        aiSuggested: false,
+      };
+    });
+  }
+
   return {
-    ideas: ordered.map(toClientIdea),
-    catalog: ordered,
+    ideas: pitched.map(toClientIdea),
+    catalog: pitched,
     aiConfigured,
     aiProvider,
     tasksCreated,
     maxSelect,
     pendingOpen,
     forceSkipped,
+    ideasAiEnriched,
+    ideasLlmCalls,
   };
 }

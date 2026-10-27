@@ -15,6 +15,7 @@ import {
   rewriteAutopilotCaptionsWithLlm,
   type SocialAutopilotCaptionJob,
 } from "@/lib/social/social-autopilot-llm";
+import type { SocialAutopilotIdeaHint } from "@/lib/social/social-autopilot-ideas";
 import {
   listSocialAutopilotIdeas,
   type SocialAutopilotCatalogIdea,
@@ -135,6 +136,13 @@ function draftFromIdea(params: {
     ...source,
     overlayLine: overlayLineFromCaption(caption, kit),
     ideaId: idea.id,
+    ...(idea.theme ? { theme: idea.theme } : {}),
+    ...(idea.captionDirection
+      ? { captionDirection: idea.captionDirection }
+      : {}),
+    ...(idea.suggestedFormat
+      ? { suggestedFormat: idea.suggestedFormat }
+      : {}),
   });
 
   if (idea.slotKind === "event") {
@@ -274,6 +282,8 @@ export async function generateSocialSuggestionsForRestaurant(
   restaurantId: string,
   opts?: {
     ideaIds?: string[];
+    /** Pitches aus dem Ideas-Sheet (Thema/Richtung/Format). */
+    ideaHints?: Record<string, SocialAutopilotIdeaHint>;
     force?: boolean;
     /** Session-Override aus der Auswahl-UI (sonst Brand Kit). */
     tone?: SocialTone;
@@ -349,6 +359,7 @@ export async function generateSocialSuggestionsForRestaurant(
 
   const ideasResult = await listSocialAutopilotIdeas(sb, restaurantId, {
     rotate: false,
+    enrichWithAi: false,
   });
   if (ideasResult.skippedReason === "needs_media") {
     return {
@@ -385,6 +396,7 @@ export async function generateSocialSuggestionsForRestaurant(
     };
   }
 
+  const hints = opts?.ideaHints ?? {};
   const byId = new Map(ideasResult.catalog.map((c) => [c.id, c]));
   const selected: SocialAutopilotCatalogIdea[] = [];
   const seen = new Set<string>();
@@ -394,7 +406,19 @@ export async function generateSocialSuggestionsForRestaurant(
     const hit = byId.get(id);
     if (!hit?.asset.imageUrl) continue;
     seen.add(id);
-    selected.push(hit);
+    const hint = hints[id];
+    selected.push(
+      hint
+        ? {
+            ...hit,
+            theme: hint.theme ?? hit.theme,
+            captionDirection: hint.captionDirection ?? hit.captionDirection,
+            suggestedFormat: hint.suggestedFormat ?? hit.suggestedFormat,
+            title: hint.theme?.trim() || hit.title,
+            aiSuggested: Boolean(hint.theme || hint.captionDirection),
+          }
+        : hit,
+    );
   }
 
   const need = clampAutopilotItemCount(Math.min(selected.length, room));
@@ -436,8 +460,7 @@ export async function generateSocialSuggestionsForRestaurant(
     return plannedAtForDay(weekStart, day, 11 + (slotIndex % 2));
   };
 
-  const mediaFormat =
-    parseSocialMediaFormatId(opts?.mediaFormat) ?? "square_1x1";
+  const sessionFormat = parseSocialMediaFormatId(opts?.mediaFormat);
 
   const drafts: Draft[] = [];
   for (const idea of picked) {
@@ -457,6 +480,10 @@ export async function generateSocialSuggestionsForRestaurant(
       feedLayout,
     });
     if (draft) {
+      const mediaFormat =
+        sessionFormat ??
+        parseSocialMediaFormatId(idea.suggestedFormat) ??
+        "square_1x1";
       draft.source = { ...draft.source, mediaFormat };
       drafts.push(draft);
     }
@@ -493,15 +520,25 @@ export async function generateSocialSuggestionsForRestaurant(
     if (typeof d.source.imageCaption === "string") {
       facts.imageCaption = d.source.imageCaption;
     }
+    if (typeof d.source.theme === "string") facts.theme = d.source.theme;
+    if (typeof d.source.captionDirection === "string") {
+      facts.captionDirection = d.source.captionDirection;
+    }
     if (d.title) facts.title = d.title;
     if (d.asset.imageLabel) facts.imageLabel = d.asset.imageLabel;
+    const directionHint =
+      typeof d.source.captionDirection === "string"
+        ? String(d.source.captionDirection)
+        : "";
     return {
       index,
       slotKind: d.slotKind,
       title: d.title,
       imageLabel: d.asset.imageLabel ?? null,
       facts,
-      templateCaption: d.caption,
+      templateCaption: directionHint
+        ? `${directionHint}\n---\n${d.caption}`
+        : d.caption,
     };
   });
 

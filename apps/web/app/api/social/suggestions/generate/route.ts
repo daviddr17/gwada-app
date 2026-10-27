@@ -1,4 +1,5 @@
 import { authorizeSocialNewsRestaurant } from "@/lib/social/route-auth";
+import { parseSocialAutopilotIdeaHints } from "@/lib/social/social-autopilot-ideas";
 import { SOCIAL_TONES, type SocialTone } from "@/lib/social/social-brand-kit";
 import { parseSocialMediaFormatId } from "@/lib/social/social-media-formats";
 import { generateSocialSuggestionsForRestaurant } from "@/lib/social/social-suggestion-generate-server";
@@ -11,6 +12,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     restaurantId?: string;
     ideaIds?: unknown;
+    ideaHints?: unknown;
     tone?: unknown;
     platforms?: unknown;
     mediaFormat?: unknown;
@@ -19,6 +21,7 @@ export async function POST(req: Request) {
   const ideaIds = Array.isArray(body.ideaIds)
     ? body.ideaIds.filter((id): id is string => typeof id === "string")
     : [];
+  const ideaHints = parseSocialAutopilotIdeaHints(body.ideaHints);
   const tone =
     typeof body.tone === "string" &&
     SOCIAL_TONES.includes(body.tone as SocialTone)
@@ -51,7 +54,7 @@ export async function POST(req: Request) {
   const generation = await generateSocialSuggestionsForRestaurant(
     admin,
     restaurantId,
-    { ideaIds, tone, platforms, mediaFormat },
+    { ideaIds, ideaHints, tone, platforms, mediaFormat },
   );
 
   return Response.json({ ok: true, generation });

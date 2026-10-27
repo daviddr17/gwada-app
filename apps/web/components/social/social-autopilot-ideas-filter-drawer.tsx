@@ -58,7 +58,7 @@ export function SocialAutopilotIdeasFilterDrawer({
       repositionInputs={false}
     >
       <DrawerContent className={drawerContentClassName("template")}>
-        <DrawerFilterHeader title="Filter & Sortierung" />
+        <DrawerFilterHeader title="Quellen" />
         <div className={drawerScrollAreaClassName(6)}>
           <DrawerFilterZone showLabel={false}>
             <DrawerFilterField label="Quelle">
@@ -78,17 +78,17 @@ export function SocialAutopilotIdeasFilterDrawer({
 
           <DrawerSortZone>
             <p className="text-sm text-muted-foreground">
-              Empfohlene Reihenfolge (fest):
+              Alles optional — wählen, was passt:
             </p>
             <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-foreground">
-              {SOCIAL_AUTOPILOT_IDEA_GROUP_ORDER.map((kind) => (
-                <li key={kind}>
+              {SOCIAL_AUTOPILOT_IDEA_GROUP_ORDER.map((bucket) => (
+                <li key={bucket}>
                   <span className="font-medium">
-                    {SOCIAL_AUTOPILOT_IDEA_GROUP_LABELS[kind]}
+                    {SOCIAL_AUTOPILOT_IDEA_GROUP_LABELS[bucket]}
                   </span>
                   <span className="text-muted-foreground">
                     {" — "}
-                    {SOCIAL_AUTOPILOT_IDEA_GROUP_HINTS[kind]}
+                    {SOCIAL_AUTOPILOT_IDEA_GROUP_HINTS[bucket]}
                   </span>
                 </li>
               ))}

@@ -8,7 +8,7 @@ import {
 } from "./social-autopilot-idea-sort";
 
 function idea(
-  partial: Pick<SocialAutopilotIdea, "id" | "slotKind"> &
+  partial: Pick<SocialAutopilotIdea, "id" | "slotKind" | "sourceBucket"> &
     Partial<SocialAutopilotIdea>,
 ): SocialAutopilotIdea {
   return {
@@ -21,35 +21,33 @@ function idea(
   };
 }
 
-test("groupSocialAutopilotIdeas orders Events → Speisekarte → Galerie → Feiertag → Marke", () => {
+test("groupSocialAutopilotIdeas orders Speisekarte → Galerie → KI-Stil", () => {
   const groups = groupSocialAutopilotIdeas([
-    idea({ id: "brand:cover", slotKind: "brand" }),
-    idea({ id: "menu:1", slotKind: "menu_dish" }),
-    idea({ id: "event:1", slotKind: "event" }),
-    idea({ id: "gallery:1", slotKind: "ambient" }),
-    idea({ id: "holiday:2026-10-28", slotKind: "holiday" }),
+    idea({ id: "ai:voice", slotKind: "brand", sourceBucket: "ai" }),
+    idea({ id: "menu:1", slotKind: "menu_dish", sourceBucket: "menu" }),
+    idea({ id: "gallery:1", slotKind: "ambient", sourceBucket: "gallery" }),
   ]);
   assert.deepEqual(
-    groups.map((g) => g.slotKind),
-    ["event", "menu_dish", "ambient", "holiday", "brand"],
+    groups.map((g) => g.sourceBucket),
+    ["menu", "gallery", "ai"],
   );
 });
 
-test("filterSocialAutopilotIdeas Empfohlen keeps all; Speisekarte filters", () => {
+test("filterSocialAutopilotIdeas Alle keeps all; Speisekarte filters", () => {
   const ideas = [
-    idea({ id: "event:1", slotKind: "event" }),
-    idea({ id: "menu:1", slotKind: "menu_dish" }),
+    idea({ id: "ai:1", slotKind: "brand", sourceBucket: "ai" }),
+    idea({ id: "menu:1", slotKind: "menu_dish", sourceBucket: "menu" }),
   ];
   assert.equal(filterSocialAutopilotIdeas(ideas, "all").length, 2);
   assert.deepEqual(
-    filterSocialAutopilotIdeas(ideas, "menu_dish").map((i) => i.id),
+    filterSocialAutopilotIdeas(ideas, "menu").map((i) => i.id),
     ["menu:1"],
   );
 });
 
-test("availableSocialAutopilotIdeaFilters always includes Empfohlen", () => {
+test("availableSocialAutopilotIdeaFilters always includes Alle", () => {
   const filters = availableSocialAutopilotIdeaFilters([
-    idea({ id: "menu:1", slotKind: "menu_dish" }),
+    idea({ id: "menu:1", slotKind: "menu_dish", sourceBucket: "menu" }),
   ]);
-  assert.deepEqual(filters, ["all", "menu_dish"]);
+  assert.deepEqual(filters, ["all", "menu"]);
 });

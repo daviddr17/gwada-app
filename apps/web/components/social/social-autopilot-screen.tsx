@@ -26,8 +26,8 @@ import {
 } from "@/lib/ui/social-autopilot-buttons";
 
 /**
- * Autopilot-Tab = nur Einstellungen (Social-Marke, Stimme).
- * Erstellen läuft über News → Neue News → KI-Post.
+ * Autopilot-Tab = nur Einstellungen (Schreibstil, Aussehen, Kanäle).
+ * Erstellen: News → Neue News → KI-Post.
  */
 export function SocialAutopilotScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -36,6 +36,7 @@ export function SocialAutopilotScreen() {
     useState<SocialAutopilotVoiceDraft | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
+  const [kitEpoch, setKitEpoch] = useState(0);
 
   const loadKit = useCallback(async () => {
     if (!restaurantId) return;
@@ -107,6 +108,7 @@ export function SocialAutopilotScreen() {
       }
       setKit(nextKit);
       setVoiceDraft(null);
+      setKitEpoch((n) => n + 1);
       toast.success("Schreibstil übernommen");
       void loadKit();
     } finally {
@@ -122,19 +124,20 @@ export function SocialAutopilotScreen() {
       <Card className="border-border/50 shadow-card">
         <CardContent className="space-y-3 pt-5">
           <div className="space-y-1">
-            <p className="text-sm font-medium">Autopilot-Einstellungen</p>
+            <p className="text-sm font-medium">Aus Social lernen</p>
             <p className="text-sm text-muted-foreground">
-              Hier legt ihr Ton, Farben und Stimme fest. Neue Posts erstellt ihr
-              unter Übersicht → Neue News → KI-Post.
+              Liest eure letzten Instagram- und Facebook-Texte und schlägt Stimme
+              vor. Speichern erst nach „Übernehmen“.
             </p>
           </div>
           <div className="flex flex-col gap-2">
             <Button
               type="button"
               className={autopilotPrimaryButtonClassName}
-              render={<Link href={`${APP_ROUTES.news.overview}?compose=ki`} />}
+              disabled={voiceBusy || !kit}
+              onClick={() => void learnVoice()}
             >
-              Zur News → KI-Post
+              {voiceBusy ? "Lese eure Posts …" : "Aus Social lernen"}
             </Button>
             <Button
               type="button"
@@ -142,33 +145,21 @@ export function SocialAutopilotScreen() {
               className={autopilotSecondaryButtonClassName}
               onClick={() => setStyleOpen(true)}
             >
-              Schreibstil kurz erklären
+              Aktuellen Stil ansehen
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className={autopilotSecondaryButtonClassName}
+              render={<Link href={`${APP_ROUTES.news.overview}?compose=ki`} />}
+            >
+              Zur News → KI-Post
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <SocialBrandKitCard restaurantId={restaurantId} />
-
-      <Card className="border-border/50 shadow-card">
-        <CardContent className="space-y-3 pt-5">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Aus Social lernen</p>
-            <p className="text-sm text-muted-foreground">
-              Wir lesen eure letzten Instagram- und Facebook-Texte und schlagen
-              Stimme vor. Nichts wird gespeichert, bis ihr „Übernehmen“ tippt.
-            </p>
-          </div>
-          <Button
-            type="button"
-            className={autopilotPrimaryButtonClassName}
-            disabled={voiceBusy || !kit}
-            onClick={() => void learnVoice()}
-          >
-            {voiceBusy ? "Lese eure Posts …" : "Aus Social lernen"}
-          </Button>
-        </CardContent>
-      </Card>
+      <SocialBrandKitCard key={kitEpoch} restaurantId={restaurantId} />
 
       <SocialAutopilotStyleDrawer
         open={styleOpen}

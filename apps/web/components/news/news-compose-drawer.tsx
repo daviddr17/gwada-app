@@ -305,27 +305,31 @@ export function NewsComposeDrawer({
       <DrawerContent
         className={drawerContentClassName(mode === "ki" ? "mediaTall" : "form")}
       >
-        <DrawerHeader className="space-y-3 text-left">
-          <DrawerTitle>Neue News</DrawerTitle>
+        <DrawerHeader className="space-y-3 px-4 text-left sm:px-6">
+          <DrawerTitle className="text-left">Neue News</DrawerTitle>
           <Tabs
             value={mode}
             onValueChange={(v) => {
               if (v === "manual" || v === "ki") setMode(v);
             }}
+            className="w-full gap-0"
           >
-            <TabsList className="grid h-10 w-full grid-cols-2 rounded-xl p-1">
-              <TabsTrigger value="manual" className="rounded-lg">
+            <TabsList
+              className={cn(
+                "mx-auto grid h-11 w-full max-w-md grid-cols-2 self-stretch rounded-xl p-1",
+              )}
+            >
+              <TabsTrigger value="manual" className="rounded-lg px-2">
                 Eigener Post
               </TabsTrigger>
-              <TabsTrigger value="ki" className="rounded-lg">
+              <TabsTrigger value="ki" className="rounded-lg px-2">
                 KI-Post
               </TabsTrigger>
             </TabsList>
           </Tabs>
           {mode === "ki" ? (
-            <p className="text-sm text-muted-foreground">
-              Speisekarte, Galerie oder KI-Ideen wählen — fertige Entwürfe
-              landen in der News-Liste.
+            <p className="text-left text-sm text-muted-foreground">
+              Quellen und Kanäle wählen — Erstellen startet erst auf Knopfdruck.
             </p>
           ) : null}
         </DrawerHeader>

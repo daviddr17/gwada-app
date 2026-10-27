@@ -33,7 +33,10 @@ import {
 } from "@/lib/social/social-autopilot-idea-sort";
 import { SOCIAL_AUTOPILOT_IDEAS_FETCH_TIMEOUT_MS } from "@/lib/social/social-autopilot-bounds";
 import type { SocialTone } from "@/lib/social/social-brand-kit";
-import type { SocialMediaFormatId } from "@/lib/social/social-media-formats";
+import {
+  SOCIAL_MEDIA_FORMATS,
+  type SocialMediaFormatId,
+} from "@/lib/social/social-media-formats";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
@@ -43,7 +46,7 @@ import {
 } from "@/lib/ui/social-autopilot-buttons";
 import { cn } from "@/lib/utils";
 
-type Phase = "ideas" | "creating";
+type Phase = "setup" | "ideas" | "creating";
 
 type IdeasLoadError =
   | "timeout"
@@ -53,6 +56,23 @@ type IdeasLoadError =
   | "needs_media"
   | "load_failed"
   | null;
+
+/** Quellen vor dem Laden — Speisekarte / Galerie / KI, alles optional. */
+type SourcePref = "menu" | "gallery" | "ai";
+
+const SOURCE_PREF_ORDER: readonly SourcePref[] = [
+  "menu",
+  "gallery",
+  "ai",
+] as const;
+
+const SOURCE_PREF_LABELS: Record<SourcePref, string> = {
+  menu: "Speisekarte",
+  gallery: "Galerie",
+  ai: "KI-Ideen",
+};
+
+const DEFAULT_SOURCE_PREFS: SourcePref[] = ["menu", "gallery", "ai"];
 
 function ideaHintFromIdea(idea: SocialAutopilotIdea): SocialAutopilotIdeaHint {
   return {
@@ -144,12 +164,14 @@ export function SocialAutopilotGenerateDrawer({
   embedded?: boolean;
   asNewsDrafts?: boolean;
 }) {
-  const [phase, setPhase] = useState<Phase>("ideas");
+  const [phase, setPhase] = useState<Phase>("setup");
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [ideas, setIdeas] = useState<SocialAutopilotIdea[]>([]);
   const [ideasError, setIdeasError] = useState<IdeasLoadError>(null);
   const [ideaFilter, setIdeaFilter] =
     useState<SocialAutopilotIdeaFilter>("all");
+  const [sourcePrefs, setSourcePrefs] =
+    useState<SourcePref[]>(DEFAULT_SOURCE_PREFS);
   const [ideasFilterOpen, setIdeasFilterOpen] = useState(false);
   const [maxSelect, setMaxSelect] = useState(7);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -161,12 +183,16 @@ export function SocialAutopilotGenerateDrawer({
   const [formatTouched, setFormatTouched] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const loadAbortRef = useRef<AbortController | null>(null);
+  /** true = Sheet geschlossen / Tab gewechselt — Abbruch ohne Fehler-Toast. */
+  const dismissAbortRef = useRef(false);
   const showIdeasSkeleton = useDeferredSkeleton(ideasLoading);
 
-  const filteredIdeas = useMemo(
-    () => filterSocialAutopilotIdeas(ideas, ideaFilter),
-    [ideas, ideaFilter],
-  );
+  const filteredIdeas = useMemo(() => {
+    const byFilter = filterSocialAutopilotIdeas(ideas, ideaFilter);
+    if (sourcePrefs.length >= SOURCE_PREF_ORDER.length) return byFilter;
+    const allow = new Set(sourcePrefs);
+    return byFilter.filter((idea) => allow.has(idea.sourceBucket as SourcePref));
+  }, [ideas, ideaFilter, sourcePrefs]);
   const ideaGroups = useMemo(
     () => groupSocialAutopilotIdeas(filteredIdeas),
     [filteredIdeas],
@@ -182,6 +208,7 @@ export function SocialAutopilotGenerateDrawer({
     async (opts?: { rotate?: boolean }) => {
       if (!restaurantId) return;
 
+      dismissAbortRef.current = false;
       loadAbortRef.current?.abort();
       const controller = new AbortController();
       loadAbortRef.current = controller;
@@ -189,6 +216,7 @@ export function SocialAutopilotGenerateDrawer({
         controller.abort();
       }, SOCIAL_AUTOPILOT_IDEAS_FETCH_TIMEOUT_MS);
 
+      setPhase("ideas");
       setIdeasLoading(true);
       setIdeasError(null);
       try {
@@ -228,7 +256,12 @@ export function SocialAutopilotGenerateDrawer({
 
         const next = data.ideas ?? [];
         setIdeas(next);
-        setIdeaFilter("all");
+        // Vorab gewählte Quellen als Filter, wenn genau eine; sonst Alle.
+        if (sourcePrefs.length === 1) {
+          setIdeaFilter(sourcePrefs[0]!);
+        } else {
+          setIdeaFilter("all");
+        }
         setMaxSelect(
           typeof data.maxSelect === "number" && data.maxSelect >= 0
             ? data.maxSelect
@@ -254,6 +287,8 @@ export function SocialAutopilotGenerateDrawer({
         }
       } catch (err) {
         if (controller.signal.aborted) {
+          // Sheet geschlossen / Tab gewechselt → still.
+          if (dismissAbortRef.current) return;
           // Neuer Request oder Timeout — nur Timeout als Fehler zeigen,
           // wenn dieser Controller noch der aktuelle ist.
           if (loadAbortRef.current === controller) {
@@ -266,6 +301,7 @@ export function SocialAutopilotGenerateDrawer({
         }
         const isAbort =
           err instanceof DOMException && err.name === "AbortError";
+        if (dismissAbortRef.current) return;
         setIdeas([]);
         setSelectedIds([]);
         setIdeasError(isAbort ? "timeout" : "network");
@@ -281,37 +317,74 @@ export function SocialAutopilotGenerateDrawer({
         }
       }
     },
-    [restaurantId, aiConfigured],
+    [restaurantId, aiConfigured, sourcePrefs],
   );
 
   useEffect(() => {
     if (!open) {
+      dismissAbortRef.current = true;
       loadAbortRef.current?.abort();
       loadAbortRef.current = null;
-      setPhase("ideas");
+      setPhase("setup");
       setOptionsOpen(false);
+      setIdeasFilterOpen(false);
       setSelectedIds([]);
+      setIdeas([]);
       setIdeasError(null);
       setIdeasLoading(false);
+      setSourcePrefs(DEFAULT_SOURCE_PREFS);
       return;
     }
+    // Tab öffnen = nur leichtes Setup. Kein Ideen-LLM / kein Skeleton.
+    dismissAbortRef.current = false;
+    setFormatTouched(false);
+    setPhase("setup");
+    setIdeas([]);
+    setSelectedIds([]);
+    setIdeasError(null);
+    setIdeasLoading(false);
+    setSourcePrefs(DEFAULT_SOURCE_PREFS);
+  }, [open]);
+
+  // Brand-Kit Defaults nachziehen, solange der User noch im Setup ist
+  // (kein Reset der Ideen-Liste, wenn Kit spät nachlädt).
+  useEffect(() => {
+    if (!open || phase !== "setup") return;
     setSessionTone(initialTone);
     setSessionPlatforms(
       initialPlatforms.length > 0
         ? [...initialPlatforms]
         : ["instagram", "facebook"],
     );
-    setSessionFormat(initialFormat);
-    setFormatTouched(false);
-    setPhase("ideas");
-    void loadIdeas({ rotate: true });
-  }, [open, initialTone, initialPlatforms, initialFormat, loadIdeas]);
+    if (!formatTouched) setSessionFormat(initialFormat);
+  }, [
+    open,
+    phase,
+    initialTone,
+    initialPlatforms,
+    initialFormat,
+    formatTouched,
+  ]);
 
   useEffect(() => {
     return () => {
+      dismissAbortRef.current = true;
       loadAbortRef.current?.abort();
     };
   }, []);
+
+  const toggleSourcePref = (pref: SourcePref) => {
+    setSourcePrefs((prev) => {
+      if (prev.includes(pref)) {
+        if (prev.length <= 1) {
+          toast.message("Mindestens eine Quelle bleibt aktiv");
+          return prev;
+        }
+        return prev.filter((p) => p !== pref);
+      }
+      return [...prev, pref];
+    });
+  };
 
   const toggleIdea = (id: string) => {
     setSelectedIds((prev) => {
@@ -440,10 +513,100 @@ export function SocialAutopilotGenerateDrawer({
   };
 
   const errorCopy = ideasError ? ideasErrorCopy(ideasError) : null;
-  const showIdeasList = !showIdeasSkeleton && ideas.length > 0;
+  const showIdeasList =
+    phase === "ideas" && !showIdeasSkeleton && ideas.length > 0;
   const showEmpty =
-    !showIdeasSkeleton && ideas.length === 0 && !ideasError;
-  const showErrorBanner = !showIdeasSkeleton && Boolean(errorCopy);
+    phase === "ideas" &&
+    !showIdeasSkeleton &&
+    ideas.length === 0 &&
+    !ideasError;
+  const showErrorBanner =
+    phase === "ideas" && !showIdeasSkeleton && Boolean(errorCopy);
+
+  const platformsSummary =
+    sessionPlatforms.length === 0
+      ? "Keine Kanäle"
+      : sessionPlatforms.length <= 2
+        ? sessionPlatforms.join(", ")
+        : `${sessionPlatforms.length} Kanäle`;
+
+  const setupBody = (
+    <>
+      <div
+        className={cn(
+          embedded
+            ? "min-h-0 flex-1 space-y-5 overflow-y-auto px-1"
+            : cn(drawerScrollAreaClassName(6), "space-y-5"),
+        )}
+      >
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-foreground">Quellen</p>
+          <p className="text-sm text-muted-foreground">
+            Was soll die KI nutzen? Noch nichts wird erstellt.
+          </p>
+          <ul className="space-y-2">
+            {SOURCE_PREF_ORDER.map((pref) => {
+              const on = sourcePrefs.includes(pref);
+              return (
+                <li key={pref}>
+                  <button
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleSourcePref(pref)}
+                    className={cn(
+                      "flex h-12 w-full items-center justify-between gap-3 rounded-xl border px-3.5 text-left text-sm font-medium touch-manipulation transition-colors",
+                      on
+                        ? "border-accent/50 bg-accent/10 text-foreground"
+                        : "border-border/60 bg-card text-muted-foreground",
+                    )}
+                  >
+                    <span>{SOURCE_PREF_LABELS[pref]}</span>
+                    {on ? <Check className="size-4 shrink-0" /> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-foreground">Kanäle & Format</p>
+          <button
+            type="button"
+            onClick={() => setOptionsOpen(true)}
+            className="flex h-12 w-full items-center justify-between gap-3 rounded-xl border border-border/60 bg-card px-3.5 text-left text-sm touch-manipulation transition-colors hover:border-border"
+          >
+            <span className="min-w-0 truncate text-muted-foreground">
+              {platformsSummary}
+              {" · "}
+              {SOCIAL_MEDIA_FORMATS[sessionFormat]?.ratioLabel ??
+                sessionFormat}
+            </span>
+            <span className="shrink-0 text-xs font-medium text-foreground">
+              Ändern
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "shrink-0 border-t border-border/50 py-3",
+          embedded ? "px-0" : "px-6",
+        )}
+      >
+        <Button
+          type="button"
+          className={autopilotPrimaryButtonClassName}
+          disabled={sourcePrefs.length === 0}
+          onClick={() => void loadIdeas({ rotate: true })}
+        >
+          <Sparkles className="size-4" />
+          Vorschläge laden
+        </Button>
+      </div>
+    </>
+  );
 
   const mainBody =
     phase === "creating" ? (
@@ -465,6 +628,8 @@ export function SocialAutopilotGenerateDrawer({
           </SkeletonCardFrame>
         ))}
       </div>
+    ) : phase === "setup" ? (
+      setupBody
     ) : (
       <>
         <div
@@ -475,6 +640,20 @@ export function SocialAutopilotGenerateDrawer({
           )}
         >
                 <div className="flex items-start gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn("flex-1", autopilotSecondaryButtonClassName)}
+                    disabled={ideasLoading}
+                    onClick={() => {
+                      setPhase("setup");
+                      setIdeas([]);
+                      setSelectedIds([]);
+                      setIdeasError(null);
+                    }}
+                  >
+                    Quellen
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
@@ -496,7 +675,7 @@ export function SocialAutopilotGenerateDrawer({
                       variant="outline"
                       size="icon-sm"
                       className="rounded-full border-border/60"
-                      aria-label="Quellen"
+                      aria-label="Quellen filtern"
                       disabled={ideas.length === 0}
                       onClick={() => setIdeasFilterOpen(true)}
                     >
@@ -690,9 +869,9 @@ export function SocialAutopilotGenerateDrawer({
           onFilterChange={setIdeaFilter}
         />
         <SocialAutopilotOptionsDrawer
-          open={optionsOpen && open && phase === "ideas"}
+          open={optionsOpen && open && phase !== "creating"}
           onOpenChange={setOptionsOpen}
-          title="Wohin posten?"
+          title={phase === "setup" ? "Kanäle & Format" : "Wohin posten?"}
           tone={sessionTone}
           onToneChange={setSessionTone}
           platforms={sessionPlatforms}
@@ -702,8 +881,12 @@ export function SocialAutopilotGenerateDrawer({
             setFormatTouched(true);
             setSessionFormat(next);
           }}
-          doneLabel="Entwürfe erstellen"
-          onDone={() => void createFromSelection()}
+          doneLabel={phase === "setup" ? "Fertig" : "Entwürfe erstellen"}
+          onDone={
+            phase === "setup"
+              ? () => setOptionsOpen(false)
+              : () => void createFromSelection()
+          }
           defaults={{
             tone: initialTone,
             platforms:
@@ -731,12 +914,18 @@ export function SocialAutopilotGenerateDrawer({
         <DrawerContent className={drawerContentClassName("mediaTall")}>
           <DrawerHeader className="text-left">
             <DrawerTitle>
-              {phase === "creating" ? "Einen Moment …" : "KI-Post"}
+              {phase === "creating"
+                ? "Einen Moment …"
+                : phase === "setup"
+                  ? "KI-Post"
+                  : "Vorschläge"}
             </DrawerTitle>
             <DrawerDescription>
               {phase === "creating"
                 ? `${aiLabel} schreibt Bild und Text für euch.`
-                : "Wählt aus Speisekarte, Galerie oder KI-Ideen — alles optional."}
+                : phase === "setup"
+                  ? "Quellen und Kanäle wählen — Laden startet erst auf Knopfdruck."
+                  : "Tippen, dann als Entwurf erstellen."}
             </DrawerDescription>
           </DrawerHeader>
           {mainBody}
@@ -752,9 +941,9 @@ export function SocialAutopilotGenerateDrawer({
       />
 
       <SocialAutopilotOptionsDrawer
-        open={optionsOpen && open && phase === "ideas"}
+        open={optionsOpen && open && phase !== "creating"}
         onOpenChange={setOptionsOpen}
-        title="Wohin posten?"
+        title={phase === "setup" ? "Kanäle & Format" : "Wohin posten?"}
         tone={sessionTone}
         onToneChange={setSessionTone}
         platforms={sessionPlatforms}
@@ -764,8 +953,12 @@ export function SocialAutopilotGenerateDrawer({
           setFormatTouched(true);
           setSessionFormat(next);
         }}
-        doneLabel="Entwürfe erstellen"
-        onDone={() => void createFromSelection()}
+        doneLabel={phase === "setup" ? "Fertig" : "Entwürfe erstellen"}
+        onDone={
+          phase === "setup"
+            ? () => setOptionsOpen(false)
+            : () => void createFromSelection()
+        }
         defaults={{
           tone: initialTone,
           platforms:

@@ -99,40 +99,21 @@ export function NewsComposeDrawer({
     setIsDragOver(false);
   }, [open, initialMode]);
 
+  // KI-Tab: nur Brand-Kit Defaults — kein Ideas/LLM, kein schweres Media-Preload.
   useEffect(() => {
     if (!open || mode !== "ki") return;
     let cancelled = false;
     void (async () => {
       try {
-        const [sugRes, kitRes] = await Promise.all([
-          fetch(
-            `/api/social/suggestions?restaurantId=${encodeURIComponent(restaurantId)}`,
-          ),
-          fetch(
-            `/api/social/brand-kit?restaurantId=${encodeURIComponent(restaurantId)}`,
-          ),
-        ]);
-        const sugData = (await sugRes.json().catch(() => ({}))) as {
-          generation?: {
-            aiConfigured?: boolean;
-            aiProvider?: "openai" | "grok";
-          };
-        };
+        const kitRes = await fetch(
+          `/api/social/brand-kit?restaurantId=${encodeURIComponent(restaurantId)}`,
+        );
         const kitData = (await kitRes.json().catch(() => ({}))) as {
           kit?: SocialBrandKit;
         };
         if (cancelled) return;
-        const gen = sugData.generation;
-        setAiConfigured(
-          typeof gen?.aiConfigured === "boolean" ? gen.aiConfigured : null,
-        );
-        setAiLabel(
-          gen?.aiProvider === "grok"
-            ? "Grok"
-            : gen?.aiProvider === "openai"
-              ? "OpenAI"
-              : "Restaurant-KI",
-        );
+        setAiConfigured(null);
+        setAiLabel("Restaurant-KI");
         const kit = kitData.kit ?? defaultSocialBrandKit(restaurantId);
         setSessionTone(kit.tone);
         setSessionPlatforms(
@@ -305,27 +286,31 @@ export function NewsComposeDrawer({
       <DrawerContent
         className={drawerContentClassName(mode === "ki" ? "mediaTall" : "form")}
       >
-        <DrawerHeader className="space-y-3 text-left">
-          <DrawerTitle>Neue News</DrawerTitle>
+        <DrawerHeader className="space-y-3 px-4 text-left sm:px-6">
+          <DrawerTitle className="text-left">Neue News</DrawerTitle>
           <Tabs
             value={mode}
             onValueChange={(v) => {
               if (v === "manual" || v === "ki") setMode(v);
             }}
+            className="w-full gap-0"
           >
-            <TabsList className="grid h-10 w-full grid-cols-2 rounded-xl p-1">
-              <TabsTrigger value="manual" className="rounded-lg">
+            <TabsList
+              className={cn(
+                "mx-auto grid h-11 w-full max-w-md grid-cols-2 self-stretch rounded-xl p-1",
+              )}
+            >
+              <TabsTrigger value="manual" className="rounded-lg px-2">
                 Eigener Post
               </TabsTrigger>
-              <TabsTrigger value="ki" className="rounded-lg">
+              <TabsTrigger value="ki" className="rounded-lg px-2">
                 KI-Post
               </TabsTrigger>
             </TabsList>
           </Tabs>
           {mode === "ki" ? (
-            <p className="text-sm text-muted-foreground">
-              Speisekarte, Galerie oder KI-Ideen wählen — fertige Entwürfe
-              landen in der News-Liste.
+            <p className="text-left text-sm text-muted-foreground">
+              Vorgaben wählen — Generieren erstellt genau einen Entwurf.
             </p>
           ) : null}
         </DrawerHeader>

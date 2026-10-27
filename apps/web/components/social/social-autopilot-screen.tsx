@@ -84,11 +84,6 @@ import { isNewsPlatform, type NewsPlatform } from "@/lib/constants/news-platform
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
-type AiUsageSummary = {
-  events30d: number;
-  tokens30d: number | null;
-};
-
 type VoiceLearnDraft = {
   voiceNotes: string;
   goldCaptions: string[];
@@ -161,8 +156,8 @@ function platformsSummary(platforms: NewsPlatform[]): string {
 }
 
 /**
- * Hauptseite = Neu generieren + Entwürfe/Designs.
- * Ideen leben nur im Generate-Bottom-Sheet (Idee ≠ Entwurf).
+ * Hauptseite = „Neue Posts“ + Entwürfe.
+ * Ideen nur im Sheet (wählen → erstellen).
  */
 export function SocialAutopilotScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -175,7 +170,6 @@ export function SocialAutopilotScreen() {
   const [kit, setKit] = useState<SocialBrandKit | null>(null);
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
   const [aiProvider, setAiProvider] = useState<"openai" | "grok" | null>(null);
-  const [aiUsage, setAiUsage] = useState<AiUsageSummary | null>(null);
   const [voiceDraft, setVoiceDraft] = useState<VoiceLearnDraft | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -210,7 +204,7 @@ export function SocialAutopilotScreen() {
     if (!restaurantId) return;
     if (!opts?.quiet) setLoading(true);
     try {
-      const [sugRes, kitRes, optRes, usageRes] = await Promise.all([
+      const [sugRes, kitRes, optRes] = await Promise.all([
         fetch(
           `/api/social/suggestions?restaurantId=${encodeURIComponent(restaurantId)}`,
         ),
@@ -219,9 +213,6 @@ export function SocialAutopilotScreen() {
         ),
         fetch(
           `/api/social/asset-options?restaurantId=${encodeURIComponent(restaurantId)}`,
-        ),
-        fetch(
-          `/api/social/ai-usage?restaurantId=${encodeURIComponent(restaurantId)}`,
         ),
       ]);
       const sugData = (await sugRes.json().catch(() => ({}))) as {
@@ -233,10 +224,6 @@ export function SocialAutopilotScreen() {
           aiProvider?: "openai" | "grok";
         };
       };
-      const usageData = (await usageRes.json().catch(() => ({}))) as {
-        usage?: AiUsageSummary;
-      };
-      if (usageData.usage) setAiUsage(usageData.usage);
       const kitData = (await kitRes.json().catch(() => ({}))) as {
         kit?: SocialBrandKit;
       };
@@ -600,19 +587,12 @@ export function SocialAutopilotScreen() {
       if (!res.ok) {
         toast.error(
           data.error === "not_enough_posts"
-            ? "Zu wenig IG/FB-Posts im Cache — zuerst News syncen"
-            : "Stimme konnte nicht gelernt werden",
+            ? "Noch zu wenig Social-Posts — später nochmal"
+            : "Hat nicht geklappt",
         );
         return;
       }
       if (data.draft) setVoiceDraft(data.draft);
-      const usageRes = await fetch(
-        `/api/social/ai-usage?restaurantId=${encodeURIComponent(restaurantId)}`,
-      );
-      const usageData = (await usageRes.json().catch(() => ({}))) as {
-        usage?: AiUsageSummary;
-      };
-      if (usageData.usage) setAiUsage(usageData.usage);
     } finally {
       setVoiceBusy(false);
     }
@@ -704,11 +684,10 @@ export function SocialAutopilotScreen() {
         <Card className="border-border/50 shadow-card">
           <CardContent className="space-y-3 pt-5">
             <div className="space-y-1">
-              <p className="text-sm font-medium">Euer KI-Abo fehlt</p>
+              <p className="text-sm font-medium">KI verbinden</p>
               <p className="text-sm text-muted-foreground">
-                Autopilot schreibt Captions mit demselben OpenAI- oder
-                Grok-Schlüssel wie der Restaurant-Assistent — euer Abo, eure
-                Kosten. Ohne Schlüssel entstehen keine Posts.
+                Einmal OpenAI oder Grok hinterlegen — dann schreibt Autopilot
+                für euch.
               </p>
             </div>
             <Button
@@ -716,40 +695,24 @@ export function SocialAutopilotScreen() {
               className={autopilotPrimaryButtonClassName}
               render={<Link href={APP_ROUTES.settings.integrations} />}
             >
-              KI unter Integrationen verbinden
+              Jetzt verbinden
             </Button>
           </CardContent>
         </Card>
       ) : null}
 
       {!showSkeleton && aiReady ? (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium text-foreground">
-              Entwürfe & Designs
-            </p>
-            <p className="text-xs text-muted-foreground">
-              „Neu generieren“ wählt Ideen im Sheet. Ergebnis = Entwurf hier —
-              jederzeit speichern, posten oder planen. Texte:{" "}
-              <span className="text-foreground">{aiLabel}</span>.
-            </p>
-            {aiUsage ? (
-              <p className="text-xs text-muted-foreground">
-                Verbrauch · {aiUsage.events30d} KI-Läufe (30 Tage)
-                {aiUsage.tokens30d != null
-                  ? ` · ~${aiUsage.tokens30d.toLocaleString("de-DE")} Tokens`
-                  : ""}
-              </p>
-            ) : null}
-          </div>
-
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Posts vorschlagen lassen — ihr entscheidet, was live geht.
+          </p>
           <Button
             type="button"
             className={modulePrimaryAddButtonFullWidthClassName}
             onClick={() => startTransition(() => setGenerateOpen(true))}
           >
             <Sparkles className="size-4" />
-            Neu generieren
+            Neue Posts
           </Button>
         </div>
       ) : null}
@@ -800,18 +763,11 @@ export function SocialAutopilotScreen() {
 
       {!showSkeleton && aiReady ? (
         <div className="space-y-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">Entwürfe</p>
-            <p className="text-xs text-muted-foreground">
-              Zwischengespeichert · speichern, posten oder planen — klar getrennt
-              von Ideen im Generate-Sheet.
-            </p>
-          </div>
+          <p className="text-sm font-medium text-foreground">Eure Entwürfe</p>
 
           {sortedSuggestions.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-              Noch keine Entwürfe. Tippe „Neu generieren“, wähle Ideen, dann
-              landen die Ergebnisse hier.
+              Noch leer — tippe „Neue Posts“, wähle etwas, fertig.
             </p>
           ) : (
             <div className="space-y-5">
@@ -902,7 +858,7 @@ export function SocialAutopilotScreen() {
                         (activePlatforms.includes("facebook") ||
                           activePlatforms.includes("instagram")) ? (
                           <p className="text-[11px] text-muted-foreground">
-                            + Story 9:16 beim Publish
+                            + Story beim Posten
                           </p>
                         ) : null}
                         <Button
@@ -913,7 +869,7 @@ export function SocialAutopilotScreen() {
                             startTransition(() => setReviewOptionsId(s.id))
                           }
                         >
-                          Kanäle & Format …
+                          Kanäle ändern
                         </Button>
                       </div>
 
@@ -937,7 +893,7 @@ export function SocialAutopilotScreen() {
                           }
                         >
                           <Check className="size-4" />
-                          Posten / Planen …
+                          Posten oder planen
                         </Button>
                         <Button
                           type="button"
@@ -950,27 +906,29 @@ export function SocialAutopilotScreen() {
                           <Pencil className="size-4" />
                           Bearbeiten
                         </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className={autopilotSecondaryButtonClassName}
-                          onClick={() => void saveAsTemplate(s.id)}
-                        >
-                          <Bookmark className="size-4" />
-                          Als Design speichern
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className={cn(
-                            autopilotGhostButtonClassName,
-                            "text-muted-foreground",
-                          )}
-                          onClick={() => void skip(s.id)}
-                        >
-                          <SkipForward className="size-4" />
-                          Verwerfen
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={autopilotSecondaryButtonFlexClassName}
+                            onClick={() => void saveAsTemplate(s.id)}
+                          >
+                            <Bookmark className="size-4" />
+                            Merken
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className={cn(
+                              autopilotGhostButtonFlexClassName,
+                              "text-muted-foreground",
+                            )}
+                            onClick={() => void skip(s.id)}
+                          >
+                            <SkipForward className="size-4" />
+                            Weg
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -981,14 +939,7 @@ export function SocialAutopilotScreen() {
 
           {savedTemplates.length > 0 ? (
             <div className="space-y-3">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">
-                  Gespeicherte Designs
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Dauerhaft gemerkt — tippen öffnet wieder als Entwurf.
-                </p>
-              </div>
+              <p className="text-sm font-medium text-foreground">Gemerkt</p>
               <div className="grid grid-cols-2 gap-3">
                 {savedTemplates.map((s) => (
                   <button
@@ -1007,12 +958,9 @@ export function SocialAutopilotScreen() {
                         />
                       ) : null}
                     </div>
-                    <div className="space-y-0.5 px-2.5 py-2">
+                    <div className="px-2.5 py-2">
                       <p className="line-clamp-1 text-xs font-medium">
                         {s.title?.trim() || "Design"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Als Entwurf öffnen
                       </p>
                     </div>
                   </button>
@@ -1026,25 +974,24 @@ export function SocialAutopilotScreen() {
               type="button"
               variant="outline"
               className={autopilotSecondaryButtonClassName}
-              disabled={voiceBusy}
-              onClick={() => void learnVoice()}
+              render={<Link href={APP_ROUTES.settings.restaurant} />}
             >
-              {voiceBusy ? "Lerne …" : "Stimme aus Social lernen"}
+              Stil & Marke
             </Button>
             <Button
               type="button"
-              variant="outline"
-              className={autopilotSecondaryButtonClassName}
-              render={<Link href={APP_ROUTES.settings.restaurant} />}
+              variant="ghost"
+              className={autopilotGhostButtonClassName}
+              disabled={voiceBusy}
+              onClick={() => void learnVoice()}
             >
-              Social-Marke
+              {voiceBusy ? "Lerne …" : "Stimme aus Social übernehmen"}
             </Button>
           </div>
           {voiceDraft ? (
             <div className="space-y-2 rounded-xl border border-border/50 bg-muted/20 px-3 py-3">
               <p className="text-xs font-medium text-foreground">
                 Vorschlag aus {voiceDraft.sampleCount} Posts
-                {voiceDraft.fromLlm ? ` · ${aiLabel}` : " · Heuristik"}
               </p>
               <p className="whitespace-pre-wrap text-xs text-muted-foreground">
                 {voiceDraft.voiceNotes}
@@ -1056,7 +1003,7 @@ export function SocialAutopilotScreen() {
                   disabled={voiceBusy}
                   onClick={() => void confirmVoiceDraft()}
                 >
-                  In Social-Marke übernehmen
+                  Übernehmen
                 </Button>
                 <Button
                   type="button"

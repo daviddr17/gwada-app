@@ -13,6 +13,13 @@ export const SOCIAL_AUTOPILOT_MAX_PROMPT_CHARS = 5500;
 export const SOCIAL_AUTOPILOT_MAX_CAPTION_CHARS = 900;
 export const SOCIAL_AUTOPILOT_MAX_TITLE_CHARS = 80;
 
+/** Ideas-Sheet: one completion to pitch theme/captionDirection/format. */
+export const SOCIAL_AUTOPILOT_IDEAS_MAX_LLM_CALLS = 1;
+export const SOCIAL_AUTOPILOT_IDEAS_MAX_COMPLETION_TOKENS = 900;
+export const SOCIAL_AUTOPILOT_IDEAS_MAX_PROMPT_CHARS = 4500;
+export const SOCIAL_AUTOPILOT_IDEA_THEME_CHARS = 72;
+export const SOCIAL_AUTOPILOT_IDEA_DIRECTION_CHARS = 160;
+
 export type SocialAutopilotCaptionResult = {
   index: number;
   title: string | null;

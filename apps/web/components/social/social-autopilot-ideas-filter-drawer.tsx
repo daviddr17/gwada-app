@@ -8,15 +8,11 @@ import {
   DrawerFilterField,
   DrawerFilterHeader,
   DrawerFilterZone,
-  DrawerSortZone,
 } from "@/components/ui/drawer-filter-sheet";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import {
   availableSocialAutopilotIdeaFilters,
   SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS,
-  SOCIAL_AUTOPILOT_IDEA_GROUP_HINTS,
-  SOCIAL_AUTOPILOT_IDEA_GROUP_ORDER,
-  SOCIAL_AUTOPILOT_IDEA_GROUP_LABELS,
   type SocialAutopilotIdeaFilter,
 } from "@/lib/social/social-autopilot-idea-sort";
 import type { SocialAutopilotIdea } from "@/lib/social/social-autopilot-ideas";
@@ -58,47 +54,31 @@ export function SocialAutopilotIdeasFilterDrawer({
       repositionInputs={false}
     >
       <DrawerContent className={drawerContentClassName("template")}>
-        <DrawerFilterHeader title="Filter & Sortierung" />
+        <DrawerFilterHeader title="Quellen" />
         <div className={drawerScrollAreaClassName(6)}>
           <DrawerFilterZone showLabel={false}>
-            <DrawerFilterField label="Quelle">
+            <DrawerFilterField label="Anzeigen">
               <SearchableSelect
                 value={filter}
                 onValueChange={(v) =>
                   onFilterChange((v as SocialAutopilotIdeaFilter) || "all")
                 }
                 options={options}
-                placeholder="Quelle wählen"
+                placeholder="Quelle"
                 className={selectClassName}
                 side="top"
-                aria-label="Ideen nach Quelle filtern"
+                aria-label="Quellen filtern"
               />
             </DrawerFilterField>
-          </DrawerFilterZone>
-
-          <DrawerSortZone>
             <p className="text-sm text-muted-foreground">
-              Empfohlene Reihenfolge (fest):
+              Speisekarte, Galerie und KI-Ideen — alles optional.
             </p>
-            <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-foreground">
-              {SOCIAL_AUTOPILOT_IDEA_GROUP_ORDER.map((kind) => (
-                <li key={kind}>
-                  <span className="font-medium">
-                    {SOCIAL_AUTOPILOT_IDEA_GROUP_LABELS[kind]}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {" — "}
-                    {SOCIAL_AUTOPILOT_IDEA_GROUP_HINTS[kind]}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </DrawerSortZone>
+          </DrawerFilterZone>
         </div>
         <DrawerFilterFooter
           onReset={() => {
             onFilterChange("all");
-            toast.success("Filter zurückgesetzt");
+            toast.success("Zurückgesetzt");
           }}
           onDone={() => onOpenChange(false)}
         />

@@ -1,14 +1,17 @@
-import type { SocialSlotKind } from "@/lib/social/social-brand-kit";
-import type { SocialAutopilotIdea } from "@/lib/social/social-autopilot-ideas";
+import type {
+  SocialAutopilotIdea,
+  SocialAutopilotSourceBucket,
+} from "@/lib/social/social-autopilot-ideas";
 
-/** Filter-Chips über der Ideenliste — Reihenfolge = empfohlene Priorität. */
+/**
+ * Filter im Sheet — alles optional:
+ * Alle · Speisekarte · Galerie · KI-Ideen
+ */
 export const SOCIAL_AUTOPILOT_IDEA_FILTERS = [
   "all",
-  "event",
-  "menu_dish",
-  "ambient",
-  "holiday",
-  "brand",
+  "menu",
+  "gallery",
+  "ai",
 ] as const;
 
 export type SocialAutopilotIdeaFilter =
@@ -18,38 +21,32 @@ export const SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS: Record<
   SocialAutopilotIdeaFilter,
   string
 > = {
-  all: "Empfohlen",
-  event: "Events",
-  menu_dish: "Speisekarte",
-  ambient: "Galerie",
-  holiday: "Feiertag",
-  brand: "Marke",
+  all: "Alle",
+  menu: "Speisekarte",
+  gallery: "Galerie",
+  ai: "KI-Ideen",
 };
 
-/** Gruppenreihenfolge: baldige Events → Speisekarte → Galerie → Feiertag → Marke. */
-export const SOCIAL_AUTOPILOT_IDEA_GROUP_ORDER: readonly SocialSlotKind[] = [
-  "event",
-  "menu_dish",
-  "ambient",
-  "holiday",
-  "brand",
-] as const;
+/** Gruppenreihenfolge im Sheet. */
+export const SOCIAL_AUTOPILOT_IDEA_GROUP_ORDER: readonly SocialAutopilotSourceBucket[] =
+  ["menu", "gallery", "ai"] as const;
 
-export const SOCIAL_AUTOPILOT_IDEA_GROUP_LABELS: Record<SocialSlotKind, string> =
-  {
-    event: "Baldige Events",
-    menu_dish: "Speisekarte",
-    ambient: "Galerie",
-    holiday: "Nahe Feiertage",
-    brand: "Social-Marke",
-  };
+export const SOCIAL_AUTOPILOT_IDEA_GROUP_LABELS: Record<
+  SocialAutopilotSourceBucket,
+  string
+> = {
+  menu: "Speisekarte",
+  gallery: "Galerie",
+  ai: "KI-Ideen",
+};
 
-export const SOCIAL_AUTOPILOT_IDEA_GROUP_HINTS: Record<SocialSlotKind, string> = {
-  event: "Zuerst — Termine in den nächsten Tagen",
-  menu_dish: "Gerichte mit Foto aus eurer Karte",
-  ambient: "Ambiente aus der Galerie",
-  holiday: "Nur wenn bald anstehend",
-  brand: "Titelbild oder Logo",
+export const SOCIAL_AUTOPILOT_IDEA_GROUP_HINTS: Record<
+  SocialAutopilotSourceBucket,
+  string
+> = {
+  menu: "Gerichte",
+  gallery: "Fotos",
+  ai: "Im euren Stil",
 };
 
 export function filterSocialAutopilotIdeas(
@@ -57,48 +54,50 @@ export function filterSocialAutopilotIdeas(
   filter: SocialAutopilotIdeaFilter,
 ): SocialAutopilotIdea[] {
   if (filter === "all") return ideas;
-  return ideas.filter((idea) => idea.slotKind === filter);
+  return ideas.filter((idea) => idea.sourceBucket === filter);
 }
 
 export type SocialAutopilotIdeaGroup = {
-  slotKind: SocialSlotKind;
+  sourceBucket: SocialAutopilotSourceBucket;
+  /** @deprecated alias für ältere Call-Sites — gleich sourceBucket als Slot-Proxy */
+  slotKind: SocialAutopilotSourceBucket;
   label: string;
   hint: string;
   ideas: SocialAutopilotIdea[];
 };
 
 /**
- * Gruppiert Ideen in der empfohlenen Reihenfolge.
- * Innerhalb einer Gruppe bleibt die Server-Reihenfolge (bereits rotiert/priorisiert).
+ * Gruppiert Ideen nach Quelle (Speisekarte / Galerie / KI-Stil).
  */
 export function groupSocialAutopilotIdeas(
   ideas: SocialAutopilotIdea[],
 ): SocialAutopilotIdeaGroup[] {
-  const byKind = new Map<SocialSlotKind, SocialAutopilotIdea[]>();
+  const byBucket = new Map<SocialAutopilotSourceBucket, SocialAutopilotIdea[]>();
   for (const idea of ideas) {
-    const list = byKind.get(idea.slotKind) ?? [];
+    const list = byBucket.get(idea.sourceBucket) ?? [];
     list.push(idea);
-    byKind.set(idea.slotKind, list);
+    byBucket.set(idea.sourceBucket, list);
   }
   const groups: SocialAutopilotIdeaGroup[] = [];
-  for (const slotKind of SOCIAL_AUTOPILOT_IDEA_GROUP_ORDER) {
-    const list = byKind.get(slotKind);
+  for (const sourceBucket of SOCIAL_AUTOPILOT_IDEA_GROUP_ORDER) {
+    const list = byBucket.get(sourceBucket);
     if (!list?.length) continue;
     groups.push({
-      slotKind,
-      label: SOCIAL_AUTOPILOT_IDEA_GROUP_LABELS[slotKind],
-      hint: SOCIAL_AUTOPILOT_IDEA_GROUP_HINTS[slotKind],
+      sourceBucket,
+      slotKind: sourceBucket,
+      label: SOCIAL_AUTOPILOT_IDEA_GROUP_LABELS[sourceBucket],
+      hint: SOCIAL_AUTOPILOT_IDEA_GROUP_HINTS[sourceBucket],
       ideas: list,
     });
   }
   return groups;
 }
 
-/** Nur Filter-Chips anzeigen, für die es Ideen gibt (+ immer Empfohlen). */
+/** Nur Filter anzeigen, für die es Ideen gibt (+ immer Alle). */
 export function availableSocialAutopilotIdeaFilters(
   ideas: SocialAutopilotIdea[],
 ): SocialAutopilotIdeaFilter[] {
-  const present = new Set(ideas.map((i) => i.slotKind));
+  const present = new Set(ideas.map((i) => i.sourceBucket));
   return SOCIAL_AUTOPILOT_IDEA_FILTERS.filter(
     (f) => f === "all" || present.has(f),
   );

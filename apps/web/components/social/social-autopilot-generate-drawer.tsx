@@ -19,7 +19,10 @@ import {
 } from "@/components/ui/drawer";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import type { SocialAutopilotIdea } from "@/lib/social/social-autopilot-ideas";
+import type {
+  SocialAutopilotIdea,
+  SocialAutopilotIdeaHint,
+} from "@/lib/social/social-autopilot-ideas";
 import {
   filterSocialAutopilotIdeas,
   groupSocialAutopilotIdeas,
@@ -39,9 +42,21 @@ import { cn } from "@/lib/utils";
 
 type Phase = "ideas" | "creating";
 
+function ideaHintFromIdea(idea: SocialAutopilotIdea): SocialAutopilotIdeaHint {
+  return {
+    ...(idea.theme ? { theme: idea.theme } : {}),
+    ...(idea.captionDirection
+      ? { captionDirection: idea.captionDirection }
+      : {}),
+    ...(idea.suggestedFormat
+      ? { suggestedFormat: idea.suggestedFormat }
+      : {}),
+  };
+}
+
 /**
- * Bottom Sheet: Ideen wählen → generieren.
- * Ergebnis landet als Entwurf auf der Hauptseite — keine Ideen-Liste dort.
+ * Bottom Sheet: Quellen tippen → erstellen.
+ * Ergebnis = Entwurf auf der Hauptseite.
  */
 export function SocialAutopilotGenerateDrawer({
   open,
@@ -78,6 +93,7 @@ export function SocialAutopilotGenerateDrawer({
     useState<NewsPlatform[]>(initialPlatforms);
   const [sessionFormat, setSessionFormat] =
     useState<SocialMediaFormatId>(initialFormat);
+  const [formatTouched, setFormatTouched] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const showIdeasSkeleton = useDeferredSkeleton(ideasLoading);
 
@@ -90,6 +106,11 @@ export function SocialAutopilotGenerateDrawer({
     [filteredIdeas],
   );
   const ideaFilterActiveCount = countAutopilotIdeaActiveFilters(ideaFilter);
+  const ideasById = useMemo(() => {
+    const map = new Map<string, SocialAutopilotIdea>();
+    for (const idea of ideas) map.set(idea.id, idea);
+    return map;
+  }, [ideas]);
 
   const loadIdeas = useCallback(
     async (opts?: { rotate?: boolean }) => {
@@ -110,21 +131,17 @@ export function SocialAutopilotGenerateDrawer({
           return;
         }
         if (data.skippedReason === "ai_not_configured") {
-          toast.error(
-            "Autopilot braucht euren Restaurant-KI-Schlüssel unter Integrationen",
-          );
+          toast.error("Bitte zuerst KI unter Integrationen verbinden");
           onOpenChange(false);
           return;
         }
         if (data.skippedReason === "disabled") {
-          toast.error("Autopilot ist in der Social-Marke ausgeschaltet");
+          toast.error("Autopilot ist ausgeschaltet (Stil & Marke)");
           onOpenChange(false);
           return;
         }
         if (data.skippedReason === "needs_media") {
-          toast.error(
-            "Keine Bilder — bitte Galerie, Speisekarte oder Profilfotos hinterlegen",
-          );
+          toast.error("Noch keine Fotos — Galerie oder Speisekarte ergänzen");
           setIdeas([]);
           setSelectedIds([]);
           return;
@@ -138,6 +155,7 @@ export function SocialAutopilotGenerateDrawer({
             : 7,
         );
         setSelectedIds([]);
+        setFormatTouched(false);
         if (next.length === 0) {
           toast.message(
             "Keine neuen Ideen — bestehende Entwürfe nutzen oder Medien prüfen",
@@ -164,6 +182,7 @@ export function SocialAutopilotGenerateDrawer({
         : ["instagram", "facebook"],
     );
     setSessionFormat(initialFormat);
+    setFormatTouched(false);
     setPhase("ideas");
     void loadIdeas({ rotate: true });
   }, [open, initialTone, initialPlatforms, initialFormat, loadIdeas]);
@@ -181,8 +200,25 @@ export function SocialAutopilotGenerateDrawer({
         toast.message(`Maximal ${maxSelect} Ideen auf einmal`);
         return prev;
       }
-      return [...prev, id];
+      const next = [...prev, id];
+      if (!formatTouched) {
+        const idea = ideasById.get(id);
+        if (idea?.suggestedFormat) {
+          setSessionFormat(idea.suggestedFormat);
+        }
+      }
+      return next;
     });
+  };
+
+  const openOptionsForGenerate = () => {
+    if (!formatTouched && selectedIds.length > 0) {
+      const first = ideasById.get(selectedIds[0]!);
+      if (first?.suggestedFormat) {
+        setSessionFormat(first.suggestedFormat);
+      }
+    }
+    setOptionsOpen(true);
   };
 
   const createFromSelection = async () => {
@@ -195,6 +231,12 @@ export function SocialAutopilotGenerateDrawer({
     }
     setOptionsOpen(false);
     setPhase("creating");
+    const ideaHints: Record<string, SocialAutopilotIdeaHint> = {};
+    for (const id of selectedIds) {
+      const idea = ideasById.get(id);
+      if (!idea) continue;
+      ideaHints[id] = ideaHintFromIdea(idea);
+    }
     try {
       const res = await fetch("/api/social/suggestions/generate", {
         method: "POST",
@@ -202,6 +244,7 @@ export function SocialAutopilotGenerateDrawer({
         body: JSON.stringify({
           restaurantId,
           ideaIds: selectedIds,
+          ideaHints,
           tone: sessionTone,
           platforms: sessionPlatforms,
           mediaFormat: sessionFormat,
@@ -216,31 +259,27 @@ export function SocialAutopilotGenerateDrawer({
         error?: string;
       };
       if (!res.ok || data.error === "selection_required") {
-        toast.error("Bitte mindestens eine Idee auswählen");
+        toast.error("Bitte etwas auswählen");
         setPhase("ideas");
         return;
       }
       const gen = data.generation;
       if (gen?.skippedReason === "needs_media") {
-        toast.error("Für die Auswahl fehlen Bilder");
+        toast.error("Dafür fehlen noch Fotos");
         setPhase("ideas");
         return;
       }
       if (gen?.skippedReason === "week_full") {
-        toast.message(
-          "Wochenziel voll — Entwürfe auf der Hauptseite freigeben",
-        );
+        toast.message("Genug für diese Woche — erst Entwürfe posten");
         setPhase("ideas");
         return;
       }
       const created = gen?.created ?? 0;
       if (created > 0) {
-        const llmHint =
-          (gen?.llmApplied ?? 0) > 0
-            ? " · Texte mit eurer Restaurant-KI"
-            : " · Vorlagen";
         toast.success(
-          `${created} Entwurf${created === 1 ? "" : "e"} erstellt${llmHint}`,
+          created === 1
+            ? "Entwurf fertig — speichern oder posten"
+            : `${created} Entwürfe fertig — speichern oder posten`,
         );
         // Sheet sofort zu — Drafts im Hintergrund nachladen (kein Warten).
         onOpenChange(false);
@@ -269,12 +308,12 @@ export function SocialAutopilotGenerateDrawer({
         <DrawerContent className={drawerContentClassName("mediaTall")}>
           <DrawerHeader className="text-left">
             <DrawerTitle>
-              {phase === "creating" ? "Wird generiert …" : "Neu generieren"}
+              {phase === "creating" ? "Einen Moment …" : "Neue Posts"}
             </DrawerTitle>
             <DrawerDescription>
               {phase === "creating"
-                ? `${aiLabel} schreibt Captions — danach als Entwurf auf der Hauptseite.`
-                : "Ideen sind Vorschläge. Nach dem Generieren landen Entwürfe auf der Hauptseite — speichern, posten oder planen."}
+                ? `${aiLabel} schreibt Bild und Text für euch.`
+                : "Wählt aus Speisekarte, Galerie oder KI-Ideen — alles optional."}
             </DrawerDescription>
           </DrawerHeader>
 
@@ -305,7 +344,7 @@ export function SocialAutopilotGenerateDrawer({
                         ideasLoading && "animate-spin",
                       )}
                     />
-                    Ideen neu mischen
+                    Andere Ideen
                   </Button>
                   <div className="relative shrink-0">
                     <Button
@@ -313,7 +352,7 @@ export function SocialAutopilotGenerateDrawer({
                       variant="outline"
                       size="icon-sm"
                       className="rounded-full border-border/60"
-                      aria-label="Filter & Sortierung"
+                      aria-label="Quellen"
                       disabled={ideas.length === 0}
                       onClick={() => setIdeasFilterOpen(true)}
                     >
@@ -332,46 +371,57 @@ export function SocialAutopilotGenerateDrawer({
 
                 {maxSelect <= 0 ? (
                   <p className="rounded-xl border border-dashed border-border/60 px-3 py-3 text-center text-xs text-muted-foreground">
-                    Wochenziel voll mit Entwürfen auf der Hauptseite — erst
-                    speichern, posten oder planen.
+                    Genug Entwürfe für diese Woche — erst posten oder speichern.
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Idee ≠ Entwurf. Tippe Karten (max. {maxSelect}), dann
-                    generieren.
+                    Tippen und erstellen
+                    {maxSelect < 7 ? ` (max. ${maxSelect})` : ""}.
                     {ideaFilter !== "all"
-                      ? ` Filter: ${SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS[ideaFilter]}`
+                      ? ` Nur ${SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS[ideaFilter]}.`
                       : ""}
                   </p>
                 )}
 
                 {showIdeasSkeleton ? (
-                  <div className="grid grid-cols-2 gap-3" aria-busy>
+                  <div className="space-y-3" aria-busy>
                     {[0, 1, 2, 3].map((i) => (
-                      <SkeletonCardFrame key={i} className="space-y-2 p-2">
-                        <Skeleton className="aspect-square w-full rounded-lg" />
-                        <Skeleton className="h-3 w-3/4" />
+                      <SkeletonCardFrame
+                        key={i}
+                        className="flex gap-3 p-3"
+                      >
+                        <Skeleton className="size-16 shrink-0 rounded-lg" />
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <Skeleton className="h-3 w-1/3" />
+                          <Skeleton className="h-4 w-4/5" />
+                          <Skeleton className="h-8 w-full" />
+                        </div>
                       </SkeletonCardFrame>
                     ))}
                   </div>
                 ) : ideas.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-                    Keine Ideen verfügbar. Entwürfe bleiben auf der Hauptseite.
+                    Gerade keine Ideen — später nochmal oder Fotos ergänzen.
                   </p>
                 ) : filteredIdeas.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-                    Keine Ideen in diesem Filter.
+                    Nichts in dieser Quelle — Filter zurücksetzen.
                   </p>
                 ) : (
                   <div className="space-y-5">
                     {ideaGroups.map((group) => (
-                      <div key={group.slotKind} className="space-y-2">
+                      <div key={group.sourceBucket} className="space-y-2">
                         <p className="text-sm font-medium text-foreground">
                           {group.label}
                         </p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
                           {group.ideas.map((idea) => {
                             const selected = selectedIds.includes(idea.id);
+                            const theme =
+                              idea.theme?.trim() || idea.title.trim();
+                            const direction =
+                              idea.captionDirection?.trim() ||
+                              idea.reasonDetail;
                             return (
                               <button
                                 key={idea.id}
@@ -379,13 +429,13 @@ export function SocialAutopilotGenerateDrawer({
                                 aria-pressed={selected}
                                 onClick={() => toggleIdea(idea.id)}
                                 className={cn(
-                                  "overflow-hidden rounded-xl border text-left touch-manipulation transition-colors",
+                                  "flex w-full gap-3 rounded-xl border p-3 text-left touch-manipulation transition-colors",
                                   selected
                                     ? "border-accent/50 bg-accent/10 ring-2 ring-accent/30"
                                     : "border-border/50 hover:border-border",
                                 )}
                               >
-                                <div className="relative aspect-square bg-muted/40">
+                                <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted/40">
                                   {idea.imageUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
@@ -395,17 +445,17 @@ export function SocialAutopilotGenerateDrawer({
                                     />
                                   ) : null}
                                   {selected ? (
-                                    <span className="absolute top-2 right-2 flex size-6 items-center justify-center rounded-full bg-accent text-accent-foreground shadow">
-                                      <Check className="size-3.5" />
+                                    <span className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-accent text-accent-foreground shadow">
+                                      <Check className="size-3" />
                                     </span>
                                   ) : null}
                                 </div>
-                                <div className="space-y-0.5 px-2.5 py-2">
-                                  <p className="line-clamp-1 text-xs font-medium">
-                                    {idea.title}
+                                <div className="min-w-0 flex-1 space-y-0.5">
+                                  <p className="line-clamp-2 text-sm font-medium leading-snug">
+                                    {theme}
                                   </p>
-                                  <p className="line-clamp-1 text-[11px] text-muted-foreground">
-                                    {idea.reasonLabel}
+                                  <p className="line-clamp-2 text-[12px] leading-snug text-muted-foreground">
+                                    {direction}
                                   </p>
                                 </div>
                               </button>
@@ -427,12 +477,14 @@ export function SocialAutopilotGenerateDrawer({
                     ideasLoading ||
                     maxSelect <= 0
                   }
-                  onClick={() => setOptionsOpen(true)}
+                  onClick={openOptionsForGenerate}
                 >
                   <Sparkles className="size-4" />
                   {selectedIds.length === 0
-                    ? "Ideen auswählen"
-                    : `Weiter · ${selectedIds.length} Idee${selectedIds.length === 1 ? "" : "n"}`}
+                    ? "Etwas auswählen"
+                    : selectedIds.length === 1
+                      ? "Weiter"
+                      : `Weiter · ${selectedIds.length}`}
                 </Button>
               </div>
             </>
@@ -451,14 +503,17 @@ export function SocialAutopilotGenerateDrawer({
       <SocialAutopilotOptionsDrawer
         open={optionsOpen && open && phase === "ideas"}
         onOpenChange={setOptionsOpen}
-        title="Kanäle & Stil · generieren"
+        title="Wohin posten?"
         tone={sessionTone}
         onToneChange={setSessionTone}
         platforms={sessionPlatforms}
         onPlatformsChange={setSessionPlatforms}
         format={sessionFormat}
-        onFormatChange={setSessionFormat}
-        doneLabel="Generieren"
+        onFormatChange={(next) => {
+          setFormatTouched(true);
+          setSessionFormat(next);
+        }}
+        doneLabel="Erstellen"
         onDone={() => void createFromSelection()}
         defaults={{
           tone: initialTone,

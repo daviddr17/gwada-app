@@ -30,6 +30,7 @@ export async function GET(req: Request) {
   const result = await listSocialAutopilotIdeas(admin, restaurantId, {
     rotate: rotate || forceSkipOpen,
     forceSkipOpen,
+    enrichWithAi: true,
   });
 
   return Response.json({
@@ -41,5 +42,7 @@ export async function GET(req: Request) {
     aiConfigured: result.aiConfigured,
     aiProvider: result.aiProvider,
     skippedReason: result.skippedReason,
+    ideasAiEnriched: result.ideasAiEnriched ?? false,
+    ideasLlmCalls: result.ideasLlmCalls ?? 0,
   });
 }

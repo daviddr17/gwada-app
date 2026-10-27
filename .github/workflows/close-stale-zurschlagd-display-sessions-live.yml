@@ -2,15 +2,6 @@ name: Close stale zurschlagd display sessions live
 
 on:
   workflow_dispatch:
-    inputs:
-      mode:
-        description: "diagnose | cleanup (holiday spam soft-skip)"
-        required: true
-        default: diagnose
-        type: choice
-        options:
-          - diagnose
-          - cleanup
   repository_dispatch:
     types: [close-stale-zurschlagd-display-sessions-live]
 
@@ -40,22 +31,11 @@ jobs:
       - name: Install psql
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
 
-      - name: Holiday spam diagnose/cleanup (temp via this workflow until new YAML is on main)
+      - name: Close stale open display sessions
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
-          MODE: ${{ github.event.inputs.mode || 'diagnose' }}
         run: |
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
-          if [ "${MODE}" = "cleanup" ]; then
-            echo "=== DEV cleanup ==="
-            bash scripts/run-dev-sql-ci.sh scripts/cleanup-autopilot-holiday-spam.sql
-            echo "=== LIVE cleanup ==="
-            bash scripts/run-live-sql-ci.sh scripts/cleanup-autopilot-holiday-spam.sql
-          else
-            echo "=== DEV diagnose ==="
-            bash scripts/run-dev-sql-ci.sh scripts/diagnose-autopilot-holiday-spam.sql
-            echo "=== LIVE diagnose ==="
-            bash scripts/run-live-sql-ci.sh scripts/diagnose-autopilot-holiday-spam.sql
-          fi
+          bash scripts/run-live-sql-ci.sh scripts/close-stale-zurschlagd-display-sessions-live.sql

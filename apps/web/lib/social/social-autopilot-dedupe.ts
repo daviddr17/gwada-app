@@ -1,5 +1,6 @@
 import { socialAutopilotIdeaId } from "@/lib/social/social-autopilot-ideas";
 import type { SocialPostSuggestion } from "@/lib/social/social-suggestion-types";
+import { SOCIAL_AUTOPILOT_HOLIDAY_LOOKAHEAD_DAYS } from "@/lib/social/social-autopilot-relevance";
 
 /** Quellen / ideaIds, die nicht erneut als Idee vorgeschlagen werden. */
 export type SocialAutopilotUsedKeys = {
@@ -160,4 +161,97 @@ export function autopilotWeeklyRoom(params: {
   const pending = Math.max(0, Math.floor(params.pendingOpen));
   const room = Math.max(0, target - pending);
   return Math.min(Math.max(0, Math.floor(params.maxPerRun)), room);
+}
+
+function ymdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return ymdLocal(d);
+}
+
+/** Feiertags-Datum aus source.date oder plannedAt (YYYY-MM-DD). */
+export function holidaySuggestionDateYmd(
+  suggestion: Pick<SocialPostSuggestion, "source" | "plannedAt">,
+): string | null {
+  const raw = suggestion.source?.date;
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+    return raw.trim();
+  }
+  const planned = Date.parse(suggestion.plannedAt);
+  if (!Number.isFinite(planned)) return null;
+  return ymdLocal(new Date(planned));
+}
+
+/**
+ * Offene Feiertags-Drafts, die die Liste zuspammen:
+ * - Datum in der Vergangenheit oder jenseits Lookahead
+ * - Duplikate desselben Datums (nur neuester bleibt)
+ */
+export function selectStaleOrDuplicateHolidayIdsToSkip(
+  suggestions: ReadonlyArray<
+    Pick<
+      SocialPostSuggestion,
+      "id" | "status" | "slotKind" | "source" | "plannedAt" | "createdAt"
+    >
+  >,
+  opts?: { now?: Date; lookaheadDays?: number },
+): string[] {
+  const now = opts?.now ?? new Date();
+  const lookahead =
+    opts?.lookaheadDays ?? SOCIAL_AUTOPILOT_HOLIDAY_LOOKAHEAD_DAYS;
+  const today = ymdLocal(now);
+  const maxDate = addDaysYmd(today, Math.max(0, lookahead));
+
+  type Row = {
+    id: string;
+    date: string | null;
+    createdAt: string;
+  };
+
+  const openHolidays: Row[] = [];
+  for (const s of suggestions) {
+    if (s.slotKind !== "holiday") continue;
+    if (s.status !== "pending" && s.status !== "needs_asset") continue;
+    openHolidays.push({
+      id: s.id,
+      date: holidaySuggestionDateYmd(s),
+      createdAt: s.createdAt,
+    });
+  }
+
+  const skip = new Set<string>();
+  const byDate = new Map<string, Row[]>();
+
+  for (const row of openHolidays) {
+    if (!row.date || row.date < today || row.date > maxDate) {
+      skip.add(row.id);
+      continue;
+    }
+    const list = byDate.get(row.date) ?? [];
+    list.push(row);
+    byDate.set(row.date, list);
+  }
+
+  for (const list of byDate.values()) {
+    if (list.length <= 1) continue;
+    list.sort((a, b) => {
+      const ta = Date.parse(a.createdAt);
+      const tb = Date.parse(b.createdAt);
+      const aOk = Number.isFinite(ta) ? ta : 0;
+      const bOk = Number.isFinite(tb) ? tb : 0;
+      return bOk - aOk;
+    });
+    for (const dup of list.slice(1)) {
+      skip.add(dup.id);
+    }
+  }
+
+  return [...skip];
 }

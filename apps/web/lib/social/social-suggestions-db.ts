@@ -13,6 +13,7 @@ import {
   feedLayoutToLegacyTemplate,
   resolveSuggestionFeedLayout,
 } from "@/lib/social/social-feed-layout";
+import { selectStaleOrDuplicateHolidayIdsToSkip } from "@/lib/social/social-autopilot-dedupe";
 import {
   SOCIAL_SUGGESTION_STATUSES,
   type SocialMediaTask,
@@ -198,6 +199,29 @@ export async function insertSocialSuggestionsInDb(
  * Ohne `suggestionIds`: alle pending/needs_asset des Restaurants — vermeidet
  * Duplikat-Akkumulation, wenn die ID-Liste unvollständig wäre.
  */
+
+/**
+ * Soft-skip: abgelaufene / doppelte Feiertags-Drafts (pending|needs_asset → skipped).
+ * Verhindert Historien-Spam wie 100× „Maria Himmelfahrt“ in der Entwurfsliste.
+ */
+export async function pruneStaleHolidaySocialSuggestionsInDb(
+  sb: SupabaseClient,
+  restaurantId: string,
+  opts?: { now?: Date; lookaheadDays?: number; fetchLimit?: number },
+): Promise<number> {
+  if (!isUuidRestaurantId(restaurantId)) return 0;
+  const open = await listSocialSuggestionsFromDb(sb, restaurantId, {
+    statuses: ["pending", "needs_asset"],
+    limit: opts?.fetchLimit ?? 500,
+  });
+  const ids = selectStaleOrDuplicateHolidayIdsToSkip(open, {
+    now: opts?.now,
+    lookaheadDays: opts?.lookaheadDays,
+  });
+  if (ids.length === 0) return 0;
+  return skipPendingSocialSuggestionsInDb(sb, restaurantId, ids);
+}
+
 export async function skipPendingSocialSuggestionsInDb(
   sb: SupabaseClient,
   restaurantId: string,

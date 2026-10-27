@@ -3,6 +3,8 @@ import { test } from "node:test";
 import {
   autopilotWeeklyRoom,
   collectSocialAutopilotUsedKeys,
+  holidaySuggestionDateYmd,
+  selectStaleOrDuplicateHolidayIdsToSkip,
   suggestionCountsTowardAutopilotDedupe,
 } from "./social-autopilot-dedupe";
 import type { SocialPostSuggestion } from "./social-suggestion-types";
@@ -144,4 +146,72 @@ test("autopilotWeeklyRoom never falls back to max when room is 0", () => {
     }),
     7,
   );
+});
+
+test("holidaySuggestionDateYmd prefers source.date", () => {
+  assert.equal(
+    holidaySuggestionDateYmd({
+      source: { date: "2026-08-15" },
+      plannedAt: "2026-10-01T10:00:00.000Z",
+    }),
+    "2026-08-15",
+  );
+});
+
+test("selectStaleOrDuplicateHolidayIdsToSkip drops past Maria drafts", () => {
+  const now = new Date("2026-10-27T12:00:00.000Z");
+  const ids = selectStaleOrDuplicateHolidayIdsToSkip(
+    [
+      sug({
+        id: "maria-1",
+        status: "pending",
+        slotKind: "holiday",
+        source: { date: "2026-08-15", holidayName: "Mariä Himmelfahrt" },
+        plannedAt: "2026-08-15T10:00:00.000Z",
+        createdAt: "2026-08-01T09:00:00.000Z",
+      }),
+      sug({
+        id: "maria-2",
+        status: "pending",
+        slotKind: "holiday",
+        source: { date: "2026-08-15", holidayName: "Maria Himmelfahrt" },
+        plannedAt: "2026-08-15T10:00:00.000Z",
+        createdAt: "2026-08-02T09:00:00.000Z",
+      }),
+      sug({
+        id: "dish-ok",
+        status: "pending",
+        slotKind: "menu_dish",
+        source: { dishId: "d1" },
+      }),
+    ],
+    { now },
+  );
+  assert.deepEqual(ids.sort(), ["maria-1", "maria-2"]);
+});
+
+test("selectStaleOrDuplicateHolidayIdsToSkip keeps one relevant holiday", () => {
+  const now = new Date("2026-10-27T12:00:00.000Z");
+  const ids = selectStaleOrDuplicateHolidayIdsToSkip(
+    [
+      sug({
+        id: "keep",
+        status: "pending",
+        slotKind: "holiday",
+        source: { date: "2026-10-28", holidayName: "Nahe Feier" },
+        plannedAt: "2026-10-28T10:00:00.000Z",
+        createdAt: "2026-10-27T11:00:00.000Z",
+      }),
+      sug({
+        id: "dup",
+        status: "pending",
+        slotKind: "holiday",
+        source: { date: "2026-10-28", holidayName: "Nahe Feier" },
+        plannedAt: "2026-10-28T10:00:00.000Z",
+        createdAt: "2026-10-27T10:00:00.000Z",
+      }),
+    ],
+    { now, lookaheadDays: 5 },
+  );
+  assert.deepEqual(ids, ["dup"]);
 });

@@ -28,6 +28,7 @@ import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types
 import {
   ensureSocialUploadTaskInDb,
   listSocialSuggestionsFromDb,
+  pruneStaleHolidaySocialSuggestionsInDb,
   skipPendingSocialSuggestionsInDb,
 } from "@/lib/social/social-suggestions-db";
 import { fetchRestaurantAssistantRuntime } from "@/lib/supabase/restaurant-assistant-key-db";
@@ -247,6 +248,9 @@ export async function listSocialAutopilotIdeas(
   let forceSkipped = 0;
   if (opts?.forceSkipOpen) {
     forceSkipped = await skipPendingSocialSuggestionsInDb(sb, restaurantId);
+  } else {
+    // Ohne Force-Skip: nur stale/doppelte Feiertags-Drafts soft-skippen (Maria-Spam).
+    await pruneStaleHolidaySocialSuggestionsInDb(sb, restaurantId);
   }
 
   const openExisting = await listSocialSuggestionsFromDb(sb, restaurantId, {

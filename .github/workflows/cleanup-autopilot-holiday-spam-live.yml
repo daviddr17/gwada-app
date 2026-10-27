@@ -9,6 +9,10 @@ on:
         type: string
   repository_dispatch:
     types: [cleanup-autopilot-holiday-spam-live]
+  push:
+    branches: [main]
+    paths:
+      - .github/triggers/cleanup-autopilot-holiday-spam.env
 
 concurrency:
   group: cleanup-autopilot-holiday-spam-live
@@ -24,6 +28,9 @@ jobs:
         env:
           CONFIRM: ${{ github.event.inputs.confirm || github.event.client_payload.confirm }}
         run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            CONFIRM="$(grep -E '^confirm=' .github/triggers/cleanup-autopilot-holiday-spam.env | cut -d= -f2- | tr -d '[:space:]' || true)"
+          fi
           if [ "${CONFIRM}" != "SKIP" ]; then
             echo "::error::Set confirm=SKIP (got '${CONFIRM}')"
             exit 1

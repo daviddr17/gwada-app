@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
   repository_dispatch:
     types: [diagnose-autopilot-holiday-spam-live]
+  push:
+    branches: [main]
+    paths:
+      - .github/triggers/diagnose-autopilot-holiday-spam.env
 
 concurrency:
   group: diagnose-autopilot-holiday-spam-live

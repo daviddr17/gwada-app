@@ -29,9 +29,12 @@ import {
 import type { SocialTone } from "@/lib/social/social-brand-kit";
 import type { SocialMediaFormatId } from "@/lib/social/social-media-formats";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
+import {
+  autopilotPrimaryButtonClassName,
+  autopilotSecondaryButtonClassName,
+} from "@/lib/ui/social-autopilot-buttons";
 import { cn } from "@/lib/utils";
 
 type Phase = "ideas" | "creating";
@@ -239,8 +242,9 @@ export function SocialAutopilotGenerateDrawer({
         toast.success(
           `${created} Entwurf${created === 1 ? "" : "e"} erstellt${llmHint}`,
         );
-        await onCreated();
+        // Sheet sofort zu — Drafts im Hintergrund nachladen (kein Warten).
         onOpenChange(false);
+        void onCreated();
         return;
       }
       toast.message("Keine Entwürfe erstellt");
@@ -291,7 +295,7 @@ export function SocialAutopilotGenerateDrawer({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 flex-1 rounded-xl border-border/60"
+                    className={cn("flex-1", autopilotSecondaryButtonClassName)}
                     disabled={ideasLoading}
                     onClick={() => void loadIdeas({ rotate: true })}
                   >
@@ -417,8 +421,7 @@ export function SocialAutopilotGenerateDrawer({
               <div className="shrink-0 border-t border-border/50 px-6 py-3">
                 <Button
                   type="button"
-                  size="lg"
-                  className={cn("w-full", brandActionButtonRoundedClassName)}
+                  className={autopilotPrimaryButtonClassName}
                   disabled={
                     selectedIds.length === 0 ||
                     ideasLoading ||

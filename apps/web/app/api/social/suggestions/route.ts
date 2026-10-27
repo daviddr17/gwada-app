@@ -10,6 +10,7 @@ import type { SocialSuggestionGenerateResult } from "@/lib/social/social-suggest
 import {
   listOpenSocialTasksFromDb,
   listSocialSuggestionsFromDb,
+  pruneStaleHolidaySocialSuggestionsInDb,
 } from "@/lib/social/social-suggestions-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchRestaurantAssistantRuntime } from "@/lib/supabase/restaurant-assistant-key-db";
@@ -51,6 +52,9 @@ export async function GET(req: Request) {
 
   // Nur Status + bestehende Drafts — kein Blind-Generate mehr bei refresh.
   const generation = await peekSocialAutopilotAiStatus(restaurantId);
+
+  // Historische Feiertags-Duplikate soft-skippen, bevor die Liste gelesen wird.
+  await pruneStaleHolidaySocialSuggestionsInDb(admin, restaurantId);
 
   const [rawSuggestions, rawSaved, tasks, kit] = await Promise.all([
     listSocialSuggestionsFromDb(admin, restaurantId, {

@@ -1,0 +1,75 @@
+name: Cleanup autopilot holiday spam live
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type SKIP to soft-skip stale/duplicate holiday drafts (Dev then Live)"
+        required: true
+        type: string
+  repository_dispatch:
+    types: [cleanup-autopilot-holiday-spam-live]
+  push:
+    branches: [main]
+    paths:
+      - .github/triggers/cleanup-autopilot-holiday-spam.env
+
+concurrency:
+  group: cleanup-autopilot-holiday-spam-live
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Confirm
+        env:
+          CONFIRM: ${{ github.event.inputs.confirm || github.event.client_payload.confirm }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            CONFIRM="$(grep -E '^confirm=' .github/triggers/cleanup-autopilot-holiday-spam.env | cut -d= -f2- | tr -d '[:space:]' || true)"
+          fi
+          if [ "${CONFIRM}" != "SKIP" ]; then
+            echo "::error::Set confirm=SKIP (got '${CONFIRM}')"
+            exit 1
+          fi
+
+      - name: Setup SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
+
+      - name: Install psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: Cleanup Dev DB first
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          bash scripts/run-dev-sql-ci.sh scripts/cleanup-autopilot-holiday-spam.sql
+
+      - name: Cleanup Live DB
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          bash scripts/run-live-sql-ci.sh scripts/cleanup-autopilot-holiday-spam.sql

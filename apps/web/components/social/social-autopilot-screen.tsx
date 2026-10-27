@@ -43,10 +43,16 @@ import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-s
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  autopilotGhostButtonClassName,
+  autopilotGhostButtonFlexClassName,
+  autopilotPrimaryButtonClassName,
+  autopilotSecondaryButtonClassName,
+  autopilotSecondaryButtonFlexClassName,
+} from "@/lib/ui/social-autopilot-buttons";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
   SOCIAL_FEED_LAYOUT_CHIP_LABELS,
@@ -250,13 +256,15 @@ export function SocialAutopilotScreen() {
       setTasks(sugData.tasks ?? []);
       const nextKit = kitData.kit ?? defaultSocialBrandKit(restaurantId);
       setKit(nextKit);
-      setSessionTone(nextKit.tone);
-      setSessionPlatforms(
-        nextKit.publishPlatforms.length > 0
-          ? [...nextKit.publishPlatforms]
-          : ["instagram", "facebook"],
-      );
-      setSessionFormat("square_1x1");
+      if (!opts?.quiet) {
+        setSessionTone(nextKit.tone);
+        setSessionPlatforms(
+          nextKit.publishPlatforms.length > 0
+            ? [...nextKit.publishPlatforms]
+            : ["instagram", "facebook"],
+        );
+        setSessionFormat("square_1x1");
+      }
       setAssetOptions(optData.options ?? []);
       applySuggestionDrafts(open);
       const gen = sugData.generation;
@@ -295,6 +303,30 @@ export function SocialAutopilotScreen() {
       },
     ) => {
       if (!restaurantId) return;
+      let snapshot: SocialPostSuggestion | undefined;
+      const applyLocal = (s: SocialPostSuggestion): SocialPostSuggestion => {
+        const next: SocialPostSuggestion = { ...s };
+        if (patch.title !== undefined) next.title = patch.title;
+        if (patch.caption !== undefined) next.caption = patch.caption;
+        if (patch.asset !== undefined) next.asset = patch.asset;
+        if (patch.feedLayout !== undefined) next.feedLayout = patch.feedLayout;
+        if (patch.platforms !== undefined) next.platforms = patch.platforms;
+        if (patch.mediaFormat !== undefined) {
+          next.source = { ...next.source, mediaFormat: patch.mediaFormat };
+        }
+        return next;
+      };
+      setSuggestions((prev) => {
+        snapshot = prev.find((s) => s.id === id);
+        if (!snapshot) return prev;
+        return prev.map((s) => (s.id === id ? applyLocal(s) : s));
+      });
+      setSavedTemplates((prev) => {
+        const hit = prev.find((s) => s.id === id);
+        if (hit && !snapshot) snapshot = hit;
+        if (!hit) return prev;
+        return prev.map((s) => (s.id === id ? applyLocal(s) : s));
+      });
       const res = await fetch(`/api/social/suggestions/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -304,6 +336,15 @@ export function SocialAutopilotScreen() {
         suggestion?: SocialPostSuggestion;
       };
       if (!res.ok || !data.suggestion) {
+        if (snapshot) {
+          const roll = snapshot;
+          setSuggestions((prev) =>
+            prev.map((s) => (s.id === id ? roll : s)),
+          );
+          setSavedTemplates((prev) =>
+            prev.map((s) => (s.id === id ? roll : s)),
+          );
+        }
         toast.error("Änderung konnte nicht gespeichert werden");
         return;
       }
@@ -348,30 +389,37 @@ export function SocialAutopilotScreen() {
 
   const approve = async (id: string, publishNow: boolean) => {
     if (!restaurantId) return;
+    if (saveTimers.current[id]) {
+      clearTimeout(saveTimers.current[id]);
+      delete saveTimers.current[id];
+    }
+    const caption = draftCaptions[id] ?? "";
+    const title = (draftTitles[id] ?? "").trim() || null;
+    let removed: SocialPostSuggestion | undefined;
+    setSuggestions((prev) => {
+      removed = prev.find((s) => s.id === id);
+      return prev.filter((s) => s.id !== id);
+    });
+    setActionsId(null);
+    setEditId(null);
     setBusyId(id);
     try {
-      if (saveTimers.current[id]) {
-        clearTimeout(saveTimers.current[id]);
-        delete saveTimers.current[id];
-      }
-      await patchSuggestion(id, {
-        title: (draftTitles[id] ?? "").trim() || null,
-        caption: draftCaptions[id] ?? "",
+      await fetch(`/api/social/suggestions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, title, caption }),
       });
       const res = await fetch(`/api/social/suggestions/${id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurantId,
-          caption: draftCaptions[id],
-          publishNow,
-        }),
+        body: JSON.stringify({ restaurantId, caption, publishNow }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         published?: boolean;
       };
       if (!res.ok) {
+        if (removed) setSuggestions((prev) => [removed!, ...prev]);
         toast.error(
           data.error === "image_required"
             ? "Für die Freigabe fehlt noch ein Bild"
@@ -384,9 +432,6 @@ export function SocialAutopilotScreen() {
           ? "Post freigegeben und veröffentlicht"
           : "Post freigegeben (geplant)",
       );
-      setSuggestions((prev) => prev.filter((s) => s.id !== id));
-      setActionsId(null);
-      setEditId(null);
     } finally {
       setBusyId(null);
     }
@@ -394,7 +439,13 @@ export function SocialAutopilotScreen() {
 
   const skip = async (id: string) => {
     if (!restaurantId) return;
-    setBusyId(id);
+    let removed: SocialPostSuggestion | undefined;
+    setSuggestions((prev) => {
+      removed = prev.find((s) => s.id === id);
+      return prev.filter((s) => s.id !== id);
+    });
+    setActionsId(null);
+    setEditId(null);
     try {
       const res = await fetch(`/api/social/suggestions/${id}/skip`, {
         method: "POST",
@@ -402,34 +453,51 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId }),
       });
       if (!res.ok) {
+        if (removed) setSuggestions((prev) => [removed!, ...prev]);
         toast.error("Verwerfen fehlgeschlagen");
-        return;
       }
-      setSuggestions((prev) => prev.filter((s) => s.id !== id));
-      setActionsId(null);
-      setEditId(null);
-    } finally {
-      setBusyId(null);
+    } catch {
+      if (removed) setSuggestions((prev) => [removed!, ...prev]);
+      toast.error("Verwerfen fehlgeschlagen");
     }
   };
 
   const completeTask = async (id: string, status: "done" | "dismissed") => {
     if (!restaurantId) return;
-    const res = await fetch(`/api/social/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ restaurantId, status }),
+    let removed: SocialMediaTask | undefined;
+    setTasks((prev) => {
+      removed = prev.find((task) => task.id === id);
+      return prev.filter((task) => task.id !== id);
     });
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/social/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, status }),
+      });
+      if (!res.ok) {
+        if (removed) setTasks((prev) => [removed!, ...prev]);
+        toast.error("Aufgabe konnte nicht aktualisiert werden");
+      }
+    } catch {
+      if (removed) setTasks((prev) => [removed!, ...prev]);
       toast.error("Aufgabe konnte nicht aktualisiert werden");
-      return;
     }
-    setTasks((prev) => prev.filter((t) => t.id !== id));
   };
 
   const saveAsTemplate = async (id: string) => {
     if (!restaurantId) return;
-    setBusyId(id);
+    let removed: SocialPostSuggestion | undefined;
+    setSuggestions((prev) => {
+      removed = prev.find((s) => s.id === id);
+      return prev.filter((s) => s.id !== id);
+    });
+    if (removed) {
+      const saved: SocialPostSuggestion = { ...removed, status: "saved" };
+      setSavedTemplates((prev) => [saved, ...prev.filter((s) => s.id !== id)]);
+    }
+    setActionsId(null);
+    setEditId(null);
     try {
       const res = await fetch(`/api/social/suggestions/${id}/save`, {
         method: "POST",
@@ -437,19 +505,45 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId }),
       });
       if (!res.ok) {
+        if (removed) {
+          setSuggestions((prev) => [removed!, ...prev]);
+          setSavedTemplates((prev) => prev.filter((s) => s.id !== id));
+        }
         toast.error("Zwischenspeichern fehlgeschlagen");
         return;
       }
       toast.success("Als Design gespeichert — bleibt auf der Hauptseite");
-      await loadBase();
-    } finally {
-      setBusyId(null);
+    } catch {
+      if (removed) {
+        setSuggestions((prev) => [removed!, ...prev]);
+        setSavedTemplates((prev) => prev.filter((s) => s.id !== id));
+      }
+      toast.error("Zwischenspeichern fehlgeschlagen");
     }
   };
 
   const restoreTemplate = async (id: string) => {
     if (!restaurantId) return;
-    setBusyId(id);
+    let removed: SocialPostSuggestion | undefined;
+    setSavedTemplates((prev) => {
+      removed = prev.find((s) => s.id === id);
+      return prev.filter((s) => s.id !== id);
+    });
+    if (removed) {
+      const draft: SocialPostSuggestion = {
+        ...removed,
+        status: removed.asset.imageUrl ? "pending" : "needs_asset",
+      };
+      setSuggestions((prev) => [draft, ...prev.filter((s) => s.id !== id)]);
+      setDraftTitles((prev) => ({
+        ...prev,
+        [id]: draft.title?.trim() ?? "",
+      }));
+      setDraftCaptions((prev) => ({
+        ...prev,
+        [id]: draft.caption,
+      }));
+    }
     try {
       const res = await fetch(`/api/social/suggestions/${id}/restore`, {
         method: "POST",
@@ -457,13 +551,20 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId }),
       });
       if (!res.ok) {
+        if (removed) {
+          setSavedTemplates((prev) => [removed!, ...prev]);
+          setSuggestions((prev) => prev.filter((s) => s.id !== id));
+        }
         toast.error("Design konnte nicht geöffnet werden");
         return;
       }
       toast.success("Design als Entwurf bereit — posten oder planen");
-      await loadBase();
-    } finally {
-      setBusyId(null);
+    } catch {
+      if (removed) {
+        setSavedTemplates((prev) => [removed!, ...prev]);
+        setSuggestions((prev) => prev.filter((s) => s.id !== id));
+      }
+      toast.error("Design konnte nicht geöffnet werden");
     }
   };
 
@@ -596,8 +697,7 @@ export function SocialAutopilotScreen() {
             </div>
             <Button
               type="button"
-              size="lg"
-              className={cn("w-full", brandActionButtonRoundedClassName)}
+              className={autopilotPrimaryButtonClassName}
               render={<Link href={APP_ROUTES.settings.integrations} />}
             >
               KI unter Integrationen verbinden
@@ -653,8 +753,7 @@ export function SocialAutopilotScreen() {
                 <div className="flex flex-col gap-2">
                   <Button
                     type="button"
-                    size="lg"
-                    className={cn("w-full", brandActionButtonRoundedClassName)}
+                    className={autopilotPrimaryButtonClassName}
                     render={<Link href={APP_ROUTES.galerie.overview} />}
                   >
                     Zur Galerie
@@ -663,7 +762,7 @@ export function SocialAutopilotScreen() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-11 flex-1 rounded-xl"
+                      className={autopilotSecondaryButtonFlexClassName}
                       onClick={() => void completeTask(task.id, "done")}
                     >
                       Erledigt
@@ -671,7 +770,7 @@ export function SocialAutopilotScreen() {
                     <Button
                       type="button"
                       variant="ghost"
-                      className="h-11 flex-1 rounded-xl"
+                      className={autopilotGhostButtonFlexClassName}
                       onClick={() => void completeTask(task.id, "dismissed")}
                     >
                       Später
@@ -794,8 +893,7 @@ export function SocialAutopilotScreen() {
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-11 w-full rounded-xl border-border/60"
-                          disabled={busyId === s.id}
+                          className={autopilotSecondaryButtonClassName}
                           onClick={() => setReviewOptionsId(s.id)}
                         >
                           Kanäle & Format …
@@ -816,12 +914,7 @@ export function SocialAutopilotScreen() {
                       <div className="flex flex-col gap-2">
                         <Button
                           type="button"
-                          size="lg"
-                          className={cn(
-                            "w-full",
-                            brandActionButtonRoundedClassName,
-                          )}
-                          disabled={busyId === s.id}
+                          className={autopilotPrimaryButtonClassName}
                           onClick={() => setActionsId(s.id)}
                         >
                           <Check className="size-4" />
@@ -830,8 +923,7 @@ export function SocialAutopilotScreen() {
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-12 w-full rounded-xl"
-                          disabled={busyId === s.id}
+                          className={autopilotSecondaryButtonClassName}
                           onClick={() => setEditId(s.id)}
                         >
                           <Pencil className="size-4" />
@@ -840,8 +932,7 @@ export function SocialAutopilotScreen() {
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-12 w-full rounded-xl"
-                          disabled={busyId === s.id}
+                          className={autopilotSecondaryButtonClassName}
                           onClick={() => void saveAsTemplate(s.id)}
                         >
                           <Bookmark className="size-4" />
@@ -850,8 +941,7 @@ export function SocialAutopilotScreen() {
                         <Button
                           type="button"
                           variant="ghost"
-                          className="h-11 w-full rounded-xl text-muted-foreground"
-                          disabled={busyId === s.id}
+                          className={autopilotGhostButtonClassName}
                           onClick={() => void skip(s.id)}
                         >
                           <SkipForward className="size-4" />
@@ -880,7 +970,6 @@ export function SocialAutopilotScreen() {
                   <button
                     key={s.id}
                     type="button"
-                    disabled={busyId === s.id}
                     onClick={() => void restoreTemplate(s.id)}
                     className="overflow-hidden rounded-xl border border-border/50 text-left touch-manipulation transition-colors hover:border-border"
                   >
@@ -912,7 +1001,7 @@ export function SocialAutopilotScreen() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full rounded-xl border-border/60"
+              className={autopilotSecondaryButtonClassName}
               disabled={voiceBusy}
               onClick={() => void learnVoice()}
             >
@@ -921,7 +1010,7 @@ export function SocialAutopilotScreen() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full rounded-xl border-border/60"
+              className={autopilotSecondaryButtonClassName}
               render={<Link href={APP_ROUTES.settings.restaurant} />}
             >
               Social-Marke
@@ -940,10 +1029,7 @@ export function SocialAutopilotScreen() {
                 <Button
                   type="button"
                   size="sm"
-                  className={cn(
-                    "h-11 w-full rounded-xl",
-                    brandActionButtonRoundedClassName,
-                  )}
+                  className={autopilotPrimaryButtonClassName}
                   disabled={voiceBusy}
                   onClick={() => void confirmVoiceDraft()}
                 >
@@ -952,7 +1038,7 @@ export function SocialAutopilotScreen() {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-11 w-full rounded-xl"
+                  className={autopilotGhostButtonClassName}
                   onClick={() => setVoiceDraft(null)}
                 >
                   Verwerfen
@@ -1149,7 +1235,7 @@ export function SocialAutopilotScreen() {
           <DrawerFooter>
             <Button
               type="button"
-              className={cn("w-full", brandActionButtonRoundedClassName)}
+              className={autopilotPrimaryButtonClassName}
               onClick={() => setEditId(null)}
             >
               Fertig
@@ -1178,8 +1264,7 @@ export function SocialAutopilotScreen() {
             <div className="flex flex-col gap-2 px-6 pb-2">
               <Button
                 type="button"
-                size="lg"
-                className={cn("w-full", brandActionButtonRoundedClassName)}
+                className={autopilotPrimaryButtonClassName}
                 disabled={
                   busyId === acting.id || acting.status === "needs_asset"
                 }
@@ -1191,7 +1276,7 @@ export function SocialAutopilotScreen() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-12 w-full rounded-xl"
+                className={autopilotSecondaryButtonClassName}
                 disabled={busyId === acting.id}
                 onClick={() => void approve(acting.id, false)}
               >
@@ -1200,7 +1285,7 @@ export function SocialAutopilotScreen() {
               <Button
                 type="button"
                 variant="ghost"
-                className="h-11 w-full rounded-xl"
+                className={autopilotGhostButtonClassName}
                 disabled={busyId === acting.id}
                 onClick={() => setActionsId(null)}
               >

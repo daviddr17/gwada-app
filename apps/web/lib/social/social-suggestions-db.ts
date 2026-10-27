@@ -193,20 +193,30 @@ export async function insertSocialSuggestionsInDb(
   return data?.length ?? 0;
 }
 
-/** Offene Vorschläge verwerfen (z. B. vor Neu-Generierung mit aktuellem Brand Kit). */
+/**
+ * Offene Vorschläge verwerfen (z. B. vor „Neu vorschlagen“).
+ * Ohne `suggestionIds`: alle pending/needs_asset des Restaurants — vermeidet
+ * Duplikat-Akkumulation, wenn die ID-Liste unvollständig wäre.
+ */
 export async function skipPendingSocialSuggestionsInDb(
   sb: SupabaseClient,
   restaurantId: string,
-  suggestionIds: string[],
+  suggestionIds?: string[],
 ): Promise<number> {
-  if (!isUuidRestaurantId(restaurantId) || suggestionIds.length === 0) return 0;
-  const { data, error } = await sb
+  if (!isUuidRestaurantId(restaurantId)) return 0;
+  if (suggestionIds && suggestionIds.length === 0) return 0;
+
+  let query = sb
     .from("social_post_suggestions")
     .update({ status: "skipped" })
     .eq("restaurant_id", restaurantId)
-    .in("id", suggestionIds)
-    .in("status", ["pending", "needs_asset"])
-    .select("id");
+    .in("status", ["pending", "needs_asset"]);
+
+  if (suggestionIds && suggestionIds.length > 0) {
+    query = query.in("id", suggestionIds);
+  }
+
+  const { data, error } = await query.select("id");
   if (error) {
     console.warn("[gwada] skipPendingSocialSuggestionsInDb", error.message);
     return 0;
@@ -248,6 +258,8 @@ export async function updateSocialSuggestionFieldsInDb(
     asset?: SocialSuggestionAsset;
     feedLayout?: SocialFeedLayoutId;
     status?: SocialSuggestionStatus;
+    platforms?: string[];
+    mediaFormat?: string | null;
   },
 ): Promise<
   | { ok: true; suggestion: SocialPostSuggestion }
@@ -259,7 +271,11 @@ export async function updateSocialSuggestionFieldsInDb(
     params.suggestionId,
   );
   if (!existing) return { ok: false, error: "not_found" };
-  if (existing.status !== "pending" && existing.status !== "needs_asset") {
+  if (
+    existing.status !== "pending" &&
+    existing.status !== "needs_asset" &&
+    existing.status !== "saved"
+  ) {
     return { ok: false, error: "invalid_status" };
   }
 
@@ -279,19 +295,30 @@ export async function updateSocialSuggestionFieldsInDb(
   }
   if (params.asset !== undefined) {
     patch.asset_json = params.asset;
-    patch.status =
-      params.asset.imageUrl || params.status === "pending"
-        ? "pending"
-        : "needs_asset";
+    if (existing.status !== "saved") {
+      patch.status =
+        params.asset.imageUrl || params.status === "pending"
+          ? "pending"
+          : "needs_asset";
+    }
   }
   if (params.status !== undefined && params.asset === undefined) {
     patch.status = params.status;
+  }
+  if (params.platforms !== undefined) {
+    patch.platforms = params.platforms.slice(0, 8);
   }
   if (params.feedLayout !== undefined) {
     patch.template_id = feedLayoutToLegacyTemplate(params.feedLayout);
     nextSource = {
       ...(nextSource ?? existing.source),
       feedLayout: params.feedLayout,
+    };
+  }
+  if (params.mediaFormat !== undefined) {
+    nextSource = {
+      ...(nextSource ?? existing.source),
+      mediaFormat: params.mediaFormat,
     };
   }
   if (nextSource) {
@@ -402,6 +429,39 @@ export async function ensureSocialUploadTaskInDb(
   if (error) {
     console.warn("[gwada] ensureSocialUploadTaskInDb", error.message);
   }
+}
+
+/** Entwurf als Vorlage speichern — bleibt parallel zu neuen Ideen nutzbar. */
+export async function saveSocialSuggestionAsTemplateInDb(
+  sb: SupabaseClient,
+  params: { restaurantId: string; suggestionId: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return updateSocialSuggestionStatusInDb(sb, {
+    restaurantId: params.restaurantId,
+    suggestionId: params.suggestionId,
+    status: "saved",
+  });
+}
+
+/** Gespeicherte Vorlage wieder in die Freigabe-Queue holen. */
+export async function restoreSavedSocialSuggestionInDb(
+  sb: SupabaseClient,
+  params: { restaurantId: string; suggestionId: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const existing = await fetchSocialSuggestionFromDb(
+    sb,
+    params.restaurantId,
+    params.suggestionId,
+  );
+  if (!existing) return { ok: false, error: "not_found" };
+  if (existing.status !== "saved") return { ok: false, error: "invalid_status" };
+  const nextStatus =
+    existing.asset.imageUrl ? "pending" : "needs_asset";
+  return updateSocialSuggestionStatusInDb(sb, {
+    restaurantId: params.restaurantId,
+    suggestionId: params.suggestionId,
+    status: nextStatus,
+  });
 }
 
 export async function completeSocialTaskInDb(

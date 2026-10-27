@@ -1,11 +1,6 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { resolveGalleryMediaSignedUrl } from "@/lib/gallery/gallery-media";
-import { resolveEventsCoverSignedUrl } from "@/lib/events/events-media";
-import { isUpcomingEmbedEvent } from "@/lib/events/events-embed-upcoming";
-import { listPublicHolidaysInRange } from "@/lib/holidays/public-holidays-server";
-import { resolveRestaurantProfileImageSignedUrl } from "@/lib/restaurant/restaurant-profile-image";
 import {
   clampAutopilotItemCount,
   SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
@@ -16,6 +11,10 @@ import {
   rewriteAutopilotCaptionsWithLlm,
   type SocialAutopilotCaptionJob,
 } from "@/lib/social/social-autopilot-llm";
+import {
+  listSocialAutopilotIdeas,
+  type SocialAutopilotCatalogIdea,
+} from "@/lib/social/social-autopilot-ideas-server";
 import { fetchSocialBrandKitFromDb } from "@/lib/social/social-brand-kit-db";
 import {
   feedLayoutToLegacyTemplate,
@@ -32,48 +31,23 @@ import {
   titleForAmbient,
 } from "@/lib/social/social-caption-templates";
 import type {
-  SocialHeroAsset,
+  SocialBrandKit,
   SocialTemplateId,
+  SocialTone,
 } from "@/lib/social/social-brand-kit";
+import { SOCIAL_TONES } from "@/lib/social/social-brand-kit";
 import {
-  ensureSocialUploadTaskInDb,
   insertSocialSuggestionsInDb,
   listSocialSuggestionsFromDb,
-  skipPendingSocialSuggestionsInDb,
 } from "@/lib/social/social-suggestions-db";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
+import { parseSocialPublishPlatforms } from "@/lib/social/social-publish-platforms";
+import {
+  parseSocialMediaFormatId,
+  type SocialMediaFormatId,
+} from "@/lib/social/social-media-formats";
+import { insertRestaurantAiUsageEvent } from "@/lib/supabase/restaurant-ai-usage-db";
 import { fetchRestaurantAssistantRuntime } from "@/lib/supabase/restaurant-assistant-key-db";
-
-type RestaurantRow = {
-  id: string;
-  name: string | null;
-  country: string | null;
-  brand_accent_hex: string | null;
-  avatar_storage_path: string | null;
-  cover_storage_path: string | null;
-};
-
-type MenuDish = {
-  id: string;
-  name: string;
-  description: string;
-  imageUrl: string;
-};
-
-type GalleryAsset = {
-  id: string;
-  storagePath: string;
-  label: string;
-  imageUrl: string;
-};
-
-type EventAsset = {
-  id: string;
-  title: string;
-  startAt: string;
-  coverUrl: string | null;
-  coverStoragePath: string | null;
-};
 
 function startOfWeekMonday(d = new Date()): Date {
   const x = new Date(d);
@@ -88,10 +62,6 @@ function addDays(base: Date, days: number): Date {
   const x = new Date(base);
   x.setDate(x.getDate() + days);
   return x;
-}
-
-function ymd(d: Date): string {
-  return d.toISOString().slice(0, 10);
 }
 
 function plannedAtForDay(weekStart: Date, dayOffset: number, hour = 11): string {
@@ -114,234 +84,198 @@ function formatEventWhen(iso: string): string {
   }
 }
 
-async function loadRestaurant(
-  sb: SupabaseClient,
-  restaurantId: string,
-): Promise<RestaurantRow | null> {
-  const { data, error } = await sb
-    .from("restaurants")
-    .select(
-      "id, name, country, brand_accent_hex, avatar_storage_path, cover_storage_path",
-    )
-    .eq("id", restaurantId)
-    .maybeSingle();
-  if (error || !data) return null;
-  return data as RestaurantRow;
-}
-
-async function loadMenuDishes(
-  sb: SupabaseClient,
-  restaurantId: string,
-): Promise<MenuDish[]> {
-  const { data, error } = await sb
-    .from("menu_items")
-    .select("id, name, description, image_url, is_active")
-    .eq("restaurant_id", restaurantId)
-    .eq("is_active", true)
-    .order("list_number", { ascending: true, nullsFirst: false })
-    .limit(80);
-
-  if (error || !data) return [];
-  return data
-    .map((row) => ({
-      id: String(row.id),
-      name: String(row.name ?? "").trim(),
-      description: String(row.description ?? "").trim(),
-      imageUrl: String(row.image_url ?? "").trim(),
-    }))
-    .filter((d) => d.name && d.imageUrl);
-}
-
-async function loadGalleryAssets(
-  sb: SupabaseClient,
-  restaurantId: string,
-): Promise<GalleryAsset[]> {
-  const { data, error } = await sb
-    .from("gwada_gallery_items")
-    .select("id, storage_path, thumb_storage_path, caption, is_pinned")
-    .eq("restaurant_id", restaurantId)
-    .order("is_pinned", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(40);
-
-  if (error || !data) return [];
-
-  const out: GalleryAsset[] = [];
-  for (const row of data) {
-    const storagePath = String(
-      row.thumb_storage_path || row.storage_path || "",
-    ).trim();
-    if (!storagePath) continue;
-    const imageUrl = await resolveGalleryMediaSignedUrl(storagePath, 7200);
-    if (!imageUrl) continue;
-    out.push({
-      id: String(row.id),
-      storagePath: String(row.storage_path || storagePath),
-      label: String(row.caption ?? "").trim() || "Galerie",
-      imageUrl,
-    });
-  }
-  return out;
-}
-
-async function loadUpcomingEvents(
-  sb: SupabaseClient,
-  restaurantId: string,
-): Promise<EventAsset[]> {
-  const { data, error } = await sb
-    .from("gwada_events")
-    .select("id, title, start_at, cover_storage_path, status")
-    .eq("restaurant_id", restaurantId)
-    .in("status", ["published", "scheduled", "draft"])
-    .order("start_at", { ascending: true })
-    .limit(20);
-
-  if (error || !data) return [];
-
-  const out: EventAsset[] = [];
-  for (const row of data) {
-    const startAt = String(row.start_at ?? "");
-    if (!startAt || !isUpcomingEmbedEvent({ startAt })) continue;
-    const coverPath =
-      typeof row.cover_storage_path === "string"
-        ? row.cover_storage_path.trim()
-        : "";
-    const coverUrl = coverPath
-      ? await resolveEventsCoverSignedUrl(coverPath)
-      : null;
-    out.push({
-      id: String(row.id),
-      title: String(row.title ?? "").trim() || "Event",
-      startAt,
-      coverUrl,
-      coverStoragePath: coverPath || null,
-    });
-  }
-  return out;
-}
-
-async function resolveProfileAsset(
-  sb: SupabaseClient,
-  restaurant: RestaurantRow,
-  kind: "cover" | "avatar",
-): Promise<SocialSuggestionAsset | null> {
-  const path =
-    kind === "cover"
-      ? restaurant.cover_storage_path?.trim()
-      : restaurant.avatar_storage_path?.trim();
-  if (!path) return null;
-  const imageUrl = await resolveRestaurantProfileImageSignedUrl(sb, path, 7200);
-  if (!imageUrl) return null;
-  return {
-    imageUrl,
-    imageLabel: kind === "cover" ? "Titelbild" : "Logo",
-    source: "profile",
-    sourceId: kind,
-    storageBucket: "restaurant-profile-images",
-    storagePath: path,
-  };
-}
-
-function pickUnused<T>(items: T[], used: Set<string>, keyOf: (t: T) => string): T | null {
-  for (const item of items) {
-    const key = keyOf(item);
-    if (used.has(key)) continue;
-    used.add(key);
-    return item;
-  }
-  return null;
-}
-
-function resolveHeroAsset(params: {
-  hero: SocialHeroAsset;
-  dishes: MenuDish[];
-  gallery: GalleryAsset[];
-  coverAsset: SocialSuggestionAsset | null;
-  avatarAsset: SocialSuggestionAsset | null;
-  usedDishIds: Set<string>;
-  usedGalleryIds: Set<string>;
-}): SocialSuggestionAsset | null {
-  const { hero } = params;
-  if (hero.source === "menu") {
-    if (params.usedDishIds.has(hero.id)) return null;
-    const dish = params.dishes.find((d) => d.id === hero.id);
-    if (!dish) return null;
-    params.usedDishIds.add(dish.id);
-    return {
-      imageUrl: dish.imageUrl,
-      imageLabel: dish.name,
-      source: "menu",
-      sourceId: dish.id,
-    };
-  }
-  if (hero.source === "gallery") {
-    if (params.usedGalleryIds.has(hero.id)) return null;
-    const g = params.gallery.find((x) => x.id === hero.id);
-    if (!g) return null;
-    params.usedGalleryIds.add(g.id);
-    return {
-      imageUrl: g.imageUrl,
-      imageLabel: g.label,
-      source: "gallery",
-      sourceId: g.id,
-      storageBucket: "gallery-media",
-      storagePath: g.storagePath,
-    };
-  }
-  if (hero.source === "profile") {
-    if (hero.id === "cover" && params.coverAsset) return params.coverAsset;
-    if (hero.id === "avatar" && params.avatarAsset) return params.avatarAsset;
-  }
-  return null;
-}
-
-function prioritizeHeroDishes(
-  dishes: MenuDish[],
-  heroes: SocialHeroAsset[],
-): MenuDish[] {
-  const heroIds = new Set(
-    heroes.filter((h) => h.source === "menu").map((h) => h.id),
-  );
-  if (!heroIds.size) return dishes;
-  const first = dishes.filter((d) => heroIds.has(d.id));
-  const rest = dishes.filter((d) => !heroIds.has(d.id));
-  return [...first, ...rest];
-}
-
-function prioritizeHeroGallery(
-  gallery: GalleryAsset[],
-  heroes: SocialHeroAsset[],
-): GalleryAsset[] {
-  const heroIds = new Set(
-    heroes.filter((h) => h.source === "gallery").map((h) => h.id),
-  );
-  if (!heroIds.size) return gallery;
-  const first = gallery.filter((g) => heroIds.has(g.id));
-  const rest = gallery.filter((g) => !heroIds.has(g.id));
-  return [...first, ...rest];
-}
-
 export type SocialSuggestionGenerateResult = {
   created: number;
   pending: number;
   tasksCreated: boolean;
   skippedReason?: string;
-  /** Restaurant-Assistent OpenAI/Grok-Key vorhanden. */
   aiConfigured: boolean;
   aiProvider?: "openai" | "grok";
   llmCalls?: number;
   llmApplied?: number;
-  /** Hard cap documentation for clients / UI. */
   caps?: {
     maxItemsPerRun: number;
     maxLlmCalls: number;
   };
 };
 
+type Draft = {
+  restaurantId: string;
+  status: "pending" | "needs_asset";
+  slotKind: "holiday" | "menu_dish" | "event" | "brand" | "ambient";
+  templateId: SocialTemplateId;
+  plannedAt: string;
+  title: string | null;
+  caption: string;
+  platforms: string[];
+  source: Record<string, unknown>;
+  asset: SocialSuggestionAsset;
+};
+
+function draftFromIdea(params: {
+  idea: SocialAutopilotCatalogIdea;
+  restaurantId: string;
+  restaurantName: string;
+  kit: SocialBrandKit;
+  plannedAt: string;
+  feedLayout: SocialFeedLayoutId;
+}): Draft | null {
+  const { idea, restaurantId, restaurantName, kit, plannedAt, feedLayout } =
+    params;
+  if (!idea.asset.imageUrl) return null;
+
+  const withOverlay = (
+    caption: string,
+    source: Record<string, unknown>,
+  ): Record<string, unknown> => ({
+    ...source,
+    overlayLine: overlayLineFromCaption(caption, kit),
+    ideaId: idea.id,
+  });
+
+  if (idea.slotKind === "event") {
+    const whenLabel = formatEventWhen(idea.eventStartAt ?? plannedAt);
+    const caption = captionForEvent({
+      kit,
+      restaurantName,
+      eventTitle: idea.title,
+      whenLabel,
+    });
+    return {
+      restaurantId,
+      status: "pending",
+      slotKind: "event",
+      templateId: feedLayoutToLegacyTemplate(feedLayout),
+      plannedAt,
+      title: idea.title,
+      caption,
+      platforms: [...kit.publishPlatforms],
+      source: withOverlay(caption, {
+        eventId: idea.asset.sourceId,
+        startAt: idea.eventStartAt,
+        feedLayout,
+        contentReason: "event",
+      }),
+      asset: idea.asset,
+    };
+  }
+
+  if (idea.slotKind === "menu_dish") {
+    const caption = captionForDish({
+      kit,
+      restaurantName,
+      dishName: idea.title,
+      dishDescription: idea.dishDescription,
+    });
+    return {
+      restaurantId,
+      status: "pending",
+      slotKind: "menu_dish",
+      templateId: feedLayoutToLegacyTemplate(feedLayout),
+      plannedAt,
+      title: idea.title,
+      caption,
+      platforms: [...kit.publishPlatforms],
+      source: withOverlay(caption, {
+        dishId: idea.asset.sourceId,
+        dishName: idea.title,
+        ...(idea.dishDescription
+          ? { dishDescription: idea.dishDescription.slice(0, 160) }
+          : {}),
+        feedLayout,
+        contentReason: "menu_dish",
+      }),
+      asset: idea.asset,
+    };
+  }
+
+  if (idea.slotKind === "ambient") {
+    const caption = captionForAmbient({
+      kit,
+      restaurantName,
+      imageCaption: idea.imageLabel,
+    });
+    return {
+      restaurantId,
+      status: "pending",
+      slotKind: "ambient",
+      templateId: feedLayoutToLegacyTemplate(feedLayout),
+      plannedAt,
+      title: titleForAmbient(idea.imageLabel),
+      caption,
+      platforms: [...kit.publishPlatforms],
+      source: withOverlay(caption, {
+        galleryItemId: idea.asset.sourceId,
+        imageCaption: idea.imageLabel,
+        feedLayout,
+        contentReason: "ambient",
+      }),
+      asset: idea.asset,
+    };
+  }
+
+  if (idea.slotKind === "holiday") {
+    const holidayName = idea.holidayName ?? idea.title;
+    const caption = captionForHoliday({
+      kit,
+      restaurantName,
+      holidayName,
+    });
+    return {
+      restaurantId,
+      status: "pending",
+      slotKind: "holiday",
+      templateId: feedLayoutToLegacyTemplate(feedLayout),
+      plannedAt: idea.holidayDate
+        ? `${idea.holidayDate}T10:00:00.000Z`
+        : plannedAt,
+      title: holidayName,
+      caption,
+      platforms: [...kit.publishPlatforms],
+      source: withOverlay(caption, {
+        date: idea.holidayDate,
+        holidayName,
+        feedLayout,
+        contentReason: "holiday",
+      }),
+      asset: idea.asset,
+    };
+  }
+
+  const caption = captionForBrand({ kit, restaurantName });
+  return {
+    restaurantId,
+    status: "pending",
+    slotKind: "brand",
+    templateId: feedLayoutToLegacyTemplate(feedLayout),
+    plannedAt,
+    title: restaurantName,
+    caption,
+    platforms: [...kit.publishPlatforms],
+    source: withOverlay(caption, {
+      kind: "brand",
+      feedLayout,
+      contentReason: "brand",
+    }),
+    asset: idea.asset,
+  };
+}
+
+/**
+ * Erzeugt Drafts nur für vom User gewählte Ideen.
+ * Ohne `ideaIds` → keine Blind-Generierung (Auswahlpflicht).
+ */
 export async function generateSocialSuggestionsForRestaurant(
   sb: SupabaseClient,
   restaurantId: string,
-  opts?: { force?: boolean },
+  opts?: {
+    ideaIds?: string[];
+    force?: boolean;
+    /** Session-Override aus der Auswahl-UI (sonst Brand Kit). */
+    tone?: SocialTone;
+    platforms?: string[];
+    mediaFormat?: SocialMediaFormatId;
+  },
 ): Promise<SocialSuggestionGenerateResult> {
   const caps = {
     maxItemsPerRun: SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
@@ -363,8 +297,28 @@ export async function generateSocialSuggestionsForRestaurant(
     };
   }
 
-  const kit = await fetchSocialBrandKitFromDb(sb, restaurantId);
-  if (!kit.enabled) {
+  const ideaIds = (opts?.ideaIds ?? [])
+    .map((id) => id.trim())
+    .filter(Boolean);
+  // force ohne Auswahl = früherer Blind-Pfad — nicht mehr erlaubt.
+  if (ideaIds.length === 0) {
+    const existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
+      statuses: ["pending", "needs_asset"],
+      limit: 40,
+    });
+    return {
+      created: 0,
+      pending: existing.length,
+      tasksCreated: false,
+      skippedReason: "selection_required",
+      aiConfigured,
+      aiProvider,
+      caps,
+    };
+  }
+
+  const kitBase = await fetchSocialBrandKitFromDb(sb, restaurantId);
+  if (!kitBase.enabled) {
     return {
       created: 0,
       pending: 0,
@@ -376,150 +330,79 @@ export async function generateSocialSuggestionsForRestaurant(
     };
   }
 
-  let existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
+  const toneOverride =
+    opts?.tone && SOCIAL_TONES.includes(opts.tone) ? opts.tone : null;
+  const platformsOverride = opts?.platforms
+    ? parseSocialPublishPlatforms(opts.platforms)
+    : null;
+  const kit: SocialBrandKit = {
+    ...kitBase,
+    ...(toneOverride ? { tone: toneOverride } : {}),
+    ...(platformsOverride && platformsOverride.length > 0
+      ? { publishPlatforms: platformsOverride }
+      : {}),
+  };
+
+  const ideasResult = await listSocialAutopilotIdeas(sb, restaurantId, {
+    rotate: false,
+  });
+  if (ideasResult.skippedReason === "needs_media") {
+    return {
+      created: 0,
+      pending: ideasResult.pendingOpen,
+      tasksCreated: ideasResult.tasksCreated,
+      skippedReason: "needs_media",
+      aiConfigured,
+      aiProvider,
+      caps,
+    };
+  }
+
+  const byId = new Map(ideasResult.catalog.map((c) => [c.id, c]));
+  const selected: SocialAutopilotCatalogIdea[] = [];
+  const seen = new Set<string>();
+  for (const id of ideaIds) {
+    if (seen.has(id)) continue;
+    const hit = byId.get(id);
+    if (!hit?.asset.imageUrl) continue;
+    seen.add(id);
+    selected.push(hit);
+  }
+
+  const need = clampAutopilotItemCount(
+    Math.min(selected.length, ideasResult.maxSelect),
+  );
+  const picked = selected.slice(0, need);
+
+  if (picked.length === 0) {
+    return {
+      created: 0,
+      pending: ideasResult.pendingOpen,
+      tasksCreated: ideasResult.tasksCreated,
+      skippedReason: "selection_required",
+      aiConfigured,
+      aiProvider,
+      caps,
+    };
+  }
+
+  const { data: restaurant } = await sb
+    .from("restaurants")
+    .select("name")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  const restaurantName =
+    (typeof restaurant?.name === "string" && restaurant.name.trim()) ||
+    "Unser Restaurant";
+
+  const existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
     statuses: ["pending", "needs_asset"],
     limit: 40,
   });
   const weekStart = startOfWeekMonday();
-  const weekEnd = addDays(weekStart, 7);
-  let pendingThisWeek = existing.filter((s) => {
-    const t = new Date(s.plannedAt).getTime();
-    return t >= weekStart.getTime() && t < weekEnd.getTime();
-  });
-
-  // „Neu vorschlagen“: offene Woche verwerfen und mit aktuellem Brand Kit neu bauen.
-  if (opts?.force && existing.length > 0) {
-    await skipPendingSocialSuggestionsInDb(
-      sb,
-      restaurantId,
-      existing.map((s) => s.id),
-    );
-    existing = [];
-    pendingThisWeek = [];
-  }
-
-  if (!opts?.force && pendingThisWeek.length >= kit.weeklyPostTarget) {
-    return {
-      created: 0,
-      pending: pendingThisWeek.length,
-      tasksCreated: false,
-      skippedReason: "already_filled",
-      aiConfigured,
-      aiProvider,
-      caps,
-    };
-  }
-
-  const restaurant = await loadRestaurant(sb, restaurantId);
-  if (!restaurant) {
-    return {
-      created: 0,
-      pending: pendingThisWeek.length,
-      tasksCreated: false,
-      skippedReason: "restaurant_missing",
-      aiConfigured,
-      aiProvider,
-      caps,
-    };
-  }
-
-  const restaurantName = restaurant.name?.trim() || "Unser Restaurant";
-  const [dishesRaw, galleryRaw, events] = await Promise.all([
-    loadMenuDishes(sb, restaurantId),
-    loadGalleryAssets(sb, restaurantId),
-    loadUpcomingEvents(sb, restaurantId),
-  ]);
-
-  const coverAsset = await resolveProfileAsset(sb, restaurant, "cover");
-  const avatarAsset = await resolveProfileAsset(sb, restaurant, "avatar");
-  const dishes = prioritizeHeroDishes(dishesRaw, kit.heroAssets);
-  const gallery = prioritizeHeroGallery(galleryRaw, kit.heroAssets);
-
-  const usableImageCount =
-    dishes.length +
-    gallery.length +
-    (coverAsset ? 1 : 0) +
-    events.filter((e) => e.coverUrl).length;
-
-  let tasksCreated = false;
-  if (usableImageCount < 5) {
-    await ensureSocialUploadTaskInDb(sb, restaurantId);
-    tasksCreated = true;
-  }
-
-  const fromYmd = ymd(new Date());
-  const toYmd = ymd(addDays(new Date(), 14));
-  const holidays = await listPublicHolidaysInRange(
-    restaurant.country?.trim() || "Deutschland",
-    fromYmd,
-    toYmd,
-  );
-
-  const need = clampAutopilotItemCount(
-    Math.max(0, kit.weeklyPostTarget - pendingThisWeek.length),
-  );
-  if (need === 0) {
-    return {
-      created: 0,
-      pending: pendingThisWeek.length,
-      tasksCreated,
-      aiConfigured,
-      aiProvider,
-      caps,
-    };
-  }
-
-  const usedDishIds = new Set(
-    pendingThisWeek
-      .map((s) => {
-        if (s.slotKind === "menu_dish") {
-          return String(s.source.dishId ?? s.asset.sourceId ?? "");
-        }
-        if (s.asset.source === "menu" && s.asset.sourceId) {
-          return String(s.asset.sourceId);
-        }
-        return "";
-      })
-      .filter(Boolean),
-  );
-  const usedGalleryIds = new Set(
-    pendingThisWeek
-      .map((s) => {
-        if (s.asset.source === "gallery" && s.asset.sourceId) {
-          return String(s.asset.sourceId);
-        }
-        return String(s.source.galleryItemId ?? "");
-      })
-      .filter(Boolean),
-  );
-  const usedEventIds = new Set(
-    pendingThisWeek
-      .filter((s) => s.slotKind === "event")
-      .map((s) => String(s.source.eventId ?? "")),
-  );
-  const usedHolidayDates = new Set(
-    pendingThisWeek
-      .filter((s) => s.slotKind === "holiday")
-      .map((s) => String(s.source.date ?? "")),
-  );
-
-  type Draft = {
-    restaurantId: string;
-    status: "pending" | "needs_asset";
-    slotKind: "holiday" | "menu_dish" | "event" | "brand" | "ambient";
-    templateId: SocialTemplateId;
-    plannedAt: string;
-    title: string | null;
-    caption: string;
-    platforms: string[];
-    source: Record<string, unknown>;
-    asset: SocialSuggestionAsset;
-  };
-
-  const drafts: Draft[] = [];
-  const daySlots = [1, 3, 5, 2, 4, 6, 0]; // Tue, Thu, Sat, Wed, Fri, Sun, Mon
+  const daySlots = [1, 3, 5, 2, 4, 6, 0];
   let slotIndex = 0;
-  const recentLayouts: SocialFeedLayoutId[] = pendingThisWeek
+  const recentLayouts: SocialFeedLayoutId[] = existing
     .map((s) => {
       const raw = s.source.feedLayout;
       return typeof raw === "string" ? (raw as SocialFeedLayoutId) : null;
@@ -532,330 +415,38 @@ export async function generateSocialSuggestionsForRestaurant(
     return plannedAtForDay(weekStart, day, 11 + (slotIndex % 2));
   };
 
-  const layoutFor = (
-    slotKind: Draft["slotKind"],
-    hasImage: boolean,
-  ): SocialFeedLayoutId => {
+  const mediaFormat =
+    parseSocialMediaFormatId(opts?.mediaFormat) ?? "square_1x1";
+
+  const drafts: Draft[] = [];
+  for (const idea of picked) {
     const avoid = recentLayouts.slice(-2);
-    let layout = pickFeedLayoutForSlot({
-      slotKind,
+    const feedLayout = pickFeedLayoutForSlot({
+      slotKind: idea.slotKind,
       preferredLayouts: kit.preferredLayouts,
       avoidLayouts: avoid,
     });
-    if (!hasImage && layout === "editorial_hero") {
-      layout = pickFeedLayoutForSlot({
-        slotKind: "brand",
-        preferredLayouts: kit.preferredLayouts,
-        avoidLayouts: avoid,
-      });
-    }
-    recentLayouts.push(layout);
-    return layout;
-  };
-
-  const withOverlay = (
-    caption: string,
-    source: Record<string, unknown>,
-  ): Record<string, unknown> => ({
-    ...source,
-    overlayLine: overlayLineFromCaption(caption, kit),
-  });
-
-  const pickHeroAsset = (
-    prefer: Array<SocialHeroAsset["source"]>,
-  ): SocialSuggestionAsset | null => {
-    for (const source of prefer) {
-      for (const hero of kit.heroAssets) {
-        if (hero.source !== source) continue;
-        const asset = resolveHeroAsset({
-          hero,
-          dishes,
-          gallery,
-          coverAsset,
-          avatarAsset,
-          usedDishIds,
-          usedGalleryIds,
-        });
-        if (asset?.imageUrl) return asset;
-      }
-    }
-    return null;
-  };
-
-  // 1) Holidays
-  for (const h of holidays) {
-    if (drafts.length >= need) break;
-    if (usedHolidayDates.has(h.date)) continue;
-    usedHolidayDates.add(h.date);
-
-    let asset: SocialSuggestionAsset | null = pickHeroAsset([
-      "gallery",
-      "menu",
-      "profile",
-    ]);
-    if (!asset) {
-      const galleryPick = pickUnused(gallery, usedGalleryIds, (g) => g.id);
-      const dishPick = pickUnused(dishes, usedDishIds, (d) => d.id);
-      if (galleryPick) {
-        asset = {
-          imageUrl: galleryPick.imageUrl,
-          imageLabel: galleryPick.label,
-          source: "gallery",
-          sourceId: galleryPick.id,
-          storageBucket: "gallery-media",
-          storagePath: galleryPick.storagePath,
-        };
-      } else if (dishPick) {
-        asset = {
-          imageUrl: dishPick.imageUrl,
-          imageLabel: dishPick.name,
-          source: "menu",
-          sourceId: dishPick.id,
-        };
-      } else if (coverAsset) {
-        asset = coverAsset;
-      } else if (kit.imageStrategy !== "own_first") {
-        asset = { imageUrl: null, source: "none" };
-      }
-    }
-
-    if (!asset) continue;
-
-    const status =
-      asset.imageUrl || kit.imageStrategy !== "own_first"
-        ? "pending"
-        : "needs_asset";
-    const feedLayout = layoutFor("holiday", Boolean(asset.imageUrl));
-    const caption = captionForHoliday({
-      kit,
+    recentLayouts.push(feedLayout);
+    const draft = draftFromIdea({
+      idea,
+      restaurantId,
       restaurantName,
-      holidayName: h.name,
-    });
-
-    drafts.push({
-      restaurantId,
-      status,
-      slotKind: "holiday",
-      templateId: feedLayoutToLegacyTemplate(feedLayout),
-      plannedAt: `${h.date}T10:00:00.000Z`,
-      title: h.name,
-      caption,
-      platforms: [...kit.publishPlatforms],
-      source: withOverlay(caption, {
-        date: h.date,
-        holidayName: h.name,
-        feedLayout,
-      }),
-      asset,
-    });
-  }
-
-  // 2) Events with cover
-  for (const ev of events) {
-    if (drafts.length >= need) break;
-    if (usedEventIds.has(ev.id)) continue;
-    if (!ev.coverUrl && kit.imageStrategy === "own_first") continue;
-    usedEventIds.add(ev.id);
-
-    const feedLayout = layoutFor("event", Boolean(ev.coverUrl));
-    const caption = captionForEvent({
       kit,
-      restaurantName,
-      eventTitle: ev.title,
-      whenLabel: formatEventWhen(ev.startAt),
-    });
-    drafts.push({
-      restaurantId,
-      status: ev.coverUrl ? "pending" : "needs_asset",
-      slotKind: "event",
-      templateId: feedLayoutToLegacyTemplate(feedLayout),
       plannedAt: nextPlan(),
-      title: ev.title,
-      caption,
-      platforms: [...kit.publishPlatforms],
-      source: withOverlay(caption, {
-        eventId: ev.id,
-        startAt: ev.startAt,
-        feedLayout,
-      }),
-      asset: {
-        imageUrl: ev.coverUrl,
-        imageLabel: ev.title,
-        source: "event",
-        sourceId: ev.id,
-        storageBucket: ev.coverStoragePath ? "events-media" : undefined,
-        storagePath: ev.coverStoragePath ?? undefined,
-      },
+      feedLayout,
     });
-  }
-
-  // 3) Speisekarte + Galerie mischen — Galerie nicht hinter Gerichten „verhungern“ lassen
-  const pushDishDraft = (): boolean => {
-    const dish = pickUnused(dishes, usedDishIds, (d) => d.id);
-    if (!dish) return false;
-    const feedLayout = layoutFor("menu_dish", true);
-    const caption = captionForDish({
-      kit,
-      restaurantName,
-      dishName: dish.name,
-      dishDescription: dish.description,
-    });
-    drafts.push({
-      restaurantId,
-      status: "pending",
-      slotKind: "menu_dish",
-      templateId: feedLayoutToLegacyTemplate(feedLayout),
-      plannedAt: nextPlan(),
-      title: dish.name,
-      caption,
-      platforms: [...kit.publishPlatforms],
-      source: withOverlay(caption, {
-        dishId: dish.id,
-        dishName: dish.name,
-        ...(dish.description
-          ? { dishDescription: dish.description.slice(0, 160) }
-          : {}),
-        feedLayout,
-      }),
-      asset: {
-        imageUrl: dish.imageUrl,
-        imageLabel: dish.name,
-        source: "menu",
-        sourceId: dish.id,
-      },
-    });
-    return true;
-  };
-
-  const pushGalleryDraft = (): boolean => {
-    const g = pickUnused(gallery, usedGalleryIds, (x) => x.id);
-    if (!g) return false;
-    const feedLayout = layoutFor("ambient", true);
-    const caption = captionForAmbient({
-      kit,
-      restaurantName,
-      imageCaption: g.label,
-    });
-    drafts.push({
-      restaurantId,
-      status: "pending",
-      slotKind: "ambient",
-      templateId: feedLayoutToLegacyTemplate(feedLayout),
-      plannedAt: nextPlan(),
-      title: titleForAmbient(g.label),
-      caption,
-      platforms: [...kit.publishPlatforms],
-      source: withOverlay(caption, {
-        galleryItemId: g.id,
-        imageCaption: g.label,
-        feedLayout,
-      }),
-      asset: {
-        imageUrl: g.imageUrl,
-        imageLabel: g.label,
-        source: "gallery",
-        sourceId: g.id,
-        storageBucket: "gallery-media",
-        storagePath: g.storagePath,
-      },
-    });
-    return true;
-  };
-
-  const remainingAfterEvents = Math.max(0, need - drafts.length);
-  const availableDishes = dishes.filter((d) => !usedDishIds.has(d.id)).length;
-  const availableGallery = gallery.filter((g) => !usedGalleryIds.has(g.id))
-    .length;
-
-  let dishBudget = 0;
-  let galleryBudget = 0;
-  if (availableDishes > 0 && availableGallery > 0) {
-    // Mindestens ein Galerie-Slot, wenn ≥2 Posts fehlen — sonst 50/50 (Galerie zuerst).
-    galleryBudget =
-      remainingAfterEvents >= 2
-        ? Math.max(1, Math.ceil(remainingAfterEvents / 2))
-        : kit.imageStrategy === "own_first"
-          ? 1
-          : Math.ceil(remainingAfterEvents / 2);
-    galleryBudget = Math.min(galleryBudget, availableGallery);
-    dishBudget = Math.min(
-      remainingAfterEvents - galleryBudget,
-      availableDishes,
-    );
-    // Rest auf die jeweils andere Quelle umlegen
-    const leftover = remainingAfterEvents - dishBudget - galleryBudget;
-    if (leftover > 0) {
-      const extraGallery = Math.min(
-        leftover,
-        availableGallery - galleryBudget,
-      );
-      galleryBudget += extraGallery;
-      dishBudget += Math.min(
-        leftover - extraGallery,
-        availableDishes - dishBudget,
-      );
+    if (draft) {
+      draft.source = { ...draft.source, mediaFormat };
+      drafts.push(draft);
     }
-  } else if (availableGallery > 0) {
-    galleryBudget = Math.min(remainingAfterEvents, availableGallery);
-  } else {
-    dishBudget = Math.min(remainingAfterEvents, availableDishes);
-  }
-
-  // Galerie zuerst einstreuen, dann abwechselnd — verhindert „nur ein Gericht“-Feeds
-  let preferGalleryNext = galleryBudget > 0;
-  while (drafts.length < need && (dishBudget > 0 || galleryBudget > 0)) {
-    let pushed = false;
-    if (preferGalleryNext && galleryBudget > 0) {
-      pushed = pushGalleryDraft();
-      if (pushed) galleryBudget -= 1;
-    } else if (dishBudget > 0) {
-      pushed = pushDishDraft();
-      if (pushed) dishBudget -= 1;
-    } else if (galleryBudget > 0) {
-      pushed = pushGalleryDraft();
-      if (pushed) galleryBudget -= 1;
-    }
-    if (!pushed) break;
-    preferGalleryNext = !preferGalleryNext;
-  }
-
-  // Rest auffüllen, falls Budgets durch pickUnused früher leer waren
-  while (drafts.length < need && pushGalleryDraft()) {
-    /* ambient */
-  }
-  while (drafts.length < need && pushDishDraft()) {
-    /* dishes */
-  }
-
-  // 5) Brand / cover fallback — Hero-Profilbilder bevorzugen
-  while (drafts.length < need) {
-    const asset =
-      pickHeroAsset(["profile", "gallery"]) ?? coverAsset ?? avatarAsset;
-    if (!asset && kit.imageStrategy === "own_first") break;
-    const feedLayout = layoutFor("brand", Boolean(asset?.imageUrl));
-    const caption = captionForBrand({ kit, restaurantName });
-    drafts.push({
-      restaurantId,
-      status: asset?.imageUrl ? "pending" : "needs_asset",
-      slotKind: "brand",
-      templateId: feedLayoutToLegacyTemplate(feedLayout),
-      plannedAt: nextPlan(),
-      title: restaurantName,
-      caption,
-      platforms: [...kit.publishPlatforms],
-      source: withOverlay(caption, { kind: "brand", feedLayout }),
-      asset: asset ?? { imageUrl: null, source: "none" },
-    });
-    // only one brand fallback without looping forever on same asset
-    if (!asset) break;
-    break;
   }
 
   if (drafts.length === 0) {
     return {
       created: 0,
-      pending: pendingThisWeek.length,
-      tasksCreated,
+      pending: existing.length,
+      tasksCreated: ideasResult.tasksCreated,
+      skippedReason: "needs_media",
       aiConfigured,
       aiProvider,
       llmCalls: 0,
@@ -864,7 +455,6 @@ export async function generateSocialSuggestionsForRestaurant(
     };
   }
 
-  // Template-Captions als Gerüst → ein LLM-Call (Restaurant-Key) für bessere Texte.
   const captionJobs: SocialAutopilotCaptionJob[] = drafts.map((d, index) => {
     const facts: Record<string, string> = { slotKind: d.slotKind };
     if (typeof d.source.dishName === "string") facts.dishName = d.source.dishName;
@@ -901,6 +491,23 @@ export async function generateSocialSuggestionsForRestaurant(
     jobs: captionJobs,
   });
 
+  if (llmOutcome.llmCalls > 0) {
+    await insertRestaurantAiUsageEvent(sb, {
+      restaurantId,
+      source: "autopilot",
+      provider: llmRuntime.provider,
+      model: llmRuntime.model,
+      promptTokens: llmOutcome.usage?.promptTokens ?? null,
+      completionTokens: llmOutcome.usage?.completionTokens ?? null,
+      totalTokens: llmOutcome.usage?.totalTokens ?? null,
+      meta: {
+        jobs: captionJobs.length,
+        llmApplied: llmOutcome.results.length,
+        ok: llmOutcome.ok,
+      },
+    });
+  }
+
   const applied = applyAutopilotCaptionResults({
     captions: drafts.map((d) => d.caption),
     titles: drafts.map((d) => d.title),
@@ -916,16 +523,14 @@ export async function generateSocialSuggestionsForRestaurant(
   }
 
   const created = await insertSocialSuggestionsInDb(sb, drafts);
-  const pending = pendingThisWeek.length + created;
   return {
     created,
-    pending,
-    tasksCreated,
+    pending: existing.length + created,
+    tasksCreated: ideasResult.tasksCreated,
     aiConfigured,
     aiProvider,
     llmCalls: llmOutcome.llmCalls,
     llmApplied: applied.llmApplied,
     caps,
-    ...(llmOutcome.ok ? {} : { skippedReason: undefined }),
   };
 }

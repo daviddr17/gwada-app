@@ -9,8 +9,15 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const restaurantId = url.searchParams.get("restaurantId")?.trim() ?? "";
   const rotate = url.searchParams.get("rotate") === "1";
+  /** „Neue Vorschläge“ — offene Woche verwerfen, dann frische Ideen. */
+  const forceSkipOpen =
+    url.searchParams.get("forceSkip") === "1" ||
+    url.searchParams.get("forceSkipOpen") === "1";
 
-  const auth = await authorizeSocialNewsRestaurant(restaurantId);
+  // forceSkip mutiert (pending → skipped) — Manage-Recht nötig.
+  const auth = await authorizeSocialNewsRestaurant(restaurantId, {
+    requireManage: forceSkipOpen,
+  });
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
@@ -21,13 +28,15 @@ export async function GET(req: Request) {
   }
 
   const result = await listSocialAutopilotIdeas(admin, restaurantId, {
-    rotate,
+    rotate: rotate || forceSkipOpen,
+    forceSkipOpen,
   });
 
   return Response.json({
     ideas: result.ideas,
     maxSelect: result.maxSelect,
     pendingOpen: result.pendingOpen,
+    forceSkipped: result.forceSkipped ?? 0,
     tasksCreated: result.tasksCreated,
     aiConfigured: result.aiConfigured,
     aiProvider: result.aiProvider,

@@ -12,23 +12,14 @@ import {
 import {
   Bookmark,
   Check,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
   Pencil,
-  RefreshCw,
   SkipForward,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  countAutopilotIdeaActiveFilters,
-  SocialAutopilotIdeasFilterDrawer,
-} from "@/components/social/social-autopilot-ideas-filter-drawer";
+import { SocialAutopilotGenerateDrawer } from "@/components/social/social-autopilot-generate-drawer";
 import { SocialAutopilotOptionsDrawer } from "@/components/social/social-autopilot-options-drawer";
 import { SocialTemplatePreview } from "@/components/social/social-template-preview";
-import { SettingsStickySaveBar } from "@/components/settings/settings-sticky-save-bar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { SearchableSelect } from "@/components/ui/combobox";
@@ -65,7 +56,6 @@ import {
 } from "@/lib/social/social-suggestion-types";
 import {
   defaultSocialBrandKit,
-  SOCIAL_TONE_LABELS,
   type SocialBrandKit,
   type SocialTone,
 } from "@/lib/social/social-brand-kit";
@@ -74,14 +64,7 @@ import {
   SOCIAL_FEED_LAYOUT_IDS,
   type SocialFeedLayoutId,
 } from "@/lib/social/social-feed-brand-system";
-import type { SocialAutopilotIdea } from "@/lib/social/social-autopilot-ideas";
 import { contentReasonFromSuggestion } from "@/lib/social/social-autopilot-relevance";
-import {
-  filterSocialAutopilotIdeas,
-  groupSocialAutopilotIdeas,
-  SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS,
-  type SocialAutopilotIdeaFilter,
-} from "@/lib/social/social-autopilot-idea-sort";
 import { resolveSuggestionFeedLayout } from "@/lib/social/social-feed-layout";
 import {
   cssAspectRatioForFormat,
@@ -114,18 +97,6 @@ type AssetOption = SocialSuggestionAsset & {
   label: string;
 };
 
-/** Geführter 5-Schritt — ein Job pro Screen. */
-type FlowStep = 1 | 2 | 3 | 4 | 5;
-
-const FLOW_STEPS: ReadonlyArray<{ step: FlowStep; label: string; short: string }> =
-  [
-    { step: 1, label: "Was posten?", short: "Start" },
-    { step: 2, label: "Ideen wählen", short: "Ideen" },
-    { step: 3, label: "Kanäle & Stil", short: "Kanäle" },
-    { step: 4, label: "Erstellen", short: "Erstellen" },
-    { step: 5, label: "Freigeben", short: "Freigabe" },
-  ];
-
 const GROUP_LABELS: Record<AssetOption["group"], string> = {
   gallery: "Galerie",
   menu: "Speisekarte",
@@ -151,61 +122,6 @@ function MetaChip({
     >
       {children}
     </span>
-  );
-}
-
-function AutopilotFlowStepper({ step }: { step: FlowStep }) {
-  const current = FLOW_STEPS.find((s) => s.step === step)!;
-  return (
-    <div className="space-y-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-medium text-foreground">
-          Schritt {step}/5 · {current.label}
-        </p>
-        <p className="text-xs text-muted-foreground md:hidden">{current.short}</p>
-      </div>
-      <ol className="flex items-center gap-1" aria-label="Autopilot-Ablauf">
-        {FLOW_STEPS.map((s, i) => {
-          const done = s.step < step;
-          const active = s.step === step;
-          return (
-            <li key={s.step} className="flex min-w-0 flex-1 items-center gap-1">
-              <div
-                className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors",
-                  active &&
-                    "border-accent/60 bg-accent/20 text-foreground ring-2 ring-accent/30",
-                  done && "border-accent/40 bg-accent/15 text-foreground",
-                  !active &&
-                    !done &&
-                    "border-border/60 bg-card text-muted-foreground",
-                )}
-                aria-current={active ? "step" : undefined}
-              >
-                {done ? <Check className="size-3.5" aria-hidden /> : s.step}
-              </div>
-              <span
-                className={cn(
-                  "hidden truncate text-[11px] font-medium sm:inline",
-                  active ? "text-foreground" : "text-muted-foreground",
-                )}
-              >
-                {s.short}
-              </span>
-              {i < FLOW_STEPS.length - 1 ? (
-                <span
-                  className={cn(
-                    "mx-0.5 h-px min-w-2 flex-1",
-                    done ? "bg-accent/40" : "bg-border/60",
-                  )}
-                  aria-hidden
-                />
-              ) : null}
-            </li>
-          );
-        })}
-      </ol>
-    </div>
   );
 }
 
@@ -237,6 +153,10 @@ function platformsSummary(platforms: NewsPlatform[]): string {
   return platforms.map(socialPublishPlatformLabel).join(", ");
 }
 
+/**
+ * Hauptseite = Neu generieren + Entwürfe/Designs.
+ * Ideen leben nur im Generate-Bottom-Sheet (Idee ≠ Entwurf).
+ */
 export function SocialAutopilotScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { profile } = useRestaurantProfile();
@@ -252,19 +172,11 @@ export function SocialAutopilotScreen() {
   const [voiceDraft, setVoiceDraft] = useState<VoiceLearnDraft | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [ideasLoading, setIdeasLoading] = useState(false);
-  const [flowStep, setFlowStep] = useState<FlowStep>(1);
-  const [ideas, setIdeas] = useState<SocialAutopilotIdea[]>([]);
-  const [ideaFilter, setIdeaFilter] =
-    useState<SocialAutopilotIdeaFilter>("all");
-  const [ideasFilterOpen, setIdeasFilterOpen] = useState(false);
-  const [maxSelect, setMaxSelect] = useState(7);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [generateOpen, setGenerateOpen] = useState(false);
   const [sessionTone, setSessionTone] = useState<SocialTone>("warm");
   const [sessionPlatforms, setSessionPlatforms] = useState<NewsPlatform[]>([]);
   const [sessionFormat, setSessionFormat] =
     useState<SocialMediaFormatId>("square_1x1");
-  const [optionsSheetOpen, setOptionsSheetOpen] = useState(false);
   const [reviewOptionsId, setReviewOptionsId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [draftTitles, setDraftTitles] = useState<Record<string, string>>({});
@@ -275,9 +187,7 @@ export function SocialAutopilotScreen() {
   const [editId, setEditId] = useState<string | null>(null);
   const [actionsId, setActionsId] = useState<string | null>(null);
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const ideasBootstrapped = useRef(false);
   const showSkeleton = useDeferredSkeleton(loading);
-  const showIdeasSkeleton = useDeferredSkeleton(ideasLoading);
 
   const applySuggestionDrafts = useCallback((list: SocialPostSuggestion[]) => {
     const nextTitles: Record<string, string> = {};
@@ -290,9 +200,9 @@ export function SocialAutopilotScreen() {
     setDraftCaptions(nextCaptions);
   }, []);
 
-  const loadBase = useCallback(async () => {
+  const loadBase = useCallback(async (opts?: { quiet?: boolean }) => {
     if (!restaurantId) return;
-    setLoading(true);
+    if (!opts?.quiet) setLoading(true);
     try {
       const [sugRes, kitRes, optRes, usageRes] = await Promise.all([
         fetch(
@@ -358,168 +268,19 @@ export function SocialAutopilotScreen() {
       } else if (gen?.aiConfigured === false) {
         setAiProvider(null);
       }
-      if (open.length > 0) {
-        setFlowStep(5);
-        ideasBootstrapped.current = true;
-      }
     } finally {
-      setLoading(false);
+      if (!opts?.quiet) setLoading(false);
     }
   }, [restaurantId, applySuggestionDrafts]);
 
-  const loadIdeas = useCallback(
-    async (opts?: { rotate?: boolean; advanceToIdeas?: boolean }) => {
-      if (!restaurantId || aiConfigured === false) return;
-      setIdeasLoading(true);
-      if (opts?.advanceToIdeas !== false) setFlowStep(2);
-      try {
-        const qs = new URLSearchParams({ restaurantId });
-        if (opts?.rotate) qs.set("rotate", "1");
-        const res = await fetch(`/api/social/suggestions/ideas?${qs}`);
-        const data = (await res.json().catch(() => ({}))) as {
-          ideas?: SocialAutopilotIdea[];
-          maxSelect?: number;
-          skippedReason?: string;
-          aiConfigured?: boolean;
-          aiProvider?: "openai" | "grok";
-        };
-        if (typeof data.aiConfigured === "boolean") {
-          setAiConfigured(data.aiConfigured);
-        }
-        if (data.aiProvider === "openai" || data.aiProvider === "grok") {
-          setAiProvider(data.aiProvider);
-        }
-        if (!res.ok) {
-          toast.error("Ideen konnten nicht geladen werden");
-          return;
-        }
-        if (data.skippedReason === "ai_not_configured") {
-          toast.error(
-            "Autopilot braucht euren Restaurant-KI-Schlüssel unter Integrationen",
-          );
-          setFlowStep(1);
-          return;
-        }
-        if (data.skippedReason === "disabled") {
-          toast.error("Autopilot ist in der Social-Marke ausgeschaltet");
-          setFlowStep(1);
-          return;
-        }
-        if (data.skippedReason === "needs_media") {
-          toast.error(
-            "Keine Bilder — bitte Galerie, Speisekarte oder Profilfotos hinterlegen",
-          );
-          setIdeas([]);
-          setSelectedIds([]);
-          return;
-        }
-        const next = data.ideas ?? [];
-        setIdeas(next);
-        setIdeaFilter("all");
-        setMaxSelect(
-          typeof data.maxSelect === "number" && data.maxSelect > 0
-            ? data.maxSelect
-            : 7,
-        );
-        setSelectedIds([]);
-        if (next.length === 0) {
-          toast.message(
-            "Keine neuen Ideen — prüft Speisekarte, Galerie oder Events",
-          );
-        } else if (opts?.rotate) {
-          toast.message(`${next.length} neue Ideen zur Auswahl`);
-        }
-      } finally {
-        setIdeasLoading(false);
-      }
-    },
-    [restaurantId, aiConfigured],
-  );
+  const refreshDraftsAfterGenerate = useCallback(async () => {
+    await loadBase({ quiet: true });
+  }, [loadBase]);
 
   useEffect(() => {
     if (!ready || !restaurantId) return;
     void loadBase();
   }, [ready, restaurantId, loadBase]);
-
-  useEffect(() => {
-    if (!ready || !restaurantId || loading) return;
-    if (aiConfigured !== true) return;
-    if (ideasBootstrapped.current) return;
-    ideasBootstrapped.current = true;
-    void loadIdeas({ rotate: true, advanceToIdeas: true });
-  }, [ready, restaurantId, loading, aiConfigured, loadIdeas]);
-
-  const toggleIdea = (id: string) => {
-    setSelectedIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= maxSelect) {
-        toast.message(`Maximal ${maxSelect} Ideen auf einmal`);
-        return prev;
-      }
-      return [...prev, id];
-    });
-  };
-
-  const goToOptionsStep = () => {
-    setFlowStep(3);
-    setOptionsSheetOpen(true);
-  };
-
-  const createFromSelection = async () => {
-    if (!restaurantId || selectedIds.length === 0) return;
-    setOptionsSheetOpen(false);
-    setFlowStep(4);
-    try {
-      const res = await fetch("/api/social/suggestions/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurantId,
-          ideaIds: selectedIds,
-          tone: sessionTone,
-          platforms: sessionPlatforms,
-          mediaFormat: sessionFormat,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        generation?: {
-          created?: number;
-          skippedReason?: string;
-          llmApplied?: number;
-        };
-        error?: string;
-      };
-      if (!res.ok || data.error === "selection_required") {
-        toast.error("Bitte mindestens eine Idee auswählen");
-        setFlowStep(2);
-        return;
-      }
-      const gen = data.generation;
-      if (gen?.skippedReason === "needs_media") {
-        toast.error("Für die Auswahl fehlen Bilder");
-        setFlowStep(2);
-        return;
-      }
-      await loadBase();
-      setIdeas([]);
-      setSelectedIds([]);
-      setFlowStep(5);
-      const created = gen?.created ?? 0;
-      if (created > 0) {
-        const llmHint =
-          (gen?.llmApplied ?? 0) > 0
-            ? " · Texte mit eurer Restaurant-KI"
-            : " · Vorlagen";
-        toast.success(`${created} Posts erstellt${llmHint}`);
-      } else {
-        toast.message("Keine Posts erstellt");
-        setFlowStep(2);
-      }
-    } catch {
-      toast.error("Erstellen fehlgeschlagen");
-      setFlowStep(2);
-    }
-  };
 
   const patchSuggestion = useCallback(
     async (
@@ -676,15 +437,11 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId }),
       });
       if (!res.ok) {
-        toast.error("Vorlage speichern fehlgeschlagen");
+        toast.error("Zwischenspeichern fehlgeschlagen");
         return;
       }
-      toast.success(
-        "Als Vorlage gespeichert — du kannst parallel weiter erstellen",
-      );
+      toast.success("Als Design gespeichert — bleibt auf der Hauptseite");
       await loadBase();
-      setFlowStep(2);
-      void loadIdeas({ rotate: true });
     } finally {
       setBusyId(null);
     }
@@ -700,12 +457,11 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId }),
       });
       if (!res.ok) {
-        toast.error("Vorlage konnte nicht geöffnet werden");
+        toast.error("Design konnte nicht geöffnet werden");
         return;
       }
-      toast.success("Vorlage zur Freigabe bereit");
+      toast.success("Design als Entwurf bereit — posten oder planen");
       await loadBase();
-      setFlowStep(5);
     } finally {
       setBusyId(null);
     }
@@ -776,16 +532,6 @@ export function SocialAutopilotScreen() {
     }
   };
 
-  const filteredIdeas = useMemo(
-    () => filterSocialAutopilotIdeas(ideas, ideaFilter),
-    [ideas, ideaFilter],
-  );
-  const ideaGroups = useMemo(
-    () => groupSocialAutopilotIdeas(filteredIdeas),
-    [filteredIdeas],
-  );
-  const ideaFilterActiveCount = countAutopilotIdeaActiveFilters(ideaFilter);
-
   const sortedSuggestions = useMemo(
     () =>
       [...suggestions].sort((a, b) => a.plannedAt.localeCompare(b.plannedAt)),
@@ -824,15 +570,8 @@ export function SocialAutopilotScreen() {
         ? "OpenAI"
         : "Restaurant-KI";
 
-  const showStickyIdeasCta =
-    aiReady && flowStep === 2 && !showIdeasSkeleton && ideas.length > 0;
-  const showStickyOptionsCta =
-    aiReady && flowStep === 3 && !optionsSheetOpen;
-
   return (
     <div className="space-y-5 pb-4">
-      {!showSkeleton ? <AutopilotFlowStepper step={flowStep} /> : null}
-
       {showSkeleton ? (
         <div className="space-y-4" aria-busy>
           {[0, 1].map((i) => (
@@ -844,170 +583,63 @@ export function SocialAutopilotScreen() {
         </div>
       ) : null}
 
-      {/* Schritt 1 — Start */}
-      {!showSkeleton && flowStep === 1 ? (
-        <div className="space-y-4">
-          {aiConfigured === false ? (
-            <Card className="border-border/50 shadow-card">
-              <CardContent className="space-y-3 pt-5">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Euer KI-Abo fehlt</p>
-                  <p className="text-sm text-muted-foreground">
-                    Autopilot schreibt Captions mit demselben OpenAI- oder
-                    Grok-Schlüssel wie der Restaurant-Assistent — euer Abo,
-                    eure Kosten. Ohne Schlüssel entstehen keine Posts.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="lg"
-                  className={cn("w-full", brandActionButtonRoundedClassName)}
-                  render={<Link href={APP_ROUTES.settings.integrations} />}
-                >
-                  KI unter Integrationen verbinden
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="border-border/50 shadow-card">
-              <CardContent className="space-y-4 pt-5">
-                <div className="space-y-1.5">
-                  <p className="text-sm font-medium">Was willst du posten?</p>
-                  <p className="text-sm text-muted-foreground">
-                    Fünf Schritte: Ideen wählen → Kanäle & Stil im Sheet →
-                    erstellen → freigeben. Texte schreibt{" "}
-                    <span className="text-foreground">{aiLabel}</span>.
-                  </p>
-                </div>
-                {aiUsage ? (
-                  <p className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      Dein Verbrauch
-                    </span>
-                    {" · "}
-                    {aiUsage.events30d} KI-Läufe (30 Tage)
-                    {aiUsage.tokens30d != null
-                      ? ` · ~${aiUsage.tokens30d.toLocaleString("de-DE")} Tokens`
-                      : " · Token-Zähler je nach Anbieter"}
-                  </p>
-                ) : null}
-                <Button
-                  type="button"
-                  size="lg"
-                  className={modulePrimaryAddButtonFullWidthClassName}
-                  disabled={!aiReady || ideasLoading}
-                  onClick={() => void loadIdeas({ rotate: true })}
-                >
-                  <Sparkles className="size-4" />
-                  Ideen laden
-                </Button>
-                <div className="flex flex-col gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 w-full rounded-xl border-border/60"
-                    disabled={voiceBusy}
-                    onClick={() => void learnVoice()}
-                  >
-                    {voiceBusy ? "Lerne …" : "Stimme aus Social lernen"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 w-full rounded-xl border-border/60"
-                    render={<Link href={APP_ROUTES.settings.restaurant} />}
-                  >
-                    Social-Marke
-                  </Button>
-                </div>
-                {voiceDraft ? (
-                  <div className="space-y-2 rounded-xl border border-border/50 bg-muted/20 px-3 py-3">
-                    <p className="text-xs font-medium text-foreground">
-                      Vorschlag aus {voiceDraft.sampleCount} Posts
-                      {voiceDraft.fromLlm ? ` · ${aiLabel}` : " · Heuristik"}
-                    </p>
-                    <p className="whitespace-pre-wrap text-xs text-muted-foreground">
-                      {voiceDraft.voiceNotes}
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        className={cn(
-                          "h-11 w-full rounded-xl",
-                          brandActionButtonRoundedClassName,
-                        )}
-                        disabled={voiceBusy}
-                        onClick={() => void confirmVoiceDraft()}
-                      >
-                        In Social-Marke übernehmen
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-11 w-full rounded-xl"
-                        onClick={() => setVoiceDraft(null)}
-                      >
-                        Verwerfen
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          )}
-
-          {suggestions.length > 0 ? (
+      {!showSkeleton && aiConfigured === false ? (
+        <Card className="border-border/50 shadow-card">
+          <CardContent className="space-y-3 pt-5">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Euer KI-Abo fehlt</p>
+              <p className="text-sm text-muted-foreground">
+                Autopilot schreibt Captions mit demselben OpenAI- oder
+                Grok-Schlüssel wie der Restaurant-Assistent — euer Abo, eure
+                Kosten. Ohne Schlüssel entstehen keine Posts.
+              </p>
+            </div>
             <Button
               type="button"
-              variant="outline"
-              className="h-11 w-full rounded-xl border-border/60"
-              onClick={() => setFlowStep(5)}
+              size="lg"
+              className={cn("w-full", brandActionButtonRoundedClassName)}
+              render={<Link href={APP_ROUTES.settings.integrations} />}
             >
-              Zur Freigabe ({suggestions.length})
-              <ChevronRight className="size-4" />
+              KI unter Integrationen verbinden
             </Button>
-          ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
-          {savedTemplates.length > 0 ? (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-foreground">Vorlagen</p>
-              <div className="grid grid-cols-2 gap-3">
-                {savedTemplates.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    disabled={busyId === s.id}
-                    onClick={() => void restoreTemplate(s.id)}
-                    className="overflow-hidden rounded-xl border border-border/50 text-left touch-manipulation transition-colors hover:border-border"
-                  >
-                    <div className="relative aspect-square bg-muted/40">
-                      {s.asset.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={s.asset.imageUrl}
-                          alt=""
-                          className="size-full object-cover"
-                        />
-                      ) : null}
-                    </div>
-                    <div className="space-y-0.5 px-2.5 py-2">
-                      <p className="line-clamp-1 text-xs font-medium">
-                        {s.title?.trim() || "Vorlage"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Zur Freigabe öffnen
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
+      {!showSkeleton && aiReady ? (
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium text-foreground">
+              Entwürfe & Designs
+            </p>
+            <p className="text-xs text-muted-foreground">
+              „Neu generieren“ wählt Ideen im Sheet. Ergebnis = Entwurf hier —
+              jederzeit speichern, posten oder planen. Texte:{" "}
+              <span className="text-foreground">{aiLabel}</span>.
+            </p>
+            {aiUsage ? (
+              <p className="text-xs text-muted-foreground">
+                Verbrauch · {aiUsage.events30d} KI-Läufe (30 Tage)
+                {aiUsage.tokens30d != null
+                  ? ` · ~${aiUsage.tokens30d.toLocaleString("de-DE")} Tokens`
+                  : ""}
+              </p>
+            ) : null}
+          </div>
+
+          <Button
+            type="button"
+            size="lg"
+            className={modulePrimaryAddButtonFullWidthClassName}
+            onClick={() => setGenerateOpen(true)}
+          >
+            <Sparkles className="size-4" />
+            Neu generieren
+          </Button>
         </div>
       ) : null}
 
-      {tasks.length > 0 && !showSkeleton && flowStep <= 2 ? (
+      {tasks.length > 0 && !showSkeleton ? (
         <div className="space-y-3">
           {tasks.map((task) => (
             <Card key={task.id} className="border-border/50 shadow-card">
@@ -1052,235 +684,20 @@ export function SocialAutopilotScreen() {
         </div>
       ) : null}
 
-      {/* Schritt 2 — nur Ideen wählen */}
-      {!showSkeleton && aiReady && flowStep === 2 ? (
-        <div className="space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <p className="text-sm font-medium text-foreground">
-                Ideen auswählen
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Ein Job: Karten tippen (max. {maxSelect}). Filter & Sortierung
-                über das Icon.
-              </p>
-            </div>
-            <div className="relative shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                className="rounded-full border-border/60"
-                aria-label="Filter & Sortierung"
-                disabled={ideas.length === 0}
-                onClick={() => setIdeasFilterOpen(true)}
-              >
-                <Filter className="size-4" />
-              </Button>
-              {ideaFilterActiveCount > 0 ? (
-                <Badge
-                  variant="secondary"
-                  className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
-                >
-                  {ideaFilterActiveCount}
-                </Badge>
-              ) : null}
-            </div>
-          </div>
-
-          {ideaFilter !== "all" ? (
-            <p className="text-xs text-muted-foreground">
-              Filter:{" "}
-              <span className="font-medium text-foreground">
-                {SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS[ideaFilter]}
-              </span>
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Sortierung: Events → Speisekarte → Galerie → Feiertag → Marke
-            </p>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full rounded-xl border-border/60"
-            disabled={ideasLoading}
-            onClick={() => void loadIdeas({ rotate: true })}
-          >
-            <RefreshCw
-              className={cn("size-3.5", ideasLoading && "animate-spin")}
-            />
-            Neu vorschlagen
-          </Button>
-
-          {showIdeasSkeleton ? (
-            <div className="grid grid-cols-2 gap-3" aria-busy>
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <SkeletonCardFrame key={i} className="space-y-2 p-2">
-                  <Skeleton className="aspect-square w-full rounded-lg" />
-                  <Skeleton className="h-3 w-3/4" />
-                </SkeletonCardFrame>
-              ))}
-            </div>
-          ) : ideas.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-              Noch keine Ideen. „Neu vorschlagen“ lädt Speisekarte, Galerie und
-              nahe Events — ohne etwas zu speichern.
-            </p>
-          ) : filteredIdeas.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-              Keine Ideen in diesem Filter.
-            </p>
-          ) : (
-            <div className="space-y-5">
-              {ideaGroups.map((group) => (
-                <div key={group.slotKind} className="space-y-2">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {group.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{group.hint}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {group.ideas.map((idea) => {
-                      const selected = selectedIds.includes(idea.id);
-                      return (
-                        <button
-                          key={idea.id}
-                          type="button"
-                          onClick={() => toggleIdea(idea.id)}
-                          aria-pressed={selected}
-                          className={cn(
-                            "overflow-hidden rounded-xl border text-left touch-manipulation transition-colors",
-                            selected
-                              ? "border-accent ring-2 ring-accent/40"
-                              : "border-border/50 hover:border-border",
-                          )}
-                        >
-                          <div className="relative aspect-square bg-muted/40">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={idea.imageUrl}
-                              alt=""
-                              className="size-full object-cover"
-                            />
-                            {selected ? (
-                              <span className="absolute top-2 right-2 flex size-7 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
-                                <Check className="size-3.5" />
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="space-y-0.5 px-2.5 py-2">
-                            <p className="text-[11px] font-medium text-muted-foreground">
-                              {idea.reasonLabel}
-                            </p>
-                            <p className="line-clamp-2 text-xs font-medium text-foreground">
-                              {idea.reasonDetail}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-11 w-full rounded-xl text-muted-foreground"
-            onClick={() => setFlowStep(1)}
-          >
-            <ChevronLeft className="size-4" />
-            Zurück zum Start
-          </Button>
-        </div>
-      ) : null}
-
-      {/* Schritt 3 — nur Kanäle & Stil (Sheet ist die Steuerung) */}
-      {!showSkeleton && aiReady && flowStep === 3 ? (
+      {!showSkeleton && aiReady ? (
         <div className="space-y-4">
           <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">Kanäle & Stil</p>
+            <p className="text-sm font-medium text-foreground">Entwürfe</p>
             <p className="text-xs text-muted-foreground">
-              {selectedIds.length} Idee
-              {selectedIds.length === 1 ? "" : "n"} — Ton, Kanäle und Format im
-              Bottom Sheet.
-            </p>
-          </div>
-
-          <Card className="border-border/50 shadow-card">
-            <CardContent className="space-y-3 pt-5">
-              <SummaryRow
-                label="Ton"
-                value={SOCIAL_TONE_LABELS[sessionTone]}
-              />
-              <SummaryRow
-                label="Kanäle"
-                value={platformsSummary(sessionPlatforms)}
-              />
-              <SummaryRow
-                label="Format"
-                value={`${SOCIAL_MEDIA_FORMATS[sessionFormat].ratioLabel} · ${SOCIAL_MEDIA_FORMATS[sessionFormat].label}`}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-1 h-11 w-full rounded-xl border-border/60"
-                onClick={() => setOptionsSheetOpen(true)}
-              >
-                Anpassen …
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-11 w-full rounded-xl text-muted-foreground"
-            onClick={() => {
-              setOptionsSheetOpen(false);
-              setFlowStep(2);
-            }}
-          >
-            <ChevronLeft className="size-4" />
-            Zurück zu Ideen
-          </Button>
-        </div>
-      ) : null}
-
-      {flowStep === 4 ? (
-        <div className="space-y-4" aria-busy>
-          <p className="text-sm text-muted-foreground">
-            {aiLabel} schreibt Captions für eure Auswahl …
-          </p>
-          {[0, 1, 2].map((i) => (
-            <SkeletonCardFrame key={i} className="space-y-3">
-              <Skeleton className="mx-auto aspect-square w-full max-w-md rounded-xl" />
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-10 w-full" />
-            </SkeletonCardFrame>
-          ))}
-        </div>
-      ) : null}
-
-      {/* Schritt 5 — Freigabe */}
-      {!showSkeleton && flowStep === 5 ? (
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">Zur Freigabe</p>
-            <p className="text-xs text-muted-foreground">
-              Geplant zuerst · prüfen, Kanäle im Sheet anpassen, posten oder
-              verwerfen.
+              Zwischengespeichert · speichern, posten oder planen — klar getrennt
+              von Ideen im Generate-Sheet.
             </p>
           </div>
 
           {sortedSuggestions.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-              Keine offenen Posts. Lade neue Ideen, um weiterzumachen.
+              Noch keine Entwürfe. Tippe „Neu generieren“, wähle Ideen, dann
+              landen die Ergebnisse hier.
             </p>
           ) : (
             <div className="space-y-5">
@@ -1316,6 +733,9 @@ export function SocialAutopilotScreen() {
                     <CardContent className="space-y-4 pt-5">
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-1.5">
+                          <MetaChip className="border-accent/40 bg-accent/10 text-foreground">
+                            Entwurf
+                          </MetaChip>
                           <MetaChip className="border-accent/40 bg-accent/10 text-foreground">
                             {reason.label}
                           </MetaChip>
@@ -1405,7 +825,7 @@ export function SocialAutopilotScreen() {
                           onClick={() => setActionsId(s.id)}
                         >
                           <Check className="size-4" />
-                          Freigeben …
+                          Posten / Planen …
                         </Button>
                         <Button
                           type="button"
@@ -1425,7 +845,7 @@ export function SocialAutopilotScreen() {
                           onClick={() => void saveAsTemplate(s.id)}
                         >
                           <Bookmark className="size-4" />
-                          Als Vorlage speichern
+                          Als Design speichern
                         </Button>
                         <Button
                           type="button"
@@ -1445,72 +865,114 @@ export function SocialAutopilotScreen() {
             </div>
           )}
 
-          <Button
-            type="button"
-            size="lg"
-            className={modulePrimaryAddButtonFullWidthClassName}
-            onClick={() => void loadIdeas({ rotate: true })}
-          >
-            <Sparkles className="size-4" />
-            Weitere Ideen
-          </Button>
+          {savedTemplates.length > 0 ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">
+                  Gespeicherte Designs
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Dauerhaft gemerkt — tippen öffnet wieder als Entwurf.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {savedTemplates.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    disabled={busyId === s.id}
+                    onClick={() => void restoreTemplate(s.id)}
+                    className="overflow-hidden rounded-xl border border-border/50 text-left touch-manipulation transition-colors hover:border-border"
+                  >
+                    <div className="relative aspect-square bg-muted/40">
+                      {s.asset.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={s.asset.imageUrl}
+                          alt=""
+                          className="size-full object-cover"
+                        />
+                      ) : null}
+                    </div>
+                    <div className="space-y-0.5 px-2.5 py-2">
+                      <p className="line-clamp-1 text-xs font-medium">
+                        {s.title?.trim() || "Design"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Als Entwurf öffnen
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full rounded-xl border-border/60"
+              disabled={voiceBusy}
+              onClick={() => void learnVoice()}
+            >
+              {voiceBusy ? "Lerne …" : "Stimme aus Social lernen"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full rounded-xl border-border/60"
+              render={<Link href={APP_ROUTES.settings.restaurant} />}
+            >
+              Social-Marke
+            </Button>
+          </div>
+          {voiceDraft ? (
+            <div className="space-y-2 rounded-xl border border-border/50 bg-muted/20 px-3 py-3">
+              <p className="text-xs font-medium text-foreground">
+                Vorschlag aus {voiceDraft.sampleCount} Posts
+                {voiceDraft.fromLlm ? ` · ${aiLabel}` : " · Heuristik"}
+              </p>
+              <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+                {voiceDraft.voiceNotes}
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className={cn(
+                    "h-11 w-full rounded-xl",
+                    brandActionButtonRoundedClassName,
+                  )}
+                  disabled={voiceBusy}
+                  onClick={() => void confirmVoiceDraft()}
+                >
+                  In Social-Marke übernehmen
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-11 w-full rounded-xl"
+                  onClick={() => setVoiceDraft(null)}
+                >
+                  Verwerfen
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
-      <SettingsStickySaveBar show={showStickyIdeasCta}>
-        <Button
-          type="button"
-          size="lg"
-          className={cn("w-full", brandActionButtonRoundedClassName)}
-          disabled={selectedIds.length === 0 || ideasLoading}
-          onClick={goToOptionsStep}
-        >
-          {selectedIds.length === 0
-            ? "Ideen auswählen"
-            : `Weiter · ${selectedIds.length} ausgewählt`}
-          <ChevronRight className="size-4" />
-        </Button>
-      </SettingsStickySaveBar>
-
-      <SettingsStickySaveBar show={showStickyOptionsCta}>
-        <Button
-          type="button"
-          size="lg"
-          className={cn("w-full", brandActionButtonRoundedClassName)}
-          disabled={selectedIds.length === 0 || sessionPlatforms.length === 0}
-          onClick={() => void createFromSelection()}
-        >
-          <Sparkles className="size-4" />
-          {selectedIds.length} Post
-          {selectedIds.length === 1 ? "" : "s"} erstellen
-        </Button>
-      </SettingsStickySaveBar>
-
-      <SocialAutopilotIdeasFilterDrawer
-        open={ideasFilterOpen}
-        onOpenChange={setIdeasFilterOpen}
-        ideas={ideas}
-        filter={ideaFilter}
-        onFilterChange={setIdeaFilter}
-      />
-
-      <SocialAutopilotOptionsDrawer
-        open={optionsSheetOpen && flowStep === 3}
-        onOpenChange={setOptionsSheetOpen}
-        tone={sessionTone}
-        onToneChange={setSessionTone}
-        platforms={sessionPlatforms}
-        onPlatformsChange={setSessionPlatforms}
-        format={sessionFormat}
-        onFormatChange={setSessionFormat}
-        defaults={{
-          tone: kit?.tone ?? "warm",
-          platforms:
-            kit?.publishPlatforms && kit.publishPlatforms.length > 0
-              ? [...kit.publishPlatforms]
-              : ["instagram", "facebook"],
-          format: "square_1x1",
-        }}
+      <SocialAutopilotGenerateDrawer
+        open={generateOpen && aiReady}
+        onOpenChange={setGenerateOpen}
+        restaurantId={restaurantId}
+        aiConfigured={aiConfigured}
+        aiLabel={aiLabel}
+        initialTone={sessionTone}
+        initialPlatforms={sessionPlatforms}
+        initialFormat={sessionFormat}
+        onCreated={refreshDraftsAfterGenerate}
       />
 
       {reviewTarget ? (
@@ -1547,9 +1009,9 @@ export function SocialAutopilotScreen() {
       >
         <DrawerContent className={drawerContentClassName("form")}>
           <DrawerHeader className="text-left">
-            <DrawerTitle>Vorschlag bearbeiten</DrawerTitle>
+            <DrawerTitle>Entwurf bearbeiten</DrawerTitle>
             <DrawerDescription>
-              Bild, Layout, Titel und Caption anpassen.
+              Bild, Layout, Titel und Caption anpassen — bleibt zwischengespeichert.
             </DrawerDescription>
           </DrawerHeader>
           {editing ? (
@@ -1706,9 +1168,10 @@ export function SocialAutopilotScreen() {
       >
         <DrawerContent className={drawerContentClassName("export")}>
           <DrawerHeader className="text-left">
-            <DrawerTitle>Freigeben</DrawerTitle>
+            <DrawerTitle>Posten oder planen</DrawerTitle>
             <DrawerDescription>
-              Sofort posten oder zum geplanten Zeitpunkt freigeben.
+              Sofort veröffentlichen oder zum geplanten Zeitpunkt freigeben.
+              Design speichern bleibt parallel möglich.
             </DrawerDescription>
           </DrawerHeader>
           {acting ? (
@@ -1723,7 +1186,7 @@ export function SocialAutopilotScreen() {
                 onClick={() => void approve(acting.id, true)}
               >
                 <Check className="size-4" />
-                Freigeben & posten
+                Jetzt posten
               </Button>
               <Button
                 type="button"
@@ -1732,7 +1195,7 @@ export function SocialAutopilotScreen() {
                 disabled={busyId === acting.id}
                 onClick={() => void approve(acting.id, false)}
               >
-                Freigeben (planen)
+                Planen
               </Button>
               <Button
                 type="button"

@@ -7,6 +7,10 @@ import {
   SOCIAL_AUTOPILOT_MAX_LLM_CALLS,
 } from "@/lib/social/social-autopilot-bounds";
 import {
+  autopilotWeeklyRoom,
+  collectSocialAutopilotUsedKeys,
+} from "@/lib/social/social-autopilot-dedupe";
+import {
   applyAutopilotCaptionResults,
   rewriteAutopilotCaptionsWithLlm,
   type SocialAutopilotCaptionJob,
@@ -358,26 +362,48 @@ export async function generateSocialSuggestionsForRestaurant(
     };
   }
 
+  const existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
+    statuses: ["pending", "needs_asset"],
+    limit: 80,
+  });
+  const usedOpen = collectSocialAutopilotUsedKeys(existing);
+
+  const room = autopilotWeeklyRoom({
+    weeklyPostTarget: kit.weeklyPostTarget,
+    pendingOpen: existing.length,
+    maxPerRun: SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
+  });
+  if (room <= 0) {
+    return {
+      created: 0,
+      pending: existing.length,
+      tasksCreated: ideasResult.tasksCreated,
+      skippedReason: "week_full",
+      aiConfigured,
+      aiProvider,
+      caps,
+    };
+  }
+
   const byId = new Map(ideasResult.catalog.map((c) => [c.id, c]));
   const selected: SocialAutopilotCatalogIdea[] = [];
   const seen = new Set<string>();
   for (const id of ideaIds) {
     if (seen.has(id)) continue;
+    if (usedOpen.ideaIds.has(id)) continue; // schon offener Draft
     const hit = byId.get(id);
     if (!hit?.asset.imageUrl) continue;
     seen.add(id);
     selected.push(hit);
   }
 
-  const need = clampAutopilotItemCount(
-    Math.min(selected.length, ideasResult.maxSelect),
-  );
+  const need = clampAutopilotItemCount(Math.min(selected.length, room));
   const picked = selected.slice(0, need);
 
   if (picked.length === 0) {
     return {
       created: 0,
-      pending: ideasResult.pendingOpen,
+      pending: existing.length,
       tasksCreated: ideasResult.tasksCreated,
       skippedReason: "selection_required",
       aiConfigured,
@@ -394,11 +420,6 @@ export async function generateSocialSuggestionsForRestaurant(
   const restaurantName =
     (typeof restaurant?.name === "string" && restaurant.name.trim()) ||
     "Unser Restaurant";
-
-  const existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
-    statuses: ["pending", "needs_asset"],
-    limit: 40,
-  });
   const weekStart = startOfWeekMonday();
   const daySlots = [1, 3, 5, 2, 4, 6, 0];
   let slotIndex = 0;

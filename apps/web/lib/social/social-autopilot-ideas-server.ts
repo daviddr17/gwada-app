@@ -16,13 +16,20 @@ import {
   SOCIAL_AUTOPILOT_HOLIDAY_LOOKAHEAD_DAYS,
 } from "@/lib/social/social-autopilot-relevance";
 import {
+  autopilotWeeklyRoom,
+  collectSocialAutopilotUsedKeys,
+} from "@/lib/social/social-autopilot-dedupe";
+import {
   socialAutopilotIdeaId,
   type SocialAutopilotIdea,
 } from "@/lib/social/social-autopilot-ideas";
 import { fetchSocialBrandKitFromDb } from "@/lib/social/social-brand-kit-db";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
-import { listSocialSuggestionsFromDb } from "@/lib/social/social-suggestions-db";
-import { ensureSocialUploadTaskInDb } from "@/lib/social/social-suggestions-db";
+import {
+  ensureSocialUploadTaskInDb,
+  listSocialSuggestionsFromDb,
+  skipPendingSocialSuggestionsInDb,
+} from "@/lib/social/social-suggestions-db";
 import { fetchRestaurantAssistantRuntime } from "@/lib/supabase/restaurant-assistant-key-db";
 
 /** Mehr Auswahl als Wochenziel — User pickt, was erstellt wird. */
@@ -54,6 +61,8 @@ export type SocialAutopilotIdeasResult = {
   tasksCreated: boolean;
   maxSelect: number;
   pendingOpen: number;
+  /** Wie viele offene Drafts beim Force-Refresh verworfen wurden. */
+  forceSkipped?: number;
 };
 
 function ymd(d: Date): string {
@@ -203,12 +212,12 @@ function toClientIdea(c: SocialAutopilotCatalogIdea): SocialAutopilotIdea {
 
 /**
  * Ideen-Katalog ohne LLM und ohne DB-Insert.
- * „Neu vorschlagen“ = diese Liste neu laden / rotieren.
+ * „Neue Vorschläge“ = `forceSkipOpen` (stale pending verwerfen) + rotieren.
  */
 export async function listSocialAutopilotIdeas(
   sb: SupabaseClient,
   restaurantId: string,
-  opts?: { rotate?: boolean },
+  opts?: { rotate?: boolean; forceSkipOpen?: boolean },
 ): Promise<SocialAutopilotIdeasResult> {
   const llmRuntime = await fetchRestaurantAssistantRuntime(restaurantId);
   const aiConfigured = Boolean(llmRuntime?.apiKey);
@@ -235,50 +244,29 @@ export async function listSocialAutopilotIdeas(
     return empty({ skippedReason: "disabled" });
   }
 
-  const existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
-    statuses: ["pending", "needs_asset"],
-    limit: 40,
-  });
-  const pendingOpen = existing.length;
+  let forceSkipped = 0;
+  if (opts?.forceSkipOpen) {
+    forceSkipped = await skipPendingSocialSuggestionsInDb(sb, restaurantId);
+  }
 
-  const usedDishIds = new Set(
-    existing
-      .map((s) => {
-        if (s.slotKind === "menu_dish") {
-          return String(s.source.dishId ?? s.asset.sourceId ?? "");
-        }
-        if (s.asset.source === "menu" && s.asset.sourceId) {
-          return String(s.asset.sourceId);
-        }
-        return "";
-      })
-      .filter(Boolean),
-  );
-  const usedGalleryIds = new Set(
-    existing
-      .map((s) => {
-        if (s.asset.source === "gallery" && s.asset.sourceId) {
-          return String(s.asset.sourceId);
-        }
-        return String(s.source.galleryItemId ?? "");
-      })
-      .filter(Boolean),
-  );
-  const usedEventIds = new Set(
-    existing
-      .filter((s) => s.slotKind === "event")
-      .map((s) => String(s.source.eventId ?? "")),
-  );
-  const usedHolidayDates = new Set(
-    existing
-      .filter((s) => s.slotKind === "holiday")
-      .map((s) => String(s.source.date ?? "")),
-  );
-  const usedProfileIds = new Set(
-    existing
-      .filter((s) => s.asset.source === "profile" && s.asset.sourceId)
-      .map((s) => String(s.asset.sourceId)),
-  );
+  const openExisting = await listSocialSuggestionsFromDb(sb, restaurantId, {
+    statuses: ["pending", "needs_asset"],
+    limit: 80,
+  });
+  const pendingOpen = openExisting.length;
+
+  // Dedupe gegen offene Drafts + approved/skipped der laufenden Woche.
+  const history = await listSocialSuggestionsFromDb(sb, restaurantId, {
+    statuses: ["pending", "needs_asset", "approved", "skipped"],
+    limit: 120,
+  });
+  const used = collectSocialAutopilotUsedKeys(history);
+  const usedDishIds = used.dishIds;
+  const usedGalleryIds = used.galleryIds;
+  const usedEventIds = used.eventIds;
+  const usedHolidayDates = used.holidayDates;
+  const usedProfileIds = used.profileIds;
+  const usedIdeaIds = used.ideaIds;
 
   const restaurant = await loadRestaurant(sb, restaurantId);
   if (!restaurant) {
@@ -457,30 +445,35 @@ export async function listSocialAutopilotIdeas(
   }
 
   // Abwechslung: Events zuerst, dann rotierte Speisekarte/Galerie, Feiertag/Marke am Ende.
-  const eventsPart = catalog.filter((c) => c.slotKind === "event");
+  // Zusätzlich ideaId-Dedupe (falls Source-Heuristik etwas durchließ).
+  const seenIdea = new Set<string>();
+  const dedupedCatalog = catalog.filter((c) => {
+    if (usedIdeaIds.has(c.id) || seenIdea.has(c.id)) return false;
+    seenIdea.add(c.id);
+    return true;
+  });
+
+  const eventsPart = dedupedCatalog.filter((c) => c.slotKind === "event");
   const mediaPart = rotateBySeed(
-    catalog.filter(
+    dedupedCatalog.filter(
       (c) => c.slotKind === "menu_dish" || c.slotKind === "ambient",
     ),
     `${rotateSeed}:pick`,
   );
-  const restPart = catalog.filter(
-    (c) =>
-      c.slotKind === "holiday" || c.slotKind === "brand",
+  const restPart = dedupedCatalog.filter(
+    (c) => c.slotKind === "holiday" || c.slotKind === "brand",
   );
   const ordered = [...eventsPart, ...mediaPart, ...restPart].slice(
     0,
     SOCIAL_AUTOPILOT_MAX_IDEAS_SHOWN,
   );
 
-  const room = Math.max(
-    0,
-    kit.weeklyPostTarget - pendingOpen,
-  );
-  const maxSelect = Math.min(
-    SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
-    Math.max(1, room || SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN),
-  );
+  // Kein `room || MAX` — bei voller Woche 0, sonst Endlos-Duplikate.
+  const maxSelect = autopilotWeeklyRoom({
+    weeklyPostTarget: kit.weeklyPostTarget,
+    pendingOpen,
+    maxPerRun: SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
+  });
 
   return {
     ideas: ordered.map(toClientIdea),
@@ -490,5 +483,6 @@ export async function listSocialAutopilotIdeas(
     tasksCreated,
     maxSelect,
     pendingOpen,
+    forceSkipped,
   };
 }

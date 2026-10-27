@@ -45,6 +45,8 @@ export function SocialAutopilotOptionsDrawer({
   onFormatChange,
   showTone = true,
   defaults,
+  doneLabel = "Fertig",
+  onDone,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +64,9 @@ export function SocialAutopilotOptionsDrawer({
     platforms: NewsPlatform[];
     format: SocialMediaFormatId;
   };
+  doneLabel?: string;
+  /** Default: Sheet schließen. Z. B. „Generieren“ startet Create. */
+  onDone?: () => void;
 }) {
   const platformOptions = allSocialPublishPlatformOptions();
   const toneOptions = SOCIAL_TONES.map((t) => ({
@@ -183,13 +188,17 @@ export function SocialAutopilotOptionsDrawer({
           </DrawerFilterZone>
         </div>
         <DrawerFilterFooter
+          doneLabel={doneLabel}
           onReset={() => {
             onToneChange(resetDefaults.tone);
             onPlatformsChange([...resetDefaults.platforms]);
             onFormatChange(resetDefaults.format);
             toast.success("Optionen zurückgesetzt");
           }}
-          onDone={() => onOpenChange(false)}
+          onDone={() => {
+            if (onDone) onDone();
+            else onOpenChange(false);
+          }}
         />
       </DrawerContent>
     </Drawer>

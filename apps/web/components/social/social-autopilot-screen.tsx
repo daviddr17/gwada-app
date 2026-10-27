@@ -14,17 +14,24 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Filter,
   Pencil,
   RefreshCw,
   SkipForward,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
-import { NewsPlatformChip } from "@/components/news/news-platform-filter-chips";
+import {
+  countAutopilotIdeaActiveFilters,
+  SocialAutopilotIdeasFilterDrawer,
+} from "@/components/social/social-autopilot-ideas-filter-drawer";
+import { SocialAutopilotOptionsDrawer } from "@/components/social/social-autopilot-options-drawer";
 import { SocialTemplatePreview } from "@/components/social/social-template-preview";
 import { SettingsStickySaveBar } from "@/components/settings/settings-sticky-save-bar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SearchableSelect } from "@/components/ui/combobox";
 import {
   Drawer,
   DrawerContent,
@@ -41,14 +48,15 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
+import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
-import { displayFilterChipClassName } from "@/lib/ui/display-filter-chip";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
   SOCIAL_FEED_LAYOUT_CHIP_LABELS,
   type SocialMediaTask,
@@ -58,7 +66,6 @@ import {
 import {
   defaultSocialBrandKit,
   SOCIAL_TONE_LABELS,
-  SOCIAL_TONES,
   type SocialBrandKit,
   type SocialTone,
 } from "@/lib/social/social-brand-kit";
@@ -70,7 +77,6 @@ import {
 import type { SocialAutopilotIdea } from "@/lib/social/social-autopilot-ideas";
 import { contentReasonFromSuggestion } from "@/lib/social/social-autopilot-relevance";
 import {
-  availableSocialAutopilotIdeaFilters,
   filterSocialAutopilotIdeas,
   groupSocialAutopilotIdeas,
   SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS,
@@ -80,11 +86,10 @@ import { resolveSuggestionFeedLayout } from "@/lib/social/social-feed-layout";
 import {
   cssAspectRatioForFormat,
   parseSocialMediaFormatId,
-  SOCIAL_MEDIA_FORMAT_IDS,
   SOCIAL_MEDIA_FORMATS,
   type SocialMediaFormatId,
 } from "@/lib/social/social-media-formats";
-import { allSocialPublishPlatformOptions } from "@/lib/social/social-publish-platforms";
+import { socialPublishPlatformLabel } from "@/lib/social/social-publish-platforms";
 import { isNewsPlatform, type NewsPlatform } from "@/lib/constants/news-platforms";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
@@ -109,7 +114,7 @@ type AssetOption = SocialSuggestionAsset & {
   label: string;
 };
 
-/** Geführter 5-Schritt-Ablauf — sichtbar und selbsterklärend. */
+/** Geführter 5-Schritt — ein Job pro Screen. */
 type FlowStep = 1 | 2 | 3 | 4 | 5;
 
 const FLOW_STEPS: ReadonlyArray<{ step: FlowStep; label: string; short: string }> =
@@ -127,6 +132,8 @@ const GROUP_LABELS: Record<AssetOption["group"], string> = {
   profile: "Profil",
   event: "Events",
 };
+
+const layoutSelectClassName = appSelectTriggerAccentCn(staffDrawerFieldClassName);
 
 function MetaChip({
   children,
@@ -147,34 +154,6 @@ function MetaChip({
   );
 }
 
-function OptionChip({
-  active,
-  label,
-  onClick,
-  disabled,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        displayFilterChipClassName(active),
-        "min-h-10 touch-manipulation",
-        disabled && "pointer-events-none opacity-50",
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
 function AutopilotFlowStepper({ step }: { step: FlowStep }) {
   const current = FLOW_STEPS.find((s) => s.step === step)!;
   return (
@@ -183,9 +162,7 @@ function AutopilotFlowStepper({ step }: { step: FlowStep }) {
         <p className="text-sm font-medium text-foreground">
           Schritt {step}/5 · {current.label}
         </p>
-        <p className="text-xs text-muted-foreground md:hidden">
-          {current.short}
-        </p>
+        <p className="text-xs text-muted-foreground md:hidden">{current.short}</p>
       </div>
       <ol className="flex items-center gap-1" aria-label="Autopilot-Ablauf">
         {FLOW_STEPS.map((s, i) => {
@@ -198,8 +175,7 @@ function AutopilotFlowStepper({ step }: { step: FlowStep }) {
                   "flex size-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors",
                   active &&
                     "border-accent/60 bg-accent/20 text-foreground ring-2 ring-accent/30",
-                  done &&
-                    "border-accent/40 bg-accent/15 text-foreground",
+                  done && "border-accent/40 bg-accent/15 text-foreground",
                   !active &&
                     !done &&
                     "border-border/60 bg-card text-muted-foreground",
@@ -233,10 +209,11 @@ function AutopilotFlowStepper({ step }: { step: FlowStep }) {
   );
 }
 
-function ChipRow({ children }: { children: ReactNode }) {
+function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {children}
+    <div className="flex items-start justify-between gap-3 text-sm">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className="text-right font-medium text-foreground">{value}</span>
     </div>
   );
 }
@@ -253,6 +230,11 @@ function formatPlan(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function platformsSummary(platforms: NewsPlatform[]): string {
+  if (platforms.length === 0) return "—";
+  return platforms.map(socialPublishPlatformLabel).join(", ");
 }
 
 export function SocialAutopilotScreen() {
@@ -275,6 +257,7 @@ export function SocialAutopilotScreen() {
   const [ideas, setIdeas] = useState<SocialAutopilotIdea[]>([]);
   const [ideaFilter, setIdeaFilter] =
     useState<SocialAutopilotIdeaFilter>("all");
+  const [ideasFilterOpen, setIdeasFilterOpen] = useState(false);
   const [maxSelect, setMaxSelect] = useState(7);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sessionTone, setSessionTone] = useState<SocialTone>("warm");
@@ -282,6 +265,7 @@ export function SocialAutopilotScreen() {
   const [sessionFormat, setSessionFormat] =
     useState<SocialMediaFormatId>("square_1x1");
   const [optionsSheetOpen, setOptionsSheetOpen] = useState(false);
+  const [reviewOptionsId, setReviewOptionsId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [draftTitles, setDraftTitles] = useState<Record<string, string>>({});
   const [draftCaptions, setDraftCaptions] = useState<Record<string, string>>(
@@ -476,14 +460,9 @@ export function SocialAutopilotScreen() {
     });
   };
 
-  const togglePlatform = (p: NewsPlatform) => {
-    setSessionPlatforms((prev) => {
-      if (prev.includes(p)) {
-        if (prev.length <= 1) return prev;
-        return prev.filter((x) => x !== p);
-      }
-      return [...prev, p];
-    });
+  const goToOptionsStep = () => {
+    setFlowStep(3);
+    setOptionsSheetOpen(true);
   };
 
   const createFromSelection = async () => {
@@ -805,19 +784,17 @@ export function SocialAutopilotScreen() {
     () => groupSocialAutopilotIdeas(filteredIdeas),
     [filteredIdeas],
   );
-  const ideaFilterOptions = useMemo(
-    () => availableSocialAutopilotIdeaFilters(ideas),
-    [ideas],
-  );
+  const ideaFilterActiveCount = countAutopilotIdeaActiveFilters(ideaFilter);
 
-  /** Freigabe: geplant zuerst (klar chronologisch). */
   const sortedSuggestions = useMemo(
     () =>
-      [...suggestions].sort((a, b) =>
-        a.plannedAt.localeCompare(b.plannedAt),
-      ),
+      [...suggestions].sort((a, b) => a.plannedAt.localeCompare(b.plannedAt)),
     [suggestions],
   );
+
+  const reviewTarget = reviewOptionsId
+    ? suggestions.find((s) => s.id === reviewOptionsId) ?? null
+    : null;
 
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
@@ -846,66 +823,11 @@ export function SocialAutopilotScreen() {
       : aiProvider === "openai"
         ? "OpenAI"
         : "Restaurant-KI";
-  const platformOptions = allSocialPublishPlatformOptions();
 
   const showStickyIdeasCta =
     aiReady && flowStep === 2 && !showIdeasSkeleton && ideas.length > 0;
-  const showStickyOptionsCta = aiReady && flowStep === 3;
-
-  const optionsFields = (
-    <div className="space-y-5">
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">Ton</p>
-        <p className="text-xs text-muted-foreground">
-          Wie sollen die Captions klingen?
-        </p>
-        <ChipRow>
-          {SOCIAL_TONES.map((tone) => (
-            <OptionChip
-              key={tone}
-              active={sessionTone === tone}
-              label={SOCIAL_TONE_LABELS[tone]}
-              onClick={() => setSessionTone(tone)}
-            />
-          ))}
-        </ChipRow>
-      </div>
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">Kanäle</p>
-        <p className="text-xs text-muted-foreground">
-          Wo soll veröffentlicht werden? Mindestens einer.
-        </p>
-        <ChipRow>
-          {platformOptions.map((opt) => (
-            <NewsPlatformChip
-              key={opt.value}
-              platform={opt.value}
-              selected={sessionPlatforms.includes(opt.value)}
-              onSelect={() => togglePlatform(opt.value)}
-            />
-          ))}
-        </ChipRow>
-      </div>
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">Format</p>
-        <p className="text-xs text-muted-foreground">
-          Master einmal — Stories (9:16) werden beim Publish zugeschnitten.
-        </p>
-        <ChipRow>
-          {SOCIAL_MEDIA_FORMAT_IDS.filter((id) => id !== "story_9x16").map(
-            (id) => (
-              <OptionChip
-                key={id}
-                active={sessionFormat === id}
-                label={`${SOCIAL_MEDIA_FORMATS[id].ratioLabel} · ${SOCIAL_MEDIA_FORMATS[id].label}`}
-                onClick={() => setSessionFormat(id)}
-              />
-            ),
-          )}
-        </ChipRow>
-      </div>
-    </div>
-  );
+  const showStickyOptionsCta =
+    aiReady && flowStep === 3 && !optionsSheetOpen;
 
   return (
     <div className="space-y-5 pb-4">
@@ -952,11 +874,9 @@ export function SocialAutopilotScreen() {
                 <div className="space-y-1.5">
                   <p className="text-sm font-medium">Was willst du posten?</p>
                   <p className="text-sm text-muted-foreground">
-                    In fünf Schritten: Ideen aus Speisekarte, Galerie und
-                    Events wählen → Kanäle festlegen → Posts erstellen →
-                    freigeben. Texte schreibt{" "}
-                    <span className="text-foreground">{aiLabel}</span> über
-                    euren Schlüssel.
+                    Fünf Schritte: Ideen wählen → Kanäle & Stil im Sheet →
+                    erstellen → freigeben. Texte schreibt{" "}
+                    <span className="text-foreground">{aiLabel}</span>.
                   </p>
                 </div>
                 {aiUsage ? (
@@ -1132,50 +1052,67 @@ export function SocialAutopilotScreen() {
         </div>
       ) : null}
 
-      {/* Schritt 2 — Ideen */}
+      {/* Schritt 2 — nur Ideen wählen */}
       {!showSkeleton && aiReady && flowStep === 2 ? (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3">
-            <div className="space-y-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
               <p className="text-sm font-medium text-foreground">
                 Ideen auswählen
               </p>
               <p className="text-xs text-muted-foreground">
-                Sortierung: Events zuerst, dann Speisekarte & Galerie, danach
-                Feiertag/Marke. Tippe auf Karten — max. {maxSelect}.
+                Ein Job: Karten tippen (max. {maxSelect}). Filter & Sortierung
+                über das Icon.
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 w-full rounded-xl border-border/60"
-              disabled={ideasLoading}
-              onClick={() => void loadIdeas({ rotate: true })}
-            >
-              <RefreshCw
-                className={cn("size-3.5", ideasLoading && "animate-spin")}
-              />
-              Neu vorschlagen
-            </Button>
+            <div className="relative shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="rounded-full border-border/60"
+                aria-label="Filter & Sortierung"
+                disabled={ideas.length === 0}
+                onClick={() => setIdeasFilterOpen(true)}
+              >
+                <Filter className="size-4" />
+              </Button>
+              {ideaFilterActiveCount > 0 ? (
+                <Badge
+                  variant="secondary"
+                  className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
+                >
+                  {ideaFilterActiveCount}
+                </Badge>
+              ) : null}
+            </div>
           </div>
 
-          {ideas.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">
-                Anzeigen
-              </p>
-              <ChipRow>
-                {ideaFilterOptions.map((f) => (
-                  <OptionChip
-                    key={f}
-                    active={ideaFilter === f}
-                    label={SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS[f]}
-                    onClick={() => setIdeaFilter(f)}
-                  />
-                ))}
-              </ChipRow>
-            </div>
-          ) : null}
+          {ideaFilter !== "all" ? (
+            <p className="text-xs text-muted-foreground">
+              Filter:{" "}
+              <span className="font-medium text-foreground">
+                {SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS[ideaFilter]}
+              </span>
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Sortierung: Events → Speisekarte → Galerie → Feiertag → Marke
+            </p>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full rounded-xl border-border/60"
+            disabled={ideasLoading}
+            onClick={() => void loadIdeas({ rotate: true })}
+          >
+            <RefreshCw
+              className={cn("size-3.5", ideasLoading && "animate-spin")}
+            />
+            Neu vorschlagen
+          </Button>
 
           {showIdeasSkeleton ? (
             <div className="grid grid-cols-2 gap-3" aria-busy>
@@ -1193,7 +1130,7 @@ export function SocialAutopilotScreen() {
             </p>
           ) : filteredIdeas.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-              Keine Ideen in dieser Kategorie.
+              Keine Ideen in diesem Filter.
             </p>
           ) : (
             <div className="space-y-5">
@@ -1263,38 +1200,43 @@ export function SocialAutopilotScreen() {
         </div>
       ) : null}
 
-      {/* Schritt 3 — Kanäle & Stil (Inhalt im Bottom-Sheet; Fallback wenn Sheet zu) */}
+      {/* Schritt 3 — nur Kanäle & Stil (Sheet ist die Steuerung) */}
       {!showSkeleton && aiReady && flowStep === 3 ? (
         <div className="space-y-4">
           <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">
-              Kanäle & Stil
-            </p>
+            <p className="text-sm font-medium text-foreground">Kanäle & Stil</p>
             <p className="text-xs text-muted-foreground">
               {selectedIds.length} Idee
-              {selectedIds.length === 1 ? "" : "n"} ausgewählt. Ton, Kanäle und
-              Format im Sheet festlegen.
+              {selectedIds.length === 1 ? "" : "n"} — Ton, Kanäle und Format im
+              Bottom Sheet.
             </p>
           </div>
-          <Card
-            className={cn(
-              "border-border/50 shadow-card",
-              optionsSheetOpen && "max-md:hidden",
-            )}
-          >
-            <CardContent className="space-y-4 pt-5">{optionsFields}</CardContent>
+
+          <Card className="border-border/50 shadow-card">
+            <CardContent className="space-y-3 pt-5">
+              <SummaryRow
+                label="Ton"
+                value={SOCIAL_TONE_LABELS[sessionTone]}
+              />
+              <SummaryRow
+                label="Kanäle"
+                value={platformsSummary(sessionPlatforms)}
+              />
+              <SummaryRow
+                label="Format"
+                value={`${SOCIAL_MEDIA_FORMATS[sessionFormat].ratioLabel} · ${SOCIAL_MEDIA_FORMATS[sessionFormat].label}`}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-1 h-11 w-full rounded-xl border-border/60"
+                onClick={() => setOptionsSheetOpen(true)}
+              >
+                Anpassen …
+              </Button>
+            </CardContent>
           </Card>
-          <Button
-            type="button"
-            variant="outline"
-            className={cn(
-              "h-11 w-full rounded-xl border-border/60 md:hidden",
-              optionsSheetOpen && "hidden",
-            )}
-            onClick={() => setOptionsSheetOpen(true)}
-          >
-            Optionen öffnen
-          </Button>
+
           <Button
             type="button"
             variant="ghost"
@@ -1310,7 +1252,6 @@ export function SocialAutopilotScreen() {
         </div>
       ) : null}
 
-      {/* Schritt 4 — Erstellen */}
       {flowStep === 4 ? (
         <div className="space-y-4" aria-busy>
           <p className="text-sm text-muted-foreground">
@@ -1332,7 +1273,7 @@ export function SocialAutopilotScreen() {
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">Zur Freigabe</p>
             <p className="text-xs text-muted-foreground">
-              Geplant zuerst · Vorschau prüfen, Kanäle anpassen, posten oder
+              Geplant zuerst · prüfen, Kanäle im Sheet anpassen, posten oder
               verwerfen.
             </p>
           </div>
@@ -1382,9 +1323,6 @@ export function SocialAutopilotScreen() {
                           <MetaChip>
                             {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}
                           </MetaChip>
-                          <MetaChip>
-                            {SOCIAL_MEDIA_FORMATS[mediaFormat].ratioLabel}
-                          </MetaChip>
                           <MetaChip>{formatPlan(s.plannedAt)}</MetaChip>
                           {s.status === "needs_asset" || !s.asset.imageUrl ? (
                             <MetaChip className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200">
@@ -1417,62 +1355,31 @@ export function SocialAutopilotScreen() {
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-foreground">
-                          Kanäle
-                        </p>
-                        <ChipRow>
-                          {platformOptions.map((opt) => {
-                            const on = activePlatforms.includes(opt.value);
-                            return (
-                              <NewsPlatformChip
-                                key={opt.value}
-                                platform={opt.value}
-                                selected={on}
-                                disabled={busyId === s.id}
-                                onSelect={() => {
-                                  const next = on
-                                    ? activePlatforms.filter(
-                                        (p) => p !== opt.value,
-                                      )
-                                    : [...activePlatforms, opt.value];
-                                  if (next.length === 0) return;
-                                  void patchSuggestion(s.id, {
-                                    platforms: next,
-                                  });
-                                }}
-                              />
-                            );
-                          })}
-                        </ChipRow>
-                      </div>
-
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-foreground">
-                          Format
-                        </p>
-                        <ChipRow>
-                          {SOCIAL_MEDIA_FORMAT_IDS.filter(
-                            (id) => id !== "story_9x16",
-                          ).map((id) => (
-                            <OptionChip
-                              key={id}
-                              active={mediaFormat === id}
-                              label={SOCIAL_MEDIA_FORMATS[id].ratioLabel}
-                              disabled={busyId === s.id}
-                              onClick={() =>
-                                void patchSuggestion(s.id, { mediaFormat: id })
-                              }
-                            />
-                          ))}
-                        </ChipRow>
+                      <div className="space-y-2 rounded-xl border border-border/50 bg-muted/20 px-3 py-3">
+                        <SummaryRow
+                          label="Kanäle"
+                          value={platformsSummary(activePlatforms)}
+                        />
+                        <SummaryRow
+                          label="Format"
+                          value={SOCIAL_MEDIA_FORMATS[mediaFormat].ratioLabel}
+                        />
                         {publishStories &&
                         (activePlatforms.includes("facebook") ||
                           activePlatforms.includes("instagram")) ? (
                           <p className="text-[11px] text-muted-foreground">
-                            + Story 9:16 beim Publish (wenn Stories aktiv)
+                            + Story 9:16 beim Publish
                           </p>
                         ) : null}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11 w-full rounded-xl border-border/60"
+                          disabled={busyId === s.id}
+                          onClick={() => setReviewOptionsId(s.id)}
+                        >
+                          Kanäle & Format …
+                        </Button>
                       </div>
 
                       <div className="space-y-1">
@@ -1556,16 +1463,7 @@ export function SocialAutopilotScreen() {
           size="lg"
           className={cn("w-full", brandActionButtonRoundedClassName)}
           disabled={selectedIds.length === 0 || ideasLoading}
-          onClick={() => {
-            setFlowStep(3);
-            // Mobil: Optionen als Bottom-Sheet; Desktop: Schritt-3-Karte.
-            if (
-              typeof window !== "undefined" &&
-              window.matchMedia("(max-width: 767px)").matches
-            ) {
-              setOptionsSheetOpen(true);
-            }
-          }}
+          onClick={goToOptionsStep}
         >
           {selectedIds.length === 0
             ? "Ideen auswählen"
@@ -1574,9 +1472,7 @@ export function SocialAutopilotScreen() {
         </Button>
       </SettingsStickySaveBar>
 
-      <SettingsStickySaveBar
-        show={showStickyOptionsCta && !optionsSheetOpen}
-      >
+      <SettingsStickySaveBar show={showStickyOptionsCta}>
         <Button
           type="button"
           size="lg"
@@ -1590,54 +1486,56 @@ export function SocialAutopilotScreen() {
         </Button>
       </SettingsStickySaveBar>
 
-      {/* Kanäle & Stil — Bottom-Sheet (mobil primär, Desktop optional) */}
-      <Drawer
-        direction="bottom"
+      <SocialAutopilotIdeasFilterDrawer
+        open={ideasFilterOpen}
+        onOpenChange={setIdeasFilterOpen}
+        ideas={ideas}
+        filter={ideaFilter}
+        onFilterChange={setIdeaFilter}
+      />
+
+      <SocialAutopilotOptionsDrawer
         open={optionsSheetOpen && flowStep === 3}
-        onOpenChange={(open) => {
-          setOptionsSheetOpen(open);
+        onOpenChange={setOptionsSheetOpen}
+        tone={sessionTone}
+        onToneChange={setSessionTone}
+        platforms={sessionPlatforms}
+        onPlatformsChange={setSessionPlatforms}
+        format={sessionFormat}
+        onFormatChange={setSessionFormat}
+        defaults={{
+          tone: kit?.tone ?? "warm",
+          platforms:
+            kit?.publishPlatforms && kit.publishPlatforms.length > 0
+              ? [...kit.publishPlatforms]
+              : ["instagram", "facebook"],
+          format: "square_1x1",
         }}
-        repositionInputs={false}
-      >
-        <DrawerContent className={drawerContentClassName("form")}>
-          <DrawerHeader className="text-left">
-            <DrawerTitle>Kanäle & Stil</DrawerTitle>
-            <DrawerDescription>
-              Ton, Kanäle und Format für die {selectedIds.length} ausgewählte
-              {selectedIds.length === 1 ? " Idee" : "n Ideen"}.
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className={drawerScrollAreaClassName(6)}>
-            <div className="pb-4">{optionsFields}</div>
-          </div>
-          <DrawerFooter className="gap-2">
-            <Button
-              type="button"
-              size="lg"
-              className={cn("w-full", brandActionButtonRoundedClassName)}
-              disabled={
-                selectedIds.length === 0 || sessionPlatforms.length === 0
-              }
-              onClick={() => void createFromSelection()}
-            >
-              <Sparkles className="size-4" />
-              {selectedIds.length} Post
-              {selectedIds.length === 1 ? "" : "s"} erstellen
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-11 w-full rounded-xl"
-              onClick={() => {
-                setOptionsSheetOpen(false);
-                setFlowStep(2);
-              }}
-            >
-              Zurück zu Ideen
-            </Button>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+      />
+
+      {reviewTarget ? (
+        <SocialAutopilotOptionsDrawer
+          open
+          onOpenChange={(open) => {
+            if (!open) setReviewOptionsId(null);
+          }}
+          title="Kanäle & Format"
+          showTone={false}
+          tone={sessionTone}
+          onToneChange={setSessionTone}
+          platforms={reviewTarget.platforms.filter(isNewsPlatform)}
+          onPlatformsChange={(next) => {
+            void patchSuggestion(reviewTarget.id, { platforms: next });
+          }}
+          format={
+            parseSocialMediaFormatId(reviewTarget.source.mediaFormat) ??
+            sessionFormat
+          }
+          onFormatChange={(next) => {
+            void patchSuggestion(reviewTarget.id, { mediaFormat: next });
+          }}
+        />
+      ) : null}
 
       <Drawer
         direction="bottom"
@@ -1719,25 +1617,26 @@ export function SocialAutopilotScreen() {
 
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Layout</Label>
-                  <ChipRow>
-                    {preferredLayouts.map((layoutId) => {
-                      const active =
-                        layoutForSuggestion(editing) === layoutId;
-                      return (
-                        <OptionChip
-                          key={layoutId}
-                          active={active}
-                          label={SOCIAL_FEED_LAYOUT_CHIP_LABELS[layoutId]}
-                          disabled={busyId === editing.id}
-                          onClick={() =>
-                            void patchSuggestion(editing.id, {
-                              feedLayout: layoutId,
-                            })
-                          }
-                        />
-                      );
-                    })}
-                  </ChipRow>
+                  <SearchableSelect
+                    value={layoutForSuggestion(editing)}
+                    onValueChange={(v) => {
+                      if (
+                        preferredLayouts.includes(v as SocialFeedLayoutId)
+                      ) {
+                        void patchSuggestion(editing.id, {
+                          feedLayout: v as SocialFeedLayoutId,
+                        });
+                      }
+                    }}
+                    options={preferredLayouts.map((id) => ({
+                      value: id,
+                      label: SOCIAL_FEED_LAYOUT_CHIP_LABELS[id],
+                    }))}
+                    placeholder="Layout wählen"
+                    className={layoutSelectClassName}
+                    side="top"
+                    aria-label="Feed-Layout"
+                  />
                 </div>
 
                 <div className="space-y-2">

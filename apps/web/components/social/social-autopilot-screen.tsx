@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -184,7 +185,6 @@ export function SocialAutopilotScreen() {
   const [sessionFormat, setSessionFormat] =
     useState<SocialMediaFormatId>("square_1x1");
   const [reviewOptionsId, setReviewOptionsId] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [draftTitles, setDraftTitles] = useState<Record<string, string>>({});
   const [draftCaptions, setDraftCaptions] = useState<Record<string, string>>(
     {},
@@ -256,15 +256,13 @@ export function SocialAutopilotScreen() {
       setTasks(sugData.tasks ?? []);
       const nextKit = kitData.kit ?? defaultSocialBrandKit(restaurantId);
       setKit(nextKit);
-      if (!opts?.quiet) {
-        setSessionTone(nextKit.tone);
-        setSessionPlatforms(
-          nextKit.publishPlatforms.length > 0
-            ? [...nextKit.publishPlatforms]
-            : ["instagram", "facebook"],
-        );
-        setSessionFormat("square_1x1");
-      }
+      setSessionTone(nextKit.tone);
+      setSessionPlatforms(
+        nextKit.publishPlatforms.length > 0
+          ? [...nextKit.publishPlatforms]
+          : ["instagram", "facebook"],
+      );
+      setSessionFormat("square_1x1");
       setAssetOptions(optData.options ?? []);
       applySuggestionDrafts(open);
       const gen = sugData.generation;
@@ -303,30 +301,38 @@ export function SocialAutopilotScreen() {
       },
     ) => {
       if (!restaurantId) return;
-      let snapshot: SocialPostSuggestion | undefined;
       const applyLocal = (s: SocialPostSuggestion): SocialPostSuggestion => {
-        const next: SocialPostSuggestion = { ...s };
-        if (patch.title !== undefined) next.title = patch.title;
-        if (patch.caption !== undefined) next.caption = patch.caption;
-        if (patch.asset !== undefined) next.asset = patch.asset;
-        if (patch.feedLayout !== undefined) next.feedLayout = patch.feedLayout;
-        if (patch.platforms !== undefined) next.platforms = patch.platforms;
+        const nextSource = { ...s.source };
         if (patch.mediaFormat !== undefined) {
-          next.source = { ...next.source, mediaFormat: patch.mediaFormat };
+          nextSource.mediaFormat = patch.mediaFormat;
         }
-        return next;
+        if (patch.feedLayout !== undefined) {
+          nextSource.feedLayout = patch.feedLayout;
+        }
+        return {
+          ...s,
+          title: patch.title !== undefined ? patch.title : s.title,
+          caption: patch.caption !== undefined ? patch.caption : s.caption,
+          asset: patch.asset !== undefined ? patch.asset : s.asset,
+          platforms:
+            patch.platforms !== undefined ? patch.platforms : s.platforms,
+          source: nextSource,
+          status:
+            patch.asset !== undefined
+              ? patch.asset.imageUrl
+                ? s.status === "needs_asset"
+                  ? "pending"
+                  : s.status
+                : "needs_asset"
+              : s.status,
+        };
       };
-      setSuggestions((prev) => {
-        snapshot = prev.find((s) => s.id === id);
-        if (!snapshot) return prev;
-        return prev.map((s) => (s.id === id ? applyLocal(s) : s));
-      });
-      setSavedTemplates((prev) => {
-        const hit = prev.find((s) => s.id === id);
-        if (hit && !snapshot) snapshot = hit;
-        if (!hit) return prev;
-        return prev.map((s) => (s.id === id ? applyLocal(s) : s));
-      });
+      setSuggestions((prev) =>
+        prev.map((s) => (s.id === id ? applyLocal(s) : s)),
+      );
+      setSavedTemplates((prev) =>
+        prev.map((s) => (s.id === id ? applyLocal(s) : s)),
+      );
       const res = await fetch(`/api/social/suggestions/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -336,16 +342,8 @@ export function SocialAutopilotScreen() {
         suggestion?: SocialPostSuggestion;
       };
       if (!res.ok || !data.suggestion) {
-        if (snapshot) {
-          const roll = snapshot;
-          setSuggestions((prev) =>
-            prev.map((s) => (s.id === id ? roll : s)),
-          );
-          setSavedTemplates((prev) =>
-            prev.map((s) => (s.id === id ? roll : s)),
-          );
-        }
         toast.error("Änderung konnte nicht gespeichert werden");
+        await loadBase({ quiet: true });
         return;
       }
       setSuggestions((prev) =>
@@ -355,7 +353,7 @@ export function SocialAutopilotScreen() {
         prev.map((s) => (s.id === id ? data.suggestion! : s)),
       );
     },
-    [restaurantId],
+    [restaurantId, loadBase],
   );
 
   const scheduleTextSave = useCallback(
@@ -389,37 +387,44 @@ export function SocialAutopilotScreen() {
 
   const approve = async (id: string, publishNow: boolean) => {
     if (!restaurantId) return;
+    const snapshot = suggestions.find((s) => s.id === id) ?? null;
     if (saveTimers.current[id]) {
       clearTimeout(saveTimers.current[id]);
       delete saveTimers.current[id];
     }
-    const caption = draftCaptions[id] ?? "";
     const title = (draftTitles[id] ?? "").trim() || null;
-    let removed: SocialPostSuggestion | undefined;
-    setSuggestions((prev) => {
-      removed = prev.find((s) => s.id === id);
-      return prev.filter((s) => s.id !== id);
-    });
+    const caption = draftCaptions[id] ?? "";
+    setSuggestions((prev) => prev.filter((s) => s.id !== id));
     setActionsId(null);
     setEditId(null);
-    setBusyId(id);
     try {
-      await fetch(`/api/social/suggestions/${id}`, {
+      const patchRes = await fetch(`/api/social/suggestions/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ restaurantId, title, caption }),
       });
+      if (!patchRes.ok) {
+        throw new Error("patch_failed");
+      }
       const res = await fetch(`/api/social/suggestions/${id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantId, caption, publishNow }),
+        body: JSON.stringify({
+          restaurantId,
+          caption,
+          publishNow,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         published?: boolean;
       };
       if (!res.ok) {
-        if (removed) setSuggestions((prev) => [removed!, ...prev]);
+        if (snapshot) {
+          setSuggestions((prev) =>
+            prev.some((s) => s.id === id) ? prev : [...prev, snapshot],
+          );
+        }
         toast.error(
           data.error === "image_required"
             ? "Für die Freigabe fehlt noch ein Bild"
@@ -432,18 +437,20 @@ export function SocialAutopilotScreen() {
           ? "Post freigegeben und veröffentlicht"
           : "Post freigegeben (geplant)",
       );
-    } finally {
-      setBusyId(null);
+    } catch {
+      if (snapshot) {
+        setSuggestions((prev) =>
+          prev.some((s) => s.id === id) ? prev : [...prev, snapshot],
+        );
+      }
+      toast.error("Freigabe fehlgeschlagen");
     }
   };
 
   const skip = async (id: string) => {
     if (!restaurantId) return;
-    let removed: SocialPostSuggestion | undefined;
-    setSuggestions((prev) => {
-      removed = prev.find((s) => s.id === id);
-      return prev.filter((s) => s.id !== id);
-    });
+    const snapshot = suggestions.find((s) => s.id === id) ?? null;
+    setSuggestions((prev) => prev.filter((s) => s.id !== id));
     setActionsId(null);
     setEditId(null);
     try {
@@ -453,22 +460,27 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId }),
       });
       if (!res.ok) {
-        if (removed) setSuggestions((prev) => [removed!, ...prev]);
+        if (snapshot) {
+          setSuggestions((prev) =>
+            prev.some((s) => s.id === id) ? prev : [...prev, snapshot],
+          );
+        }
         toast.error("Verwerfen fehlgeschlagen");
       }
     } catch {
-      if (removed) setSuggestions((prev) => [removed!, ...prev]);
+      if (snapshot) {
+        setSuggestions((prev) =>
+          prev.some((s) => s.id === id) ? prev : [...prev, snapshot],
+        );
+      }
       toast.error("Verwerfen fehlgeschlagen");
     }
   };
 
   const completeTask = async (id: string, status: "done" | "dismissed") => {
     if (!restaurantId) return;
-    let removed: SocialMediaTask | undefined;
-    setTasks((prev) => {
-      removed = prev.find((task) => task.id === id);
-      return prev.filter((task) => task.id !== id);
-    });
+    const snapshot = tasks.find((t) => t.id === id) ?? null;
+    setTasks((prev) => prev.filter((t) => t.id !== id));
     try {
       const res = await fetch(`/api/social/tasks/${id}`, {
         method: "PATCH",
@@ -476,26 +488,32 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId, status }),
       });
       if (!res.ok) {
-        if (removed) setTasks((prev) => [removed!, ...prev]);
+        if (snapshot) {
+          setTasks((prev) =>
+            prev.some((t) => t.id === id) ? prev : [...prev, snapshot],
+          );
+        }
         toast.error("Aufgabe konnte nicht aktualisiert werden");
       }
     } catch {
-      if (removed) setTasks((prev) => [removed!, ...prev]);
+      if (snapshot) {
+        setTasks((prev) =>
+          prev.some((t) => t.id === id) ? prev : [...prev, snapshot],
+        );
+      }
       toast.error("Aufgabe konnte nicht aktualisiert werden");
     }
   };
 
   const saveAsTemplate = async (id: string) => {
     if (!restaurantId) return;
-    let removed: SocialPostSuggestion | undefined;
-    setSuggestions((prev) => {
-      removed = prev.find((s) => s.id === id);
-      return prev.filter((s) => s.id !== id);
-    });
-    if (removed) {
-      const saved: SocialPostSuggestion = { ...removed, status: "saved" };
-      setSavedTemplates((prev) => [saved, ...prev.filter((s) => s.id !== id)]);
-    }
+    const snapshot = suggestions.find((s) => s.id === id) ?? null;
+    if (!snapshot) return;
+    const saved: SocialPostSuggestion = { ...snapshot, status: "saved" };
+    setSuggestions((prev) => prev.filter((s) => s.id !== id));
+    setSavedTemplates((prev) =>
+      prev.some((s) => s.id === id) ? prev : [saved, ...prev],
+    );
     setActionsId(null);
     setEditId(null);
     try {
@@ -505,45 +523,43 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId }),
       });
       if (!res.ok) {
-        if (removed) {
-          setSuggestions((prev) => [removed!, ...prev]);
-          setSavedTemplates((prev) => prev.filter((s) => s.id !== id));
-        }
+        setSavedTemplates((prev) => prev.filter((s) => s.id !== id));
+        setSuggestions((prev) =>
+          prev.some((s) => s.id === id) ? prev : [...prev, snapshot],
+        );
         toast.error("Zwischenspeichern fehlgeschlagen");
         return;
       }
       toast.success("Als Design gespeichert — bleibt auf der Hauptseite");
     } catch {
-      if (removed) {
-        setSuggestions((prev) => [removed!, ...prev]);
-        setSavedTemplates((prev) => prev.filter((s) => s.id !== id));
-      }
+      setSavedTemplates((prev) => prev.filter((s) => s.id !== id));
+      setSuggestions((prev) =>
+        prev.some((s) => s.id === id) ? prev : [...prev, snapshot],
+      );
       toast.error("Zwischenspeichern fehlgeschlagen");
     }
   };
 
   const restoreTemplate = async (id: string) => {
     if (!restaurantId) return;
-    let removed: SocialPostSuggestion | undefined;
-    setSavedTemplates((prev) => {
-      removed = prev.find((s) => s.id === id);
-      return prev.filter((s) => s.id !== id);
-    });
-    if (removed) {
-      const draft: SocialPostSuggestion = {
-        ...removed,
-        status: removed.asset.imageUrl ? "pending" : "needs_asset",
-      };
-      setSuggestions((prev) => [draft, ...prev.filter((s) => s.id !== id)]);
-      setDraftTitles((prev) => ({
-        ...prev,
-        [id]: draft.title?.trim() ?? "",
-      }));
-      setDraftCaptions((prev) => ({
-        ...prev,
-        [id]: draft.caption,
-      }));
-    }
+    const snapshot = savedTemplates.find((s) => s.id === id) ?? null;
+    if (!snapshot) return;
+    const restored: SocialPostSuggestion = {
+      ...snapshot,
+      status: snapshot.asset.imageUrl ? "pending" : "needs_asset",
+    };
+    setSavedTemplates((prev) => prev.filter((s) => s.id !== id));
+    setSuggestions((prev) =>
+      prev.some((s) => s.id === id) ? prev : [...prev, restored],
+    );
+    setDraftTitles((prev) => ({
+      ...prev,
+      [id]: restored.title?.trim() ?? "",
+    }));
+    setDraftCaptions((prev) => ({
+      ...prev,
+      [id]: restored.caption,
+    }));
     try {
       const res = await fetch(`/api/social/suggestions/${id}/restore`, {
         method: "POST",
@@ -551,19 +567,19 @@ export function SocialAutopilotScreen() {
         body: JSON.stringify({ restaurantId }),
       });
       if (!res.ok) {
-        if (removed) {
-          setSavedTemplates((prev) => [removed!, ...prev]);
-          setSuggestions((prev) => prev.filter((s) => s.id !== id));
-        }
+        setSuggestions((prev) => prev.filter((s) => s.id !== id));
+        setSavedTemplates((prev) =>
+          prev.some((s) => s.id === id) ? prev : [...prev, snapshot],
+        );
         toast.error("Design konnte nicht geöffnet werden");
         return;
       }
       toast.success("Design als Entwurf bereit — posten oder planen");
     } catch {
-      if (removed) {
-        setSavedTemplates((prev) => [removed!, ...prev]);
-        setSuggestions((prev) => prev.filter((s) => s.id !== id));
-      }
+      setSuggestions((prev) => prev.filter((s) => s.id !== id));
+      setSavedTemplates((prev) =>
+        prev.some((s) => s.id === id) ? prev : [...prev, snapshot],
+      );
       toast.error("Design konnte nicht geöffnet werden");
     }
   };
@@ -729,9 +745,8 @@ export function SocialAutopilotScreen() {
 
           <Button
             type="button"
-            size="lg"
             className={modulePrimaryAddButtonFullWidthClassName}
-            onClick={() => setGenerateOpen(true)}
+            onClick={() => startTransition(() => setGenerateOpen(true))}
           >
             <Sparkles className="size-4" />
             Neu generieren
@@ -827,7 +842,7 @@ export function SocialAutopilotScreen() {
                 return (
                   <Card
                     key={s.id}
-                    className="overflow-hidden border-border/50 shadow-card"
+                    className="overflow-hidden border-border/50 shadow-card [content-visibility:auto] [contain-intrinsic-size:auto_720px]"
                   >
                     <CardContent className="space-y-4 pt-5">
                       <div className="space-y-2">
@@ -894,7 +909,9 @@ export function SocialAutopilotScreen() {
                           type="button"
                           variant="outline"
                           className={autopilotSecondaryButtonClassName}
-                          onClick={() => setReviewOptionsId(s.id)}
+                          onClick={() =>
+                            startTransition(() => setReviewOptionsId(s.id))
+                          }
                         >
                           Kanäle & Format …
                         </Button>
@@ -915,7 +932,9 @@ export function SocialAutopilotScreen() {
                         <Button
                           type="button"
                           className={autopilotPrimaryButtonClassName}
-                          onClick={() => setActionsId(s.id)}
+                          onClick={() =>
+                            startTransition(() => setActionsId(s.id))
+                          }
                         >
                           <Check className="size-4" />
                           Posten / Planen …
@@ -924,7 +943,9 @@ export function SocialAutopilotScreen() {
                           type="button"
                           variant="outline"
                           className={autopilotSecondaryButtonClassName}
-                          onClick={() => setEditId(s.id)}
+                          onClick={() =>
+                            startTransition(() => setEditId(s.id))
+                          }
                         >
                           <Pencil className="size-4" />
                           Bearbeiten
@@ -941,7 +962,10 @@ export function SocialAutopilotScreen() {
                         <Button
                           type="button"
                           variant="ghost"
-                          className={autopilotGhostButtonClassName}
+                          className={cn(
+                            autopilotGhostButtonClassName,
+                            "text-muted-foreground",
+                          )}
                           onClick={() => void skip(s.id)}
                         >
                           <SkipForward className="size-4" />
@@ -1028,7 +1052,6 @@ export function SocialAutopilotScreen() {
               <div className="flex flex-col gap-2">
                 <Button
                   type="button"
-                  size="sm"
                   className={autopilotPrimaryButtonClassName}
                   disabled={voiceBusy}
                   onClick={() => void confirmVoiceDraft()}
@@ -1265,9 +1288,7 @@ export function SocialAutopilotScreen() {
               <Button
                 type="button"
                 className={autopilotPrimaryButtonClassName}
-                disabled={
-                  busyId === acting.id || acting.status === "needs_asset"
-                }
+                disabled={acting.status === "needs_asset"}
                 onClick={() => void approve(acting.id, true)}
               >
                 <Check className="size-4" />
@@ -1277,7 +1298,6 @@ export function SocialAutopilotScreen() {
                 type="button"
                 variant="outline"
                 className={autopilotSecondaryButtonClassName}
-                disabled={busyId === acting.id}
                 onClick={() => void approve(acting.id, false)}
               >
                 Planen
@@ -1286,7 +1306,6 @@ export function SocialAutopilotScreen() {
                 type="button"
                 variant="ghost"
                 className={autopilotGhostButtonClassName}
-                disabled={busyId === acting.id}
                 onClick={() => setActionsId(null)}
               >
                 Abbrechen

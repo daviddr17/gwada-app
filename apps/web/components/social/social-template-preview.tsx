@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 import type {
   SocialFeedLayoutId,
   SocialFeedPalette,
@@ -37,7 +37,7 @@ function LogoMark({
   );
 }
 
-export function SocialTemplatePreview({
+export const SocialTemplatePreview = memo(function SocialTemplatePreview({
   feedLayout,
   feedPalette,
   photoLook = "warm",
@@ -268,4 +268,4 @@ export function SocialTemplatePreview({
       </div>
     </div>
   );
-}
+});

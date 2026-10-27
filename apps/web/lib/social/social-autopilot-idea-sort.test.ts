@@ -5,6 +5,7 @@ import {
   availableSocialAutopilotIdeaFilters,
   filterSocialAutopilotIdeas,
   groupSocialAutopilotIdeas,
+  SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS,
 } from "./social-autopilot-idea-sort";
 
 function idea(
@@ -21,7 +22,7 @@ function idea(
   };
 }
 
-test("groupSocialAutopilotIdeas orders Speisekarte → Galerie → KI-Stil", () => {
+test("groupSocialAutopilotIdeas orders Speisekarte → Galerie → KI-Ideen", () => {
   const groups = groupSocialAutopilotIdeas([
     idea({ id: "ai:voice", slotKind: "brand", sourceBucket: "ai" }),
     idea({ id: "menu:1", slotKind: "menu_dish", sourceBucket: "menu" }),
@@ -31,6 +32,7 @@ test("groupSocialAutopilotIdeas orders Speisekarte → Galerie → KI-Stil", () 
     groups.map((g) => g.sourceBucket),
     ["menu", "gallery", "ai"],
   );
+  assert.equal(groups[2]?.label, "KI-Ideen");
 });
 
 test("filterSocialAutopilotIdeas Alle keeps all; Speisekarte filters", () => {
@@ -43,6 +45,7 @@ test("filterSocialAutopilotIdeas Alle keeps all; Speisekarte filters", () => {
     filterSocialAutopilotIdeas(ideas, "menu").map((i) => i.id),
     ["menu:1"],
   );
+  assert.equal(SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS.all, "Alle");
 });
 
 test("availableSocialAutopilotIdeaFilters always includes Alle", () => {

@@ -5,7 +5,7 @@ import type {
 
 /**
  * Filter im Sheet — alles optional:
- * Alle · Speisekarte · Galerie · KI-Stil
+ * Alle · Speisekarte · Galerie · KI-Ideen
  */
 export const SOCIAL_AUTOPILOT_IDEA_FILTERS = [
   "all",
@@ -21,10 +21,10 @@ export const SOCIAL_AUTOPILOT_IDEA_FILTER_LABELS: Record<
   SocialAutopilotIdeaFilter,
   string
 > = {
-  all: "Alle Quellen",
+  all: "Alle",
   menu: "Speisekarte",
   gallery: "Galerie",
-  ai: "KI-Stil",
+  ai: "KI-Ideen",
 };
 
 /** Gruppenreihenfolge im Sheet. */
@@ -37,16 +37,16 @@ export const SOCIAL_AUTOPILOT_IDEA_GROUP_LABELS: Record<
 > = {
   menu: "Speisekarte",
   gallery: "Galerie",
-  ai: "KI-Stil",
+  ai: "KI-Ideen",
 };
 
 export const SOCIAL_AUTOPILOT_IDEA_GROUP_HINTS: Record<
   SocialAutopilotSourceBucket,
   string
 > = {
-  menu: "Optional — Gerichte als Ausgangspunkt",
-  gallery: "Optional — Fotos aus der Galerie",
-  ai: "Optional — Stil-Vorschläge aus Brand Kit / Stimme",
+  menu: "Gerichte",
+  gallery: "Fotos",
+  ai: "Im euren Stil",
 };
 
 export function filterSocialAutopilotIdeas(

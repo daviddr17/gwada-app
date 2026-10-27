@@ -238,7 +238,7 @@ function withBucket(
       ? "Speisekarte"
       : sourceBucket === "gallery"
         ? "Galerie"
-        : "KI-Stil";
+        : "KI-Ideen";
   return { ...idea, sourceBucket, reasonLabel };
 }
 
@@ -379,7 +379,7 @@ export async function listSocialAutopilotIdeas(
         id: socialAutopilotIdeaId("event", ev.id),
         slotKind: "event",
         title: ev.title,
-        reasonLabel: "KI-Stil",
+        reasonLabel: "KI-Ideen",
         reasonDetail: ev.title,
         imageUrl: ev.coverUrl,
         imageLabel: ev.title,
@@ -455,7 +455,7 @@ export async function listSocialAutopilotIdeas(
         id: socialAutopilotIdeaId("holiday", h.date),
         slotKind: "holiday",
         title: h.name,
-        reasonLabel: "KI-Stil",
+        reasonLabel: "KI-Ideen",
         reasonDetail: `${h.name} · ${h.date}`,
         imageUrl: asset.imageUrl,
         imageLabel: asset.imageLabel ?? h.name,
@@ -482,10 +482,8 @@ export async function listSocialAutopilotIdeas(
         slotKind: "brand",
         sourceBucket: "ai",
         title: restaurant.name?.trim() || "Marke",
-        reasonLabel: "KI-Stil",
-        reasonDetail: kit.voiceNotes?.trim()
-          ? "Aus Brand-Stimme"
-          : "Aus Brand Kit",
+        reasonLabel: "KI-Ideen",
+        reasonDetail: "Im euren Stil",
         imageUrl: brandAsset.imageUrl,
         imageLabel: brandAsset.imageLabel ?? "Marke",
         asset: brandAsset,

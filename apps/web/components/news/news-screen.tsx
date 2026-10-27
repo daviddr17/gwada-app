@@ -21,7 +21,10 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
-import { NewsComposeDrawer } from "@/components/news/news-compose-drawer";
+import {
+  NewsComposeDrawer,
+  type NewsComposeMode,
+} from "@/components/news/news-compose-drawer";
 import { NewsDetailDrawer } from "@/components/news/news-detail-drawer";
 import { NewsFeedSkeleton, NewsFeedSyncTrailingSkeleton } from "@/components/news/news-feed-skeleton";
 import { NewsListView, NewsMasonryGrid } from "@/components/news/news-feed-views";
@@ -143,11 +146,23 @@ export function NewsScreen({ active = true }: { active?: boolean }) {
   const coldEmpty = loading && items.length === 0;
   const showFeedSkeleton = useDeferredSkeleton(coldEmpty);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [composeMode, setComposeMode] = useState<NewsComposeMode>("manual");
   const [activeStoryRing, setActiveStoryRing] = useState<UnifiedNewsStoryRing | null>(null);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<UnifiedNewsItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const { connectors, availablePlatforms } = useNewsPlatformConnections(restaurantId);
+
+  useEffect(() => {
+    if (!active || !canManage) return;
+    if (searchParams.get("compose") !== "ki") return;
+    setComposeMode("ki");
+    setComposeOpen(true);
+    patchNewsScreenQueryUrl(pathname, (params) => {
+      params.delete("compose");
+    });
+  }, [active, canManage, searchParams, pathname]);
+
   const loadGeneration = useRef(0);
   const itemsLengthRef = useRef(0);
   itemsLengthRef.current = items.length;
@@ -493,7 +508,10 @@ export function NewsScreen({ active = true }: { active?: boolean }) {
           type="button"
           size="lg"
           className={modulePrimaryAddButtonFullWidthClassName}
-          onClick={() => setComposeOpen(true)}
+          onClick={() => {
+            setComposeMode("manual");
+            setComposeOpen(true);
+          }}
         >
           <Plus className="size-4" />
           Neue News
@@ -567,6 +585,7 @@ export function NewsScreen({ active = true }: { active?: boolean }) {
           restaurantId={restaurantId}
           connectors={connectors}
           onSaved={refreshFeed}
+          initialMode={composeMode}
         />
       ) : null}
 

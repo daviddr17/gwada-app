@@ -4,7 +4,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-/** Ideen-Auswahl ohne LLM und ohne Draft-Insert. */
+/**
+ * Ideen-Katalog fürs Sheet (ohne Draft-Insert).
+ * Optional 1× Ideas-LLM mit Timeout; bei Fehler/ohne Key → Heuristik.
+ */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const restaurantId = url.searchParams.get("restaurantId")?.trim() ?? "";

@@ -167,8 +167,8 @@ export async function insertSocialSuggestionsInDb(
     source: Record<string, unknown>;
     asset: SocialSuggestionAsset;
   }>,
-): Promise<number> {
-  if (rows.length === 0) return 0;
+): Promise<{ count: number; ids: string[] }> {
+  if (rows.length === 0) return { count: 0, ids: [] };
   const payload = rows.map((r) => ({
     restaurant_id: r.restaurantId,
     status: r.status,
@@ -189,9 +189,12 @@ export async function insertSocialSuggestionsInDb(
 
   if (error) {
     console.warn("[gwada] insertSocialSuggestionsInDb", error.message);
-    return 0;
+    return { count: 0, ids: [] };
   }
-  return data?.length ?? 0;
+  const ids = (data ?? [])
+    .map((row) => (typeof row.id === "string" ? row.id : ""))
+    .filter(Boolean);
+  return { count: ids.length, ids };
 }
 
 /**

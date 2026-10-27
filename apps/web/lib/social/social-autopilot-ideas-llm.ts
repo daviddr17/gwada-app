@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import type { AssistantLlmRuntime } from "@/lib/assistant/assistant-llm-source";
 import {
   clipAutopilotText,
+  SOCIAL_AUTOPILOT_IDEAS_LLM_TIMEOUT_MS,
   SOCIAL_AUTOPILOT_IDEAS_MAX_COMPLETION_TOKENS,
   SOCIAL_AUTOPILOT_IDEAS_MAX_PROMPT_CHARS,
 } from "@/lib/social/social-autopilot-bounds";
@@ -136,6 +137,8 @@ export async function pitchAutopilotIdeasWithLlm(params: {
   const client = new OpenAI({
     apiKey: params.llm.apiKey,
     ...(params.llm.baseURL ? { baseURL: params.llm.baseURL } : {}),
+    timeout: SOCIAL_AUTOPILOT_IDEAS_LLM_TIMEOUT_MS,
+    maxRetries: 0,
   });
 
   try {

@@ -218,6 +218,17 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
                 <NewsPlatformIcon platform={item.platform} className="size-3" />
                 {NEWS_PLATFORM_LABELS[item.platform]}
               </Badge>
+              {item.status === "draft" ? (
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                >
+                  Entwurf
+                </Badge>
+              ) : null}
+              {item.status === "scheduled" ? (
+                <Badge variant="outline">Geplant</Badge>
+              ) : null}
               {item.isPinned ? <FeedPinnedBadge /> : null}
               {item.insights ? <NewsInsightsBadges insights={item.insights} /> : null}
             </div>
@@ -413,6 +424,17 @@ const NewsCard = memo(function NewsCard({
               <NewsPlatformIcon platform={item.platform} className="size-3" />
               {NEWS_PLATFORM_LABELS[item.platform]}
             </Badge>
+            {item.status === "draft" ? (
+              <Badge
+                variant="outline"
+                className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+              >
+                Entwurf
+              </Badge>
+            ) : null}
+            {item.status === "scheduled" ? (
+              <Badge variant="outline">Geplant</Badge>
+            ) : null}
             {item.isPinned ? <FeedPinnedBadge /> : null}
             {item.insights ? <NewsInsightsBadges insights={item.insights} /> : null}
           </div>

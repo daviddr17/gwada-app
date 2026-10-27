@@ -74,6 +74,79 @@ export async function publishNewsStories(
   }
 }
 
+/**
+ * Nur Speichern als Entwurf — keine Kanal-Veröffentlichung.
+ * Zielplattformen werden als pending-Zeilen vorgemerkt.
+ */
+export async function createNewsDraftPost(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    postId?: string;
+    title: string | null;
+    body: string;
+    media: NewsMediaRow[];
+    platforms: NewsPlatform[];
+  },
+): Promise<
+  | { ok: true; postId: string }
+  | { ok: false; error: string }
+> {
+  const mediaJson = params.media.map((m) => ({
+    id: m.id,
+    kind: m.kind,
+    storagePath: m.storagePath,
+    mimeType: m.mimeType,
+    sortOrder: m.sortOrder,
+    ...(m.width != null ? { width: m.width } : {}),
+    ...(m.height != null ? { height: m.height } : {}),
+  }));
+
+  const insertRow: Record<string, unknown> = {
+    restaurant_id: params.restaurantId,
+    title: params.title,
+    body: params.body,
+    media: mediaJson,
+    status: "draft",
+    scheduled_at: null,
+    story_platforms: [],
+    created_by: params.userId,
+    updated_by: params.userId,
+  };
+  if (params.postId) insertRow.id = params.postId;
+
+  const { data: post, error: postError } = await sb
+    .from("gwada_news_posts")
+    .insert(insertRow)
+    .select("id")
+    .single();
+
+  if (postError || !post) {
+    return { ok: false, error: postError?.message ?? "post_create_failed" };
+  }
+
+  const postId = post.id as string;
+  const publishPlatforms = params.platforms.length
+    ? params.platforms
+    : (["gwada"] as NewsPlatform[]);
+
+  for (const platform of publishPlatforms) {
+    await sb.from("gwada_news_publications").upsert(
+      {
+        post_id: postId,
+        restaurant_id: params.restaurantId,
+        platform,
+        status: "pending",
+        scheduled_at: null,
+      },
+      { onConflict: "post_id,platform" },
+    );
+  }
+
+  return { ok: true, postId };
+}
+
 export async function createAndPublishNewsPost(
   sb: SupabaseClient,
   params: {

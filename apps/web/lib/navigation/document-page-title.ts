@@ -26,7 +26,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/reviews/settings": "Einstellungen",
   "/dashboard/news": "News",
   "/dashboard/news/overview": "Übersicht",
-  "/dashboard/news/autopilot": "Autopilot",
+  "/dashboard/news/autopilot": "Autopilot-Einstellungen",
   "/dashboard/news/statistics": "Statistiken",
   "/dashboard/news/embed": "Einbinden",
   "/dashboard/news/settings": "Einstellungen",

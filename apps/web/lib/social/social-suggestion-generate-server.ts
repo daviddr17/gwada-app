@@ -91,6 +91,10 @@ function formatEventWhen(iso: string): string {
 
 export type SocialSuggestionGenerateResult = {
   created: number;
+  /** IDs der neuen Suggestions — für Materialisierung als News-Entwürfe. */
+  suggestionIds?: string[];
+  /** Wie viele News-Entwürfe angelegt wurden (wenn asNewsDrafts). */
+  newsDraftsCreated?: number;
   pending: number;
   tasksCreated: boolean;
   skippedReason?: string;
@@ -289,6 +293,12 @@ export async function generateSocialSuggestionsForRestaurant(
     tone?: SocialTone;
     platforms?: string[];
     mediaFormat?: SocialMediaFormatId;
+    /**
+     * Nach Generate sofort als News-Entwürfe materialisieren
+     * (erscheinen in der News-Liste mit Status Entwurf).
+     */
+    asNewsDrafts?: boolean;
+    userId?: string | null;
   },
 ): Promise<SocialSuggestionGenerateResult> {
   const caps = {
@@ -580,10 +590,25 @@ export async function generateSocialSuggestionsForRestaurant(
     drafts[i]!.source = applied.sources[i] ?? drafts[i]!.source;
   }
 
-  const created = await insertSocialSuggestionsInDb(sb, drafts);
+  const inserted = await insertSocialSuggestionsInDb(sb, drafts);
+  let newsDraftsCreated = 0;
+  if (opts?.asNewsDrafts && inserted.ids.length > 0) {
+    const { materializeSocialSuggestionsAsNewsDrafts } = await import(
+      "@/lib/social/social-suggestion-actions-server"
+    );
+    const mat = await materializeSocialSuggestionsAsNewsDrafts({
+      sb,
+      restaurantId,
+      suggestionIds: inserted.ids,
+      userId: opts.userId ?? null,
+    });
+    newsDraftsCreated = mat.created;
+  }
   return {
-    created,
-    pending: existing.length + created,
+    created: inserted.count,
+    suggestionIds: inserted.ids,
+    newsDraftsCreated,
+    pending: existing.length + inserted.count,
     tasksCreated: ideasResult.tasksCreated,
     aiConfigured,
     aiProvider,

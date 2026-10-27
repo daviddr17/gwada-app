@@ -4,7 +4,10 @@ import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import { isNewsPlatform } from "@/lib/constants/news-platforms";
-import { createAndPublishNewsPost } from "@/lib/news/news-publish-server";
+import {
+  createAndPublishNewsPost,
+  createNewsDraftPost,
+} from "@/lib/news/news-publish-server";
 import type { NewsMediaRow } from "@/lib/news/news-media";
 import { processDueScheduledNewsPosts } from "@/lib/news/news-scheduled-publish-cron";
 import { resolveSocialSuggestionImageUrl } from "@/lib/social/social-asset-resolve-server";
@@ -510,4 +513,107 @@ export async function processDueApprovedSocialSuggestions(
   }
 
   return { due, published, failed, newsScheduled };
+}
+
+/**
+ * KI-Suggestions → News-Entwürfe in der normalen News-Liste.
+ * Rendert Template-Bild wenn möglich; sonst Asset-Pfad / text-only.
+ */
+export async function materializeSocialSuggestionsAsNewsDrafts(params: {
+  sb: SupabaseClient;
+  restaurantId: string;
+  suggestionIds: string[];
+  userId?: string | null;
+}): Promise<{ created: number; failed: number }> {
+  let created = 0;
+  let failed = 0;
+  const kit = await fetchSocialBrandKitFromDb(params.sb, params.restaurantId);
+
+  for (const suggestionId of params.suggestionIds) {
+    const suggestion = await fetchSocialSuggestionFromDb(
+      params.sb,
+      params.restaurantId,
+      suggestionId,
+    );
+    if (!suggestion) {
+      failed += 1;
+      continue;
+    }
+    if (suggestion.status !== "pending" && suggestion.status !== "needs_asset") {
+      continue;
+    }
+
+    const preferred = platformsFromSuggestion(
+      suggestion.platforms,
+      kit.publishPlatforms,
+    );
+    const platforms = await resolveConnectedPublishPlatforms(
+      params.restaurantId,
+      preferred,
+    );
+    const mediaResult = await renderPublishMedia({
+      sb: params.sb,
+      restaurantId: params.restaurantId,
+      suggestionId,
+      templateId: suggestion.templateId,
+      title: suggestion.title,
+      caption: suggestion.caption,
+      asset: suggestion.asset,
+    });
+
+    let media: NewsMediaRow[] = [];
+    if (mediaResult.ok) {
+      media = mediaResult.media;
+    } else if (suggestion.asset.storagePath && suggestion.asset.storageBucket) {
+      // Fallback: Rohbild aus Asset (ohne Template-Chrome)
+      media = [
+        {
+          id: randomUUID(),
+          kind: "image",
+          storagePath: suggestion.asset.storagePath,
+          mimeType: "image/jpeg",
+          sortOrder: 0,
+        },
+      ];
+    }
+
+    const body = captionForMultiPlatformPublish(suggestion.caption);
+    const userId = await resolvePublishUserId(
+      params.sb,
+      params.restaurantId,
+      params.userId,
+    );
+    const draft = await createNewsDraftPost(params.sb, {
+      restaurantId: params.restaurantId,
+      userId,
+      title: suggestion.title,
+      body,
+      media,
+      platforms: platforms.length ? platforms : ["gwada"],
+    });
+    if (!draft.ok) {
+      failed += 1;
+      continue;
+    }
+
+    const marked = await markSuggestionPublished(
+      params.sb,
+      params.restaurantId,
+      suggestionId,
+      {
+        ...suggestion.source,
+        asNewsDraft: true,
+        newsPostId: draft.postId,
+      },
+      suggestion.caption,
+      draft.postId,
+    );
+    if (!marked.ok) {
+      failed += 1;
+      continue;
+    }
+    created += 1;
+  }
+
+  return { created, failed };
 }

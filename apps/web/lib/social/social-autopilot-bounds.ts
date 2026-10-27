@@ -19,6 +19,13 @@ export const SOCIAL_AUTOPILOT_IDEAS_MAX_COMPLETION_TOKENS = 900;
 export const SOCIAL_AUTOPILOT_IDEAS_MAX_PROMPT_CHARS = 4500;
 export const SOCIAL_AUTOPILOT_IDEA_THEME_CHARS = 72;
 export const SOCIAL_AUTOPILOT_IDEA_DIRECTION_CHARS = 160;
+/**
+ * Hard ceiling for Ideas-LLM — without this the OpenAI/Grok client can hang
+ * indefinitely and the „Neue Posts“ sheet stays on infinite skeleton.
+ */
+export const SOCIAL_AUTOPILOT_IDEAS_LLM_TIMEOUT_MS = 12_000;
+/** Browser Abort for `/api/social/suggestions/ideas` (server + network slack). */
+export const SOCIAL_AUTOPILOT_IDEAS_FETCH_TIMEOUT_MS = 20_000;
 
 export type SocialAutopilotCaptionResult = {
   index: number;

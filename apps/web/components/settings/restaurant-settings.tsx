@@ -33,7 +33,6 @@ import {
 } from "@/i18n/config";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { SettingsBrandingCard } from "@/components/settings/settings-branding-panel";
-import { SocialBrandKitCard } from "@/components/social/social-brand-kit-card";
 import { RestaurantProfileHeader } from "@/components/settings/restaurant-profile-header";
 import { RestaurantBusinessCardDrawer } from "@/components/settings/restaurant-business-card-drawer";
 import { RestaurantSettingsSkeleton } from "@/components/settings/restaurant-settings-skeleton";
@@ -963,7 +962,6 @@ export function RestaurantSettingsPanel({
           savedHex={accentHex}
           error={accentError}
         />
-        <SocialBrandKitCard restaurantId={draft.id} />
         </div>
         <SettingsStickySaveBar show={overviewDirty}>
             <Button

@@ -246,7 +246,7 @@ export function SocialBrandKitCard({
       setKit(next);
       setSaved(next);
       toast.success(
-        "Social-Marke gespeichert — „Neu vorschlagen“ im Autopilot übernimmt sie",
+        "Social-Marke gespeichert — nächster KI-Post in Neue News nutzt sie",
       );
     } finally {
       setSaving(false);
@@ -271,8 +271,8 @@ export function SocialBrandKitCard({
       <CardHeader className="gap-2">
         <CardTitle className="text-xl">Social-Marke</CardTitle>
         <CardDescription>
-          Palette, Foto-Look und Layouts für den Autopilot. Nach dem Speichern
-          „Neu vorschlagen“ tippen — Freigabe bleibt bei euch.
+          Palette, Foto-Look und Layouts für KI-Posts. Neue Beiträge: News →
+          Neue News → KI-Post. Freigabe bleibt bei euch.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

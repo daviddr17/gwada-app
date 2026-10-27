@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
@@ -19,16 +19,26 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NewsPlatformChip } from "@/components/news/news-platform-filter-chips";
+import { SocialAutopilotGenerateDrawer } from "@/components/social/social-autopilot-generate-drawer";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import type { NewsStoriesPlatform } from "@/lib/news/news-stories-cache-constants";
 import type { NewsMediaRow } from "@/lib/news/news-media";
 import { uploadNewsMedia } from "@/lib/news/news-media-api";
 import { validateNewsMediaFile } from "@/lib/news/validate-news-media-file";
 import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
+import {
+  defaultSocialBrandKit,
+  type SocialBrandKit,
+  type SocialTone,
+} from "@/lib/social/social-brand-kit";
+import type { SocialMediaFormatId } from "@/lib/social/social-media-formats";
 import { cn } from "@/lib/utils";
 
 type PendingMedia = NewsMediaRow & { previewUrl: string };
+
+export type NewsComposeMode = "manual" | "ki";
 
 export function NewsComposeDrawer({
   open,
@@ -36,17 +46,20 @@ export function NewsComposeDrawer({
   restaurantId,
   connectors,
   onSaved,
+  initialMode = "manual",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantId: string;
   connectors: NewsConnectorPublicInfo[];
   onSaved: () => void;
+  initialMode?: NewsComposeMode;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
   const postIdRef = useRef<string>("");
 
+  const [mode, setMode] = useState<NewsComposeMode>(initialMode);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
@@ -58,8 +71,19 @@ export function NewsComposeDrawer({
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
+  const [aiLabel, setAiLabel] = useState("Restaurant-KI");
+  const [sessionTone, setSessionTone] = useState<SocialTone>("warm");
+  const [sessionPlatforms, setSessionPlatforms] = useState<NewsPlatform[]>([
+    "instagram",
+    "facebook",
+  ]);
+  const [sessionFormat, setSessionFormat] =
+    useState<SocialMediaFormatId>("square_1x1");
+
   useEffect(() => {
     if (!open) return;
+    setMode(initialMode);
     setTitle("");
     setBody("");
     setScheduleEnabled(false);
@@ -73,7 +97,57 @@ export function NewsComposeDrawer({
     postIdRef.current = crypto.randomUUID();
     dragDepthRef.current = 0;
     setIsDragOver(false);
-  }, [open]);
+  }, [open, initialMode]);
+
+  useEffect(() => {
+    if (!open || mode !== "ki") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [sugRes, kitRes] = await Promise.all([
+          fetch(
+            `/api/social/suggestions?restaurantId=${encodeURIComponent(restaurantId)}`,
+          ),
+          fetch(
+            `/api/social/brand-kit?restaurantId=${encodeURIComponent(restaurantId)}`,
+          ),
+        ]);
+        const sugData = (await sugRes.json().catch(() => ({}))) as {
+          generation?: {
+            aiConfigured?: boolean;
+            aiProvider?: "openai" | "grok";
+          };
+        };
+        const kitData = (await kitRes.json().catch(() => ({}))) as {
+          kit?: SocialBrandKit;
+        };
+        if (cancelled) return;
+        const gen = sugData.generation;
+        setAiConfigured(
+          typeof gen?.aiConfigured === "boolean" ? gen.aiConfigured : null,
+        );
+        setAiLabel(
+          gen?.aiProvider === "grok"
+            ? "Grok"
+            : gen?.aiProvider === "openai"
+              ? "OpenAI"
+              : "Restaurant-KI",
+        );
+        const kit = kitData.kit ?? defaultSocialBrandKit(restaurantId);
+        setSessionTone(kit.tone);
+        setSessionPlatforms(
+          kit.publishPlatforms.length > 0
+            ? [...kit.publishPlatforms]
+            : ["instagram", "facebook"],
+        );
+      } catch {
+        if (!cancelled) setAiConfigured(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, mode, restaurantId]);
 
   const toggleStoryPlatform = (key: NewsStoriesPlatform) => {
     setStoryPlatforms((prev) =>
@@ -228,187 +302,231 @@ export function NewsComposeDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className={drawerContentClassName("form")}>
-        <DrawerHeader>
+      <DrawerContent
+        className={drawerContentClassName(mode === "ki" ? "mediaTall" : "form")}
+      >
+        <DrawerHeader className="space-y-3 text-left">
           <DrawerTitle>Neue News</DrawerTitle>
-        </DrawerHeader>
-        <div className="flex min-h-0 flex-1 flex-col">
-        <div className={drawerScrollAreaClassName(4)}>
-          <DrawerFormSection contentPadding={4} title="Inhalt">
-          <Input
-            placeholder="Titel (optional)"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <Textarea
-            placeholder="Text"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={5}
-          />
-          </DrawerFormSection>
-
-          <DrawerFormSection contentPadding={4} title="Medien">
-          <div className="space-y-2">
-            <Label id="news-media-label">Bild oder Video</Label>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void uploadFile(file);
-                e.target.value = "";
-              }}
-            />
-            <button
-              type="button"
-              aria-labelledby="news-media-label"
-              data-vaul-no-drag
-              onClick={() => fileRef.current?.click()}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              className={cn(
-                "flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors",
-                isDragOver
-                  ? "border-accent bg-accent/10"
-                  : "border-border/60 bg-muted/20 hover:border-border",
-              )}
-            >
-              <Upload className="size-8 text-muted-foreground" />
-              <span className="text-sm font-medium">
-                Datei wählen oder hierher ziehen
-              </span>
-              <span className="text-xs text-muted-foreground">
-                Bild oder Video, max. 100 MB
-              </span>
-            </button>
-            {uploading ? (
-              <p className="text-xs text-muted-foreground">Wird hochgeladen …</p>
-            ) : null}
-            {media.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
-                {media.map((item) => (
-                  <div
-                    key={item.id}
-                    className="relative overflow-hidden rounded-lg border border-border/50 bg-muted/20"
-                  >
-                    {item.kind === "video" ? (
-                      <video
-                        src={item.previewUrl}
-                        className="aspect-video w-full object-cover"
-                        muted
-                        playsInline
-                      />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={item.previewUrl}
-                        alt=""
-                        className="aspect-video w-full object-cover"
-                      />
-                    )}
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="secondary"
-                      className="absolute top-1 right-1 rounded-full"
-                      onClick={() => removeMedia(item.id)}
-                      aria-label="Entfernen"
-                    >
-                      <X className="size-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          </DrawerFormSection>
-
-          <DrawerFormSection contentPadding={4} title="Planen">
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="news-compose-schedule" className="text-sm font-normal">
-                Später veröffentlichen
-              </Label>
-              <Switch
-                id="news-compose-schedule"
-                size="sm"
-                checked={scheduleEnabled}
-                onCheckedChange={(checked) => {
-                  const enabled = checked === true;
-                  setScheduleEnabled(enabled);
-                  if (!enabled) setScheduledAt("");
-                }}
-              />
-            </div>
-            {scheduleEnabled ? (
-              <Input
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-                aria-label="Veröffentlichungszeitpunkt"
-              />
-            ) : null}
-          </DrawerFormSection>
-
-          <DrawerFormSection contentPadding={4} title="Plattformen">
-          <div className="flex flex-wrap gap-2">
-              {connectors.map((c) => {
-                const disabled = c.key !== "gwada" && !c.connected;
-                const selected = platforms.includes(c.key);
-                return (
-                  <NewsPlatformChip
-                    key={c.key}
-                    platform={c.key}
-                    selected={selected}
-                    disabled={disabled || !c.capabilities.canCreatePost}
-                    onSelect={() => togglePlatform(c.key)}
-                  />
-                );
-              })}
-            </div>
-          </DrawerFormSection>
-          {storyEligibleConnectors.length > 0 ? (
-            <DrawerFormSection contentPadding={4} title="Zusätzlich als Story">
-              <div className="flex flex-wrap gap-2">
-                {storyEligibleConnectors.map((c) => {
-                  const selected = storyPlatforms.includes(c.key as NewsStoriesPlatform);
-                  return (
-                    <NewsPlatformChip
-                      key={`story-${c.key}`}
-                      platform={c.key}
-                      selected={selected}
-                      disabled={!canPublishStories}
-                      onSelect={() =>
-                        toggleStoryPlatform(c.key as NewsStoriesPlatform)
-                      }
-                    />
-                  );
-                })}
-              </div>
-              {!canPublishStories ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Story erfordert Medien und ist nicht mit Planung kombinierbar.
-                </p>
-              ) : null}
-            </DrawerFormSection>
+          <Tabs
+            value={mode}
+            onValueChange={(v) => {
+              if (v === "manual" || v === "ki") setMode(v);
+            }}
+          >
+            <TabsList className="grid h-10 w-full grid-cols-2 rounded-xl p-1">
+              <TabsTrigger value="manual" className="rounded-lg">
+                Eigener Post
+              </TabsTrigger>
+              <TabsTrigger value="ki" className="rounded-lg">
+                KI-Post
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {mode === "ki" ? (
+            <p className="text-sm text-muted-foreground">
+              Speisekarte, Galerie oder KI-Ideen wählen — fertige Entwürfe
+              landen in der News-Liste.
+            </p>
           ) : null}
-        </div>
-        <DrawerFooter className="border-t border-border/50 pt-2 shrink-0">
-          <DrawerFormFooter
-            onCancel={() => onOpenChange(false)}
-            cancelDisabled={saving || uploading}
-            submitLabel={effectiveScheduledAt ? "Planen" : "Veröffentlichen"}
-            submitPending={saving}
-            submitDisabled={uploading}
-            submitType="button"
-            onSubmit={() => void save()}
-          />
-        </DrawerFooter>
-        </div>
+        </DrawerHeader>
+
+        {mode === "ki" ? (
+          <div className="flex min-h-0 flex-1 flex-col px-6 pb-2">
+            <SocialAutopilotGenerateDrawer
+              embedded
+              asNewsDrafts
+              open={open && mode === "ki"}
+              onOpenChange={onOpenChange}
+              restaurantId={restaurantId}
+              aiConfigured={aiConfigured}
+              aiLabel={aiLabel}
+              initialTone={sessionTone}
+              initialPlatforms={sessionPlatforms}
+              initialFormat={sessionFormat}
+              onCreated={onSaved}
+            />
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className={drawerScrollAreaClassName(4)}>
+              <DrawerFormSection contentPadding={4} title="Inhalt">
+                <Input
+                  placeholder="Titel (optional)"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+                <Textarea
+                  placeholder="Text"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={5}
+                />
+              </DrawerFormSection>
+
+              <DrawerFormSection contentPadding={4} title="Medien">
+                <div className="space-y-2">
+                  <Label id="news-media-label">Bild oder Video</Label>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void uploadFile(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-labelledby="news-media-label"
+                    data-vaul-no-drag
+                    onClick={() => fileRef.current?.click()}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                    className={cn(
+                      "flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors",
+                      isDragOver
+                        ? "border-accent bg-accent/10"
+                        : "border-border/60 bg-muted/20 hover:border-border",
+                    )}
+                  >
+                    <Upload className="size-8 text-muted-foreground" />
+                    <span className="text-sm font-medium">
+                      Datei wählen oder hierher ziehen
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Bild oder Video, max. 100 MB
+                    </span>
+                  </button>
+                  {uploading ? (
+                    <p className="text-xs text-muted-foreground">Wird hochgeladen …</p>
+                  ) : null}
+                  {media.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {media.map((item) => (
+                        <div
+                          key={item.id}
+                          className="relative overflow-hidden rounded-lg border border-border/50 bg-muted/20"
+                        >
+                          {item.kind === "video" ? (
+                            <video
+                              src={item.previewUrl}
+                              className="aspect-video w-full object-cover"
+                              muted
+                              playsInline
+                            />
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.previewUrl}
+                              alt=""
+                              className="aspect-video w-full object-cover"
+                            />
+                          )}
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="secondary"
+                            className="absolute top-1 right-1 rounded-full"
+                            onClick={() => removeMedia(item.id)}
+                            aria-label="Entfernen"
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </DrawerFormSection>
+
+              <DrawerFormSection contentPadding={4} title="Planen">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="news-compose-schedule" className="text-sm font-normal">
+                    Später veröffentlichen
+                  </Label>
+                  <Switch
+                    id="news-compose-schedule"
+                    size="sm"
+                    checked={scheduleEnabled}
+                    onCheckedChange={(checked) => {
+                      const enabled = checked === true;
+                      setScheduleEnabled(enabled);
+                      if (!enabled) setScheduledAt("");
+                    }}
+                  />
+                </div>
+                {scheduleEnabled ? (
+                  <Input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    aria-label="Veröffentlichungszeitpunkt"
+                  />
+                ) : null}
+              </DrawerFormSection>
+
+              <DrawerFormSection contentPadding={4} title="Plattformen">
+                <div className="flex flex-wrap gap-2">
+                  {connectors.map((c) => {
+                    const disabled = c.key !== "gwada" && !c.connected;
+                    const selected = platforms.includes(c.key);
+                    return (
+                      <NewsPlatformChip
+                        key={c.key}
+                        platform={c.key}
+                        selected={selected}
+                        disabled={disabled || !c.capabilities.canCreatePost}
+                        onSelect={() => togglePlatform(c.key)}
+                      />
+                    );
+                  })}
+                </div>
+              </DrawerFormSection>
+              {storyEligibleConnectors.length > 0 ? (
+                <DrawerFormSection contentPadding={4} title="Zusätzlich als Story">
+                  <div className="flex flex-wrap gap-2">
+                    {storyEligibleConnectors.map((c) => {
+                      const selected = storyPlatforms.includes(
+                        c.key as NewsStoriesPlatform,
+                      );
+                      return (
+                        <NewsPlatformChip
+                          key={`story-${c.key}`}
+                          platform={c.key}
+                          selected={selected}
+                          disabled={!canPublishStories}
+                          onSelect={() =>
+                            toggleStoryPlatform(c.key as NewsStoriesPlatform)
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                  {!canPublishStories ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Story erfordert Medien und ist nicht mit Planung kombinierbar.
+                    </p>
+                  ) : null}
+                </DrawerFormSection>
+              ) : null}
+            </div>
+            <DrawerFooter className="border-t border-border/50 pt-2 shrink-0">
+              <DrawerFormFooter
+                onCancel={() => onOpenChange(false)}
+                cancelDisabled={saving || uploading}
+                submitLabel={effectiveScheduledAt ? "Planen" : "Veröffentlichen"}
+                submitPending={saving}
+                submitDisabled={uploading}
+                submitType="button"
+                onSubmit={() => void save()}
+              />
+            </DrawerFooter>
+          </div>
+        )}
       </DrawerContent>
     </Drawer>
   );

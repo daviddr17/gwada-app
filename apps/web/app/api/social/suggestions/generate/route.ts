@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     tone?: unknown;
     platforms?: unknown;
     mediaFormat?: unknown;
+    asNewsDrafts?: unknown;
   };
   const restaurantId = body.restaurantId?.trim() ?? "";
   const ideaIds = Array.isArray(body.ideaIds)
@@ -51,10 +52,19 @@ export async function POST(req: Request) {
     );
   }
 
+  const asNewsDrafts = body.asNewsDrafts === true;
   const generation = await generateSocialSuggestionsForRestaurant(
     admin,
     restaurantId,
-    { ideaIds, ideaHints, tone, platforms, mediaFormat },
+    {
+      ideaIds,
+      ideaHints,
+      tone,
+      platforms,
+      mediaFormat,
+      asNewsDrafts,
+      userId: auth.userId,
+    },
   );
 
   return Response.json({ ok: true, generation });

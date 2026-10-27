@@ -127,27 +127,25 @@ async function loadGalleryAssets(sb: SupabaseClient, restaurantId: string) {
     .order("created_at", { ascending: false })
     .limit(40);
   if (error || !data) return [];
-  const out: Array<{
-    id: string;
-    storagePath: string;
-    label: string;
-    imageUrl: string;
-  }> = [];
-  for (const row of data) {
-    const storagePath = String(
-      row.thumb_storage_path || row.storage_path || "",
-    ).trim();
-    if (!storagePath) continue;
-    const imageUrl = await resolveGalleryMediaSignedUrl(storagePath, 7200);
-    if (!imageUrl) continue;
-    out.push({
-      id: String(row.id),
-      storagePath: String(row.storage_path || storagePath),
-      label: String(row.caption ?? "").trim() || "Galerie",
-      imageUrl,
-    });
-  }
-  return out;
+  const resolved = await Promise.all(
+    data.map(async (row) => {
+      const storagePath = String(
+        row.thumb_storage_path || row.storage_path || "",
+      ).trim();
+      if (!storagePath) return null;
+      const imageUrl = await resolveGalleryMediaSignedUrl(storagePath, 7200);
+      if (!imageUrl) return null;
+      return {
+        id: String(row.id),
+        storagePath: String(row.storage_path || storagePath),
+        label: String(row.caption ?? "").trim() || "Galerie",
+        imageUrl,
+      };
+    }),
+  );
+  return resolved.filter(
+    (row): row is NonNullable<(typeof resolved)[number]> => row != null,
+  );
 }
 
 async function loadUpcomingEvents(sb: SupabaseClient, restaurantId: string) {
@@ -272,14 +270,13 @@ export async function listSocialAutopilotIdeas(
     ...extra,
   });
 
-  if (!aiConfigured) {
-    return empty({ skippedReason: "ai_not_configured" });
-  }
-
   const kit = await fetchSocialBrandKitFromDb(sb, restaurantId);
   if (!kit.enabled) {
     return empty({ skippedReason: "disabled" });
   }
+
+  // Speisekarte/Galerie brauchen keine KI — Katalog trotzdem bauen.
+  // KI-Pitches nur wenn Key da; sonst Heuristik. Client zeigt Hinweis.
 
   let forceSkipped = 0;
   if (opts?.forceSkipOpen) {
@@ -521,7 +518,7 @@ export async function listSocialAutopilotIdeas(
   });
 
   const restaurantName = restaurant.name?.trim() || "Unser Restaurant";
-  const enrichWithAi = opts?.enrichWithAi !== false;
+  const enrichWithAi = opts?.enrichWithAi !== false && Boolean(llmRuntime?.apiKey);
   let pitched = ordered;
   let ideasAiEnriched = false;
   let ideasLlmCalls = 0;
@@ -548,9 +545,11 @@ export async function listSocialAutopilotIdeas(
           inputs: ordered.length,
           pitched: llmOutcome.pitches.length,
           ok: llmOutcome.ok,
+          error: llmOutcome.error ?? null,
         },
       });
     }
+    // Timeout/Fehler → Heuristik, nie leere Liste wegen LLM.
     pitched = applyIdeaPitchesToCatalog({
       catalog: ordered,
       pitches: llmOutcome.pitches,
@@ -577,6 +576,11 @@ export async function listSocialAutopilotIdeas(
     catalog: pitched,
     aiConfigured,
     aiProvider,
+    // Hinweis nur wenn gar nichts wählbar und KI fehlt — sonst Katalog liefern.
+    skippedReason:
+      pitched.length === 0 && !aiConfigured
+        ? "ai_not_configured"
+        : undefined,
     tasksCreated,
     maxSelect,
     pendingOpen,

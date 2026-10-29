@@ -10,6 +10,11 @@ import {
   type SocialPhotoLook,
 } from "@/lib/social/social-feed-brand-system";
 import {
+  defaultDisplayFontForStyle,
+  parseSocialDisplayFont,
+  type SocialDisplayFontId,
+} from "@/lib/social/social-brand-visual-system";
+import {
   parseSocialPublishPlatforms,
   SOCIAL_DEFAULT_PUBLISH_PLATFORMS,
 } from "@/lib/social/social-publish-platforms";
@@ -19,6 +24,7 @@ export type {
   SocialFeedPalette,
   SocialPhotoLook,
 } from "@/lib/social/social-feed-brand-system";
+export type { SocialDisplayFontId } from "@/lib/social/social-brand-visual-system";
 export {
   DEFAULT_SOCIAL_FEED_PALETTE,
   DEFAULT_SOCIAL_PREFERRED_LAYOUTS,
@@ -30,6 +36,18 @@ export {
   SOCIAL_PHOTO_LOOKS,
   togglePreferredFeedLayout,
 } from "@/lib/social/social-feed-brand-system";
+export {
+  SOCIAL_DISPLAY_FONTS,
+  SOCIAL_DISPLAY_FONT_CSS,
+  SOCIAL_DISPLAY_FONT_HINTS,
+  SOCIAL_DISPLAY_FONT_LABELS,
+  SOCIAL_STYLE_PRESET_HINTS,
+  SOCIAL_STYLE_PRESET_LABELS,
+  brandMotifPreviewSvg,
+  defaultDisplayFontForStyle,
+  isSocialDisplayFontSerif,
+  parseSocialDisplayFont,
+} from "@/lib/social/social-brand-visual-system";
 
 export const SOCIAL_IMAGE_STRATEGIES = [
   "own_first",
@@ -79,8 +97,10 @@ export type SocialBrandKit = {
   imageStrategy: SocialImageStrategy;
   neverAiFood: boolean;
   tone: SocialTone;
-  /** Legacy Template-Chrome — bleibt für bestehenden Render-Pfad. */
+  /** Visueller Stil → Linien/Formen/Pinsel im Creative. */
   stylePreset: SocialStylePreset;
+  /** Display-Schrift für Headlines / Markenname im Creative. */
+  displayFont: SocialDisplayFontId;
   /** Individuelles Feed Brand System (Palette + Foto-Look + Layouts). */
   feedPalette: SocialFeedPalette;
   photoLook: SocialPhotoLook;
@@ -136,6 +156,7 @@ export function defaultSocialBrandKit(restaurantId: string): SocialBrandKit {
     neverAiFood: true,
     tone: "warm",
     stylePreset: "schlicht",
+    displayFont: defaultDisplayFontForStyle("schlicht"),
     feedPalette: { ...DEFAULT_SOCIAL_FEED_PALETTE },
     photoLook: "warm",
     preferredLayouts: [...DEFAULT_SOCIAL_PREFERRED_LAYOUTS],
@@ -200,7 +221,11 @@ export function parseSocialBrandKit(
   const tone = SOCIAL_TONES.includes(r.tone as SocialTone)
     ? (r.tone as SocialTone)
     : base.tone;
-  const stylePreset = parseStylePreset(r.style_preset);
+  const stylePreset = parseStylePreset(r.style_preset ?? r.stylePreset);
+  const displayFont = parseSocialDisplayFont(
+    r.display_font ?? r.displayFont,
+    stylePreset,
+  );
   const weekly =
     typeof r.weekly_post_target === "number" &&
     Number.isFinite(r.weekly_post_target)
@@ -234,6 +259,7 @@ export function parseSocialBrandKit(
     neverAiFood: r.never_ai_food !== false,
     tone,
     stylePreset,
+    displayFont,
     feedPalette,
     photoLook: parseSocialPhotoLook(r.photo_look ?? r.photoLook),
     preferredLayouts: parsePreferredFeedLayouts(
@@ -267,6 +293,7 @@ export function socialBrandKitForPersistence(kit: SocialBrandKit) {
     never_ai_food: kit.neverAiFood,
     tone: kit.tone,
     style_preset: kit.stylePreset,
+    display_font: kit.displayFont,
     palette_accent: kit.feedPalette.accent,
     palette_surface_dark: kit.feedPalette.surfaceDark,
     palette_surface_light: kit.feedPalette.surfaceLight,
@@ -301,6 +328,7 @@ export function parseSocialBrandKitFromClientBody(
     never_ai_food: r.neverAiFood ?? r.never_ai_food,
     tone: r.tone,
     style_preset: r.stylePreset ?? r.style_preset,
+    display_font: r.displayFont ?? r.display_font,
     palette_accent: feedPalette?.accent ?? r.paletteAccent ?? r.palette_accent,
     palette_surface_dark:
       feedPalette?.surfaceDark ??

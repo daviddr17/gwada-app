@@ -14,17 +14,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MENU_TAXONOMY_COLOR_INPUT_CLASSNAME } from "@/lib/constants/menu-color-picker";
 import {
+  SOCIAL_DISPLAY_FONTS,
+  SOCIAL_DISPLAY_FONT_CSS,
+  SOCIAL_DISPLAY_FONT_HINTS,
+  SOCIAL_DISPLAY_FONT_LABELS,
   SOCIAL_FEED_LAYOUT_HINTS,
   SOCIAL_FEED_LAYOUT_IDS,
   SOCIAL_FEED_LAYOUT_LABELS,
   SOCIAL_PHOTO_LOOK_HINTS,
   SOCIAL_PHOTO_LOOK_LABELS,
   SOCIAL_PHOTO_LOOKS,
+  SOCIAL_STYLE_PRESETS,
+  SOCIAL_STYLE_PRESET_HINTS,
+  SOCIAL_STYLE_PRESET_LABELS,
+  brandMotifPreviewSvg,
   togglePreferredFeedLayout,
   type SocialBrandKit,
+  type SocialDisplayFontId,
   type SocialFeedLayoutId,
   type SocialFeedPalette,
   type SocialPhotoLook,
+  type SocialStylePreset,
 } from "@/lib/social/social-brand-kit";
 import { normalizeHex } from "@/lib/theme/color-utils";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
@@ -122,16 +132,102 @@ export function SocialAutopilotLookDrawer({
         <DrawerHeader className="text-left">
           <DrawerTitle>Aussehen</DrawerTitle>
           <DrawerDescription>
-            Farben, Foto-Look und Layouts für KI-Bilder.
+            Stil, Schrift und Farben werden Teil des Bildes — nicht nur Overlay.
           </DrawerDescription>
         </DrawerHeader>
 
         <div className={cn(drawerScrollAreaClassName(6), "space-y-6 pb-4")}>
+          <section className="space-y-2">
+            <Label>Stil</Label>
+            <p className="text-xs text-muted-foreground">
+              Linien, Formen und Pinselstriche aus eurer Marke.
+            </p>
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="group"
+              aria-label="Stil"
+            >
+              {SOCIAL_STYLE_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className={cn(
+                    "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                    kit.stylePreset === preset
+                      ? "border-accent/50 bg-accent/15 text-foreground"
+                      : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+                  )}
+                  aria-pressed={kit.stylePreset === preset}
+                  onClick={() =>
+                    onChange({
+                      ...kit,
+                      stylePreset: preset as SocialStylePreset,
+                    })
+                  }
+                >
+                  {SOCIAL_STYLE_PRESET_LABELS[preset]}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {SOCIAL_STYLE_PRESET_HINTS[kit.stylePreset]}
+            </p>
+            <div
+              className="pt-1"
+              dangerouslySetInnerHTML={{
+                __html: brandMotifPreviewSvg({
+                  stylePreset: kit.stylePreset,
+                  accent: palette.accent,
+                  secondary: palette.secondary ?? palette.accent,
+                }),
+              }}
+              aria-hidden
+            />
+          </section>
+
+          <section className="space-y-2">
+            <Label>Schrift</Label>
+            <p className="text-xs text-muted-foreground">
+              Typeface für Überschriften und Markennamen im Post.
+            </p>
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="group"
+              aria-label="Schrift"
+            >
+              {SOCIAL_DISPLAY_FONTS.map((font) => (
+                <button
+                  key={font}
+                  type="button"
+                  className={cn(
+                    "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                    kit.displayFont === font
+                      ? "border-accent/50 bg-accent/15 text-foreground"
+                      : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+                  )}
+                  style={{ fontFamily: SOCIAL_DISPLAY_FONT_CSS[font] }}
+                  aria-pressed={kit.displayFont === font}
+                  onClick={() =>
+                    onChange({
+                      ...kit,
+                      displayFont: font as SocialDisplayFontId,
+                    })
+                  }
+                >
+                  {SOCIAL_DISPLAY_FONT_LABELS[font]}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {SOCIAL_DISPLAY_FONT_HINTS[kit.displayFont]}
+            </p>
+          </section>
+
           <section className="space-y-3">
             <div>
               <p className="text-sm font-medium">Farben</p>
               <p className="text-xs text-muted-foreground">
-                Einheitliches Bild im Feed.
+                Als Pinsel, Linien und Flächen im Creative.
               </p>
             </div>
             <div

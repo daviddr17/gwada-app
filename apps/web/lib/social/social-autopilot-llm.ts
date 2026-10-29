@@ -2,26 +2,23 @@ import "server-only";
 
 import OpenAI from "openai";
 import type { AssistantLlmRuntime } from "@/lib/assistant/assistant-llm-source";
-import type { SocialBrandKit, SocialSlotKind } from "@/lib/social/social-brand-kit";
+import type { SocialBrandKit } from "@/lib/social/social-brand-kit";
 import {
-  clipAutopilotText,
   parseAutopilotCaptionResponse,
   SOCIAL_AUTOPILOT_MAX_COMPLETION_TOKENS,
   SOCIAL_AUTOPILOT_MAX_ITEMS_PER_RUN,
-  SOCIAL_AUTOPILOT_MAX_PROMPT_CHARS,
   type SocialAutopilotCaptionResult,
 } from "@/lib/social/social-autopilot-bounds";
+import {
+  autopilotCaptionSupportsVision,
+  buildAutopilotCaptionSystemPrompt,
+  buildAutopilotCaptionUserPrompt,
+  pickAutopilotVisionImageUrls,
+  type SocialAutopilotCaptionJob,
+} from "@/lib/social/social-autopilot-caption-prompt";
 import { overlayLineFromCaption } from "@/lib/social/social-caption-templates";
 
-export type SocialAutopilotCaptionJob = {
-  index: number;
-  slotKind: SocialSlotKind;
-  title: string | null;
-  imageLabel: string | null;
-  /** Fakten, die das Modell nutzen darf — keine Spekulation darüber hinaus. */
-  facts: Record<string, string>;
-  templateCaption: string;
-};
+export type { SocialAutopilotCaptionJob } from "@/lib/social/social-autopilot-caption-prompt";
 
 export type SocialAutopilotLlmOutcome = {
   ok: boolean;
@@ -36,95 +33,14 @@ export type SocialAutopilotLlmOutcome = {
   };
 };
 
-function toneLabel(tone: SocialBrandKit["tone"]): string {
-  switch (tone) {
-    case "casual":
-      return "locker, duzend wo passend";
-    case "fine":
-      return "fein, ruhig, eher Siezen";
-    case "modern":
-      return "modern, klar, knapp";
-    default:
-      return "warm und einladend";
-  }
-}
-
-function buildSystemPrompt(restaurantName: string): string {
-  return [
-    `Du schreibst Social-Media-Beiträge (Instagram/Facebook/Google) für das Restaurant „${restaurantName}" in Deutschland.`,
-    "Sprache: natürliches Deutsch, kein Marketing-Kauderwelsch, keine erfundenen Gerichte, Preise, Aktionen oder Bildinhalte.",
-    "Nur Fakten aus dem JSON-Job nutzen. Galerie/Ambiente: Atmosphäre oder Bildunterschrift — nichts Spekulatives auf dem Teller.",
-    "Jeder Post muss sich klar auf seinen Slot beziehen (Gerichtname, Event, Galerie-Caption, naher Feiertag) — keine austauschbaren Standardtexte.",
-    "Wenn facts.theme / facts.captionDirection / facts.userBrief gesetzt sind: Titel und Caption daran ausrichten (Brand-Stimme bleibt verbindlich). userBrief = Wunsch des Nutzers, was der Post behandeln soll.",
-    "Die Captions in einem Batch müssen sich voneinander unterscheiden (Ton, Einstieg, Fokus).",
-    "Jeder Caption-Text: 2–4 kurze Zeilen, dann optional CTA, dann Hashtags (max. 5) wenn im Brand Kit vorgegeben.",
-    "Antwort ausschließlich als JSON-Array: [{\"index\":0,\"title\":\"…\",\"caption\":\"…\"}, …]",
-    "Kein Markdown, keine Erklärung außerhalb des JSON.",
-  ].join("\n");
-}
-
-function buildUserPrompt(params: {
-  kit: SocialBrandKit;
-  restaurantName: string;
-  jobs: SocialAutopilotCaptionJob[];
-}): string {
-  const { kit, restaurantName, jobs } = params;
-  const gold = kit.goldCaptions
-    .map((c) => c.trim())
-    .filter(Boolean)
-    .slice(0, 4)
-    .map((c) => clipAutopilotText(c, 220));
-
-  const brand = {
-    restaurantName,
-    tone: toneLabel(kit.tone),
-    voiceNotes: clipAutopilotText(kit.voiceNotes || "—", 280),
-    doNot: clipAutopilotText(kit.doNot || "—", 200),
-    cta: clipAutopilotText(kit.cta || "", 80),
-    hashtags: kit.hashtags.slice(0, 5),
-    goldCaptions: gold,
-  };
-
-  const payload = {
-    brand,
-    posts: jobs.map((j) => ({
-      index: j.index,
-      slotKind: j.slotKind,
-      title: j.title,
-      imageLabel: j.imageLabel,
-      facts: j.facts,
-      styleHint: clipAutopilotText(j.templateCaption, 220),
-    })),
-  };
-
-  let json = JSON.stringify(payload, null, 0);
-  if (json.length > SOCIAL_AUTOPILOT_MAX_PROMPT_CHARS) {
-    const slim = {
-      brand: {
-        ...brand,
-        goldCaptions: gold.slice(0, 1),
-        voiceNotes: clipAutopilotText(kit.voiceNotes || "—", 120),
-      },
-      posts: jobs.map((j) => ({
-        index: j.index,
-        slotKind: j.slotKind,
-        title: j.title,
-        imageLabel: j.imageLabel,
-        facts: j.facts,
-      })),
-    };
-    json = JSON.stringify(slim, null, 0);
-    if (json.length > SOCIAL_AUTOPILOT_MAX_PROMPT_CHARS) {
-      json = json.slice(0, SOCIAL_AUTOPILOT_MAX_PROMPT_CHARS);
-    }
-  }
-
-  return `Schreibe für jeden Eintrag in posts einen Titel (kurz) und eine Caption. Behalte die index-Werte bei.\n${json}`;
-}
+type ChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail: "low" } };
 
 /**
  * One-shot batch caption rewrite with the restaurant OpenAI/Grok runtime.
  * No retries. Caps: max items (caller), max completion tokens, max 1 call.
+ * KI-Post: optional Vision (1 Bild), damit Caption zum Foto passt.
  */
 export async function rewriteAutopilotCaptionsWithLlm(params: {
   llm: AssistantLlmRuntime;
@@ -142,24 +58,43 @@ export async function rewriteAutopilotCaptionsWithLlm(params: {
     ...(params.llm.baseURL ? { baseURL: params.llm.baseURL } : {}),
   });
 
+  const visionOk = autopilotCaptionSupportsVision(params.llm);
+  const visionUrls = visionOk ? pickAutopilotVisionImageUrls(jobs, 1) : [];
+  const withVision = visionUrls.length > 0;
+
+  const userText = buildAutopilotCaptionUserPrompt({
+    kit: params.kit,
+    restaurantName: params.restaurantName,
+    jobs,
+    withVisionImages: withVision,
+  });
+
+  const userContent: string | ChatContentPart[] = withVision
+    ? [
+        { type: "text", text: userText },
+        ...visionUrls.map(
+          (url): ChatContentPart => ({
+            type: "image_url",
+            image_url: { url, detail: "low" },
+          }),
+        ),
+      ]
+    : userText;
+
   try {
     const completion = await client.chat.completions.create({
       model: params.llm.model,
       messages: [
         {
           role: "system",
-          content: buildSystemPrompt(params.restaurantName),
+          content: buildAutopilotCaptionSystemPrompt(params.restaurantName),
         },
         {
           role: "user",
-          content: buildUserPrompt({
-            kit: params.kit,
-            restaurantName: params.restaurantName,
-            jobs,
-          }),
+          content: userContent,
         },
       ],
-      temperature: 0.65,
+      temperature: 0.45,
       max_tokens: SOCIAL_AUTOPILOT_MAX_COMPLETION_TOKENS,
     });
 

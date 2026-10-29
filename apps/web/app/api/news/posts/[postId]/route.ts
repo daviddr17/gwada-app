@@ -1,9 +1,68 @@
 import { NextResponse } from "next/server";
+import {
+  isNewsPlatform,
+  type NewsPlatform,
+} from "@/lib/constants/news-platforms";
+import { isNewsStoriesPlatform } from "@/lib/news/news-stories-cache-constants";
+import { parseNewsMedia } from "@/lib/news/news-media";
+import {
+  listNewsDraftTargetPlatforms,
+  publishOrScheduleExistingNewsDraft,
+} from "@/lib/news/news-publish-server";
 import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
 
 export const dynamic = "force-dynamic";
 
 type RouteCtx = { params: Promise<{ postId: string }> };
+
+/** Entwurf laden inkl. vorgemerkter Kanäle. */
+export async function GET(req: Request, ctx: RouteCtx) {
+  const { postId } = await ctx.params;
+  const restaurantId =
+    new URL(req.url).searchParams.get("restaurantId")?.trim() ?? "";
+  const auth = await authorizeNewsRestaurant(restaurantId, {
+    requireManage: true,
+  });
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const { data, error } = await auth.sb
+    .from("gwada_news_posts")
+    .select(
+      "id, title, body, media, status, scheduled_at, story_platforms, created_at, updated_at",
+    )
+    .eq("id", postId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  const platforms = await listNewsDraftTargetPlatforms(
+    auth.sb,
+    restaurantId,
+    postId,
+  );
+
+  return NextResponse.json({
+    post: {
+      id: data.id,
+      title: data.title,
+      body: data.body,
+      media: parseNewsMedia(data.media),
+      status: data.status,
+      scheduledAt: data.scheduled_at,
+      storyPlatforms: Array.isArray(data.story_platforms)
+        ? data.story_platforms
+        : [],
+    },
+    platforms: platforms.length ? platforms : (["gwada"] as NewsPlatform[]),
+  });
+}
 
 export async function PATCH(req: Request, ctx: RouteCtx) {
   const { postId } = await ctx.params;
@@ -41,6 +100,70 @@ export async function PATCH(req: Request, ctx: RouteCtx) {
   if (!data) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Entwurf / geplant → auf gewählte Kanäle veröffentlichen oder planen.
+ * Body: platforms, optional scheduledAt, title, body, media, storyPlatforms.
+ */
+export async function POST(req: Request, ctx: RouteCtx) {
+  const { postId } = await ctx.params;
+  const body = (await req.json().catch(() => ({}))) as {
+    restaurantId?: string;
+    title?: string | null;
+    body?: string;
+    scheduledAt?: string | null;
+    platforms?: string[];
+    storyPlatforms?: string[];
+    media?: unknown;
+  };
+  const restaurantId = body.restaurantId?.trim() ?? "";
+  const auth = await authorizeNewsRestaurant(restaurantId, {
+    requireManage: true,
+  });
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const text = body.body?.trim() ?? "";
+  if (!text) {
+    return NextResponse.json({ error: "body_required" }, { status: 400 });
+  }
+
+  const platforms = (body.platforms ?? ["gwada"]).filter(
+    (p): p is NewsPlatform => isNewsPlatform(p),
+  );
+  const storyPlatforms = (body.storyPlatforms ?? [])
+    .filter((p): p is NewsPlatform => isNewsPlatform(p))
+    .filter(isNewsStoriesPlatform);
+
+  const result = await publishOrScheduleExistingNewsDraft(auth.sb, {
+    restaurantId,
+    userId: auth.userId,
+    postId,
+    title: body.title?.trim() || null,
+    body: text,
+    media: body.media !== undefined ? parseNewsMedia(body.media) : undefined,
+    platforms: platforms.length ? platforms : ["gwada"],
+    scheduledAt: body.scheduledAt ?? null,
+    storyPlatforms,
+  });
+
+  if (!result.ok) {
+    const status =
+      result.error === "not_found"
+        ? 404
+        : result.error === "not_a_draft"
+          ? 409
+          : 400;
+    return NextResponse.json({ error: result.error }, { status });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    postId: result.postId,
+    mode: result.mode,
+  });
 }
 
 export async function DELETE(req: Request, ctx: RouteCtx) {

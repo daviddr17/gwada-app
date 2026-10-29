@@ -63,7 +63,8 @@ async function resolvePublishUserId(
   return id;
 }
 
-async function renderPublishMedia(params: {
+/** Gerendertes Marken-Layout für Compose/Publish — kein Roh-Galerie-Crop. */
+export async function renderPublishMedia(params: {
   sb: SupabaseClient;
   restaurantId: string;
   suggestionId: string;
@@ -72,7 +73,7 @@ async function renderPublishMedia(params: {
   caption: string;
   asset: SocialSuggestionAsset;
 }): Promise<
-  | { ok: true; media: NewsMediaRow[]; storagePath: string }
+  | { ok: true; media: NewsMediaRow[]; storagePath: string; imageUrl: string }
   | { ok: false; error: string }
 > {
   const kit = await fetchSocialBrandKitFromDb(params.sb, params.restaurantId);
@@ -115,6 +116,8 @@ async function renderPublishMedia(params: {
     feedLayout,
     feedPalette: kit.feedPalette,
     photoLook: kit.photoLook,
+    stylePreset: kit.stylePreset,
+    displayFont: kit.displayFont,
     overlayLine,
     formatId: feedFormat,
   });
@@ -136,7 +139,70 @@ async function renderPublishMedia(params: {
       height: rendered.height,
     },
   ];
-  return { ok: true, media, storagePath: rendered.storagePath };
+  return {
+    ok: true,
+    media,
+    storagePath: rendered.storagePath,
+    imageUrl: rendered.imageUrl,
+  };
+}
+
+export type SocialKiComposePayload = {
+  suggestionId: string;
+  title: string | null;
+  body: string;
+  platforms: NewsPlatform[];
+  media: Array<NewsMediaRow & { previewUrl: string }>;
+};
+
+/**
+ * KI-Post → Compose-fähig: Caption + gerendertes Brand-Layout (signed Preview).
+ * Kein stilles Archiv — Aufrufer öffnet die normale News-Compose-UI.
+ */
+export async function prepareSocialSuggestionComposePayload(params: {
+  sb: SupabaseClient;
+  restaurantId: string;
+  suggestionId: string;
+}): Promise<
+  | { ok: true; compose: SocialKiComposePayload }
+  | { ok: false; error: string }
+> {
+  const suggestion = await fetchSocialSuggestionFromDb(
+    params.sb,
+    params.restaurantId,
+    params.suggestionId,
+  );
+  if (!suggestion) return { ok: false, error: "not_found" };
+
+  const kit = await fetchSocialBrandKitFromDb(params.sb, params.restaurantId);
+  const platforms = platformsFromSuggestion(
+    suggestion.platforms,
+    kit.publishPlatforms,
+  );
+  const rendered = await renderPublishMedia({
+    sb: params.sb,
+    restaurantId: params.restaurantId,
+    suggestionId: params.suggestionId,
+    templateId: suggestion.templateId,
+    title: suggestion.title,
+    caption: suggestion.caption,
+    asset: suggestion.asset,
+  });
+  if (!rendered.ok) return { ok: false, error: rendered.error };
+
+  return {
+    ok: true,
+    compose: {
+      suggestionId: params.suggestionId,
+      title: suggestion.title,
+      body: captionForMultiPlatformPublish(suggestion.caption),
+      platforms: platforms.length ? platforms : ["gwada"],
+      media: rendered.media.map((m) => ({
+        ...m,
+        previewUrl: rendered.imageUrl,
+      })),
+    },
+  };
 }
 
 function platformsFromSuggestion(

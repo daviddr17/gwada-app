@@ -27,7 +27,9 @@ import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import {
+  SOCIAL_DISPLAY_FONT_LABELS,
   SOCIAL_PHOTO_LOOK_LABELS,
+  SOCIAL_STYLE_PRESET_LABELS,
   SOCIAL_TONES,
   SOCIAL_TONE_LABELS,
   defaultSocialBrandKit,
@@ -221,7 +223,7 @@ export function SocialBrandKitCard({
     );
   }
 
-  const lookSummary = `${SOCIAL_PHOTO_LOOK_LABELS[kit.photoLook]} · ${kit.preferredLayouts.length} Layouts`;
+  const lookSummary = `${SOCIAL_STYLE_PRESET_LABELS[kit.stylePreset]} · ${SOCIAL_DISPLAY_FONT_LABELS[kit.displayFont]} · ${SOCIAL_PHOTO_LOOK_LABELS[kit.photoLook]}`;
   const formLocked = Boolean(voiceDraft);
 
   return (

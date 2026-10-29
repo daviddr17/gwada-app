@@ -100,6 +100,26 @@ export type SocialSuggestionGenerateResult = {
   suggestionIds?: string[];
   /** Wie viele News-Entwürfe angelegt wurden (wenn asNewsDrafts). */
   newsDraftsCreated?: number;
+  /**
+   * KI-Post Compose: gerendertes Brand-Layout + Caption zum Weiterbearbeiten
+   * in der News-Compose-UI (Sheet bleibt offen).
+   */
+  compose?: {
+    suggestionId: string;
+    title: string | null;
+    body: string;
+    platforms: string[];
+    media: Array<{
+      id: string;
+      kind: "image" | "video";
+      storagePath: string;
+      mimeType: string;
+      sortOrder: number;
+      width?: number | null;
+      height?: number | null;
+      previewUrl: string;
+    }>;
+  };
   pending: number;
   tasksCreated: boolean;
   skippedReason?: string;
@@ -342,6 +362,11 @@ export async function generateSocialSuggestionsForRestaurant(
      * (erscheinen in der News-Liste mit Status Entwurf).
      */
     asNewsDrafts?: boolean;
+    /**
+     * KI-Post im Compose-Sheet: Brand-Layout rendern und Compose-Payload
+     * zurückgeben — Sheet bleibt offen, kein Draft-only-Dead-End.
+     */
+    forCompose?: boolean;
     userId?: string | null;
   },
 ): Promise<SocialSuggestionGenerateResult> {
@@ -650,26 +675,30 @@ export async function generateSocialSuggestionsForRestaurant(
     if (typeof d.source.imageCaption === "string") {
       facts.imageCaption = d.source.imageCaption;
     }
-    if (typeof d.source.theme === "string") facts.theme = d.source.theme;
-    if (typeof d.source.captionDirection === "string") {
+    // theme/captionDirection nur wenn nicht bloß der Freitext (Bild hat Vorrang).
+    if (
+      typeof d.source.theme === "string" &&
+      (!userBrief || d.source.theme !== userBrief.slice(0, 72))
+    ) {
+      facts.theme = d.source.theme;
+    }
+    if (
+      typeof d.source.captionDirection === "string" &&
+      (!userBrief || d.source.captionDirection !== userBrief)
+    ) {
       facts.captionDirection = d.source.captionDirection;
     }
     if (userBrief) facts.userBrief = userBrief;
     if (d.title) facts.title = d.title;
     if (d.asset.imageLabel) facts.imageLabel = d.asset.imageLabel;
-    const directionHint =
-      typeof d.source.captionDirection === "string"
-        ? String(d.source.captionDirection)
-        : "";
     return {
       index,
       slotKind: d.slotKind,
       title: d.title,
       imageLabel: d.asset.imageLabel ?? null,
+      imageUrl: d.asset.imageUrl,
       facts,
-      templateCaption: directionHint
-        ? `${directionHint}\n---\n${d.caption}`
-        : d.caption,
+      templateCaption: d.caption,
     };
   });
 
@@ -713,7 +742,21 @@ export async function generateSocialSuggestionsForRestaurant(
 
   const inserted = await insertSocialSuggestionsInDb(sb, drafts);
   let newsDraftsCreated = 0;
-  if (opts?.asNewsDrafts && inserted.ids.length > 0) {
+  let compose: SocialSuggestionGenerateResult["compose"];
+
+  if (opts?.forCompose && inserted.ids[0]) {
+    const { prepareSocialSuggestionComposePayload } = await import(
+      "@/lib/social/social-suggestion-actions-server"
+    );
+    const prepared = await prepareSocialSuggestionComposePayload({
+      sb,
+      restaurantId,
+      suggestionId: inserted.ids[0],
+    });
+    if (prepared.ok) {
+      compose = prepared.compose;
+    }
+  } else if (opts?.asNewsDrafts && inserted.ids.length > 0) {
     const { materializeSocialSuggestionsAsNewsDrafts } = await import(
       "@/lib/social/social-suggestion-actions-server"
     );
@@ -725,10 +768,12 @@ export async function generateSocialSuggestionsForRestaurant(
     });
     newsDraftsCreated = mat.created;
   }
+
   return {
     created: inserted.count,
     suggestionIds: inserted.ids,
     newsDraftsCreated,
+    compose,
     pending: existing.length + inserted.count,
     tasksCreated,
     aiConfigured,

@@ -7,13 +7,25 @@ import type {
   SocialPhotoLook,
 } from "@/lib/social/social-feed-brand-system";
 import { DEFAULT_SOCIAL_FEED_PALETTE } from "@/lib/social/social-feed-brand-system";
+import type {
+  SocialDisplayFontId,
+  SocialStylePreset,
+} from "@/lib/social/social-brand-kit";
+import {
+  SOCIAL_DISPLAY_FONT_CSS,
+  brandMotifPreviewSvg,
+} from "@/lib/social/social-brand-kit";
 import { overlayLineFromCaption } from "@/lib/social/social-caption-templates";
+import {
+  layoutHeadline,
+  layoutSupportingLine,
+} from "@/lib/social/social-template-layout-text";
 import { cn } from "@/lib/utils";
 
 function photoLookFilter(look: SocialPhotoLook): string | undefined {
-  if (look === "warm") return "sepia(0.18) saturate(1.12) contrast(1.04)";
-  if (look === "cool") return "saturate(0.92) hue-rotate(12deg) brightness(1.03)";
-  return undefined;
+  if (look === "warm") return "sepia(0.16) saturate(1.14) contrast(1.05)";
+  if (look === "cool") return "saturate(0.9) hue-rotate(-8deg) brightness(1.03)";
+  return "saturate(1.02) contrast(1.02)";
 }
 
 function LogoMark({
@@ -30,9 +42,37 @@ function LogoMark({
       src={logoUrl}
       alt=""
       className={cn(
-        "size-9 rounded-full border border-white/35 object-cover shadow-sm",
+        "size-11 rounded-full border-[3px] border-white object-cover shadow-md",
         className,
       )}
+    />
+  );
+}
+
+function MotifRule({
+  stylePreset,
+  accent,
+  secondary,
+  className,
+}: {
+  stylePreset: SocialStylePreset;
+  accent: string;
+  secondary: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn("leading-none", className)}
+      dangerouslySetInnerHTML={{
+        __html: brandMotifPreviewSvg({
+          stylePreset,
+          accent,
+          secondary,
+          width: 96,
+          height: 14,
+        }),
+      }}
+      aria-hidden
     />
   );
 }
@@ -41,6 +81,8 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
   feedLayout,
   feedPalette,
   photoLook = "warm",
+  stylePreset = "schlicht",
+  displayFont = "noto_serif",
   restaurantName,
   title,
   caption,
@@ -53,6 +95,8 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
   feedLayout: SocialFeedLayoutId;
   feedPalette?: SocialFeedPalette | null;
   photoLook?: SocialPhotoLook;
+  stylePreset?: SocialStylePreset;
+  displayFont?: SocialDisplayFontId;
   restaurantName: string;
   title?: string | null;
   caption: string;
@@ -70,13 +114,14 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
   const line =
     overlayLine?.trim() ||
     overlayLineFromCaption(caption, { cta: ctaLabel ?? "" });
-  const headline = title?.trim() || "Diese Woche";
+  const headline = layoutHeadline(title, line, restaurantName);
+  const support = layoutSupportingLine(line, headline);
   const cta = (ctaLabel?.trim() || "Tisch reservieren") + " →";
   const filter = photoLookFilter(photoLook);
+  const typeFace = SOCIAL_DISPLAY_FONT_CSS[displayFont];
 
   const shell = cn(
     "relative aspect-square overflow-hidden rounded-xl border border-border/50 shadow-card",
-    // Aufrufer können Format-Aspect setzen (z. B. 4:5) — überschreibt square.
     className,
   );
 
@@ -94,24 +139,33 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
         ) : (
           <div className="absolute inset-0" style={{ backgroundColor: dark }} />
         )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
         <LogoMark logoUrl={logoUrl} className="absolute top-4 right-4 z-10" />
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent px-5 pb-5 pt-16 text-white">
-          <p className="text-[10px] font-medium tracking-[0.2em] text-white/75 uppercase">
+        <div className="absolute inset-x-0 bottom-0 px-5 pb-5 pt-20 text-white">
+          <p
+            className="text-[10px] font-semibold tracking-[0.28em] text-white/70 uppercase"
+            style={{ fontFamily: typeFace }}
+          >
             {restaurantName}
           </p>
-          <div className="mt-2 flex items-center gap-1.5" aria-hidden>
-            <div className="h-px w-8" style={{ backgroundColor: accent }} />
-            <div
-              className="h-px w-3"
-              style={{ backgroundColor: secondary, opacity: 0.7 }}
-            />
-          </div>
-          <p className="mt-2 font-serif text-2xl leading-tight tracking-tight">
+          <MotifRule
+            stylePreset={stylePreset}
+            accent={accent}
+            secondary={secondary}
+            className="mt-2"
+          />
+          <p
+            className="mt-3 text-[1.65rem] leading-[1.1] tracking-tight"
+            style={{ fontFamily: typeFace }}
+          >
             {headline}
           </p>
-          {line ? (
-            <p className="mt-1 line-clamp-2 text-sm text-white/85">{line}</p>
+          {support ? (
+            <p className="mt-2 line-clamp-2 text-sm text-white/85">{support}</p>
           ) : null}
+          <p className="mt-3 text-xs font-semibold tracking-wide" style={{ color: accent }}>
+            {cta}
+          </p>
         </div>
       </div>
     );
@@ -120,57 +174,69 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
   if (feedLayout === "atelier_split") {
     return (
       <div className={shell} style={{ backgroundColor: dark }}>
-        <div className="absolute inset-x-0 top-0 h-[58%] overflow-hidden">
-          {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imageUrl}
-              alt=""
-              className="size-full object-cover"
-              style={filter ? { filter } : undefined}
-            />
-          ) : (
-            <div className="size-full" style={{ backgroundColor: dark }} />
-          )}
-          <LogoMark logoUrl={logoUrl} className="absolute top-4 right-4" />
+        <div className="absolute inset-x-0 top-0 px-3.5 pt-3.5" style={{ height: "56%" }}>
+          <div className="relative h-full overflow-hidden rounded-sm">
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={imageUrl}
+                alt=""
+                className="size-full object-cover"
+                style={filter ? { filter } : undefined}
+              />
+            ) : (
+              <div className="size-full" style={{ backgroundColor: dark }} />
+            )}
+            <LogoMark logoUrl={logoUrl} className="absolute top-3 right-3" />
+          </div>
         </div>
         <div
-          className="absolute inset-x-0 bottom-0 flex h-[42%] flex-col justify-between px-5 py-4"
-          style={{ backgroundColor: dark, color: light }}
+          className="absolute inset-x-0 bottom-0 flex flex-col justify-between px-5 pb-5 pt-4"
+          style={{ top: "56%", color: light }}
         >
-          <div
-            className="absolute inset-x-0 top-0 h-0.5"
-            style={{ backgroundColor: secondary, opacity: 0.55 }}
-            aria-hidden
+          <MotifRule
+            stylePreset={stylePreset}
+            accent={accent}
+            secondary={secondary}
+            className="mb-3"
           />
           <div className="space-y-2">
-            <p className="text-[10px] font-medium tracking-[0.18em] uppercase opacity-70">
+            <p
+              className="text-[10px] font-semibold tracking-[0.28em] uppercase opacity-55"
+              style={{ fontFamily: typeFace }}
+            >
               {restaurantName}
             </p>
-            <p className="font-serif text-xl leading-tight">{headline}</p>
-            {line ? (
-              <p className="line-clamp-2 text-sm opacity-80">{line}</p>
+            <p
+              className="text-2xl leading-tight tracking-tight"
+              style={{ fontFamily: typeFace }}
+            >
+              {headline}
+            </p>
+            {support ? (
+              <p className="line-clamp-2 text-sm opacity-75">{support}</p>
             ) : null}
           </div>
-          <div>
-            <div
-              className="mb-2 h-px w-10"
-              style={{ backgroundColor: accent }}
-              aria-hidden
-            />
-            <p
-              className="text-[11px] font-medium tracking-wide"
-              style={{ color: accent }}
-            >
-              {cta}
-            </p>
-          </div>
+          <p
+            className="mt-3 text-xs font-semibold tracking-wide"
+            style={{ color: accent }}
+          >
+            {cta}
+          </p>
         </div>
       </div>
     );
   }
 
   if (feedLayout === "soiree_event") {
+    const frameShadow =
+      stylePreset === "modern"
+        ? `inset 0 0 0 3px ${accent}`
+        : stylePreset === "warm"
+          ? `inset 0 0 0 2px ${accent}aa`
+          : stylePreset === "fein"
+            ? `inset 0 0 0 0.75px ${accent}b0, inset 0 0 0 7px ${secondary}22`
+            : `inset 0 0 0 1.5px ${accent}cc, inset 0 0 0 7px ${secondary}33`;
     return (
       <div className={cn(shell, "bg-black")}>
         {imageUrl ? (
@@ -178,42 +244,55 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
           <img
             src={imageUrl}
             alt=""
-            className="absolute inset-0 size-full object-cover opacity-55"
+            className="absolute inset-0 size-full object-cover opacity-50"
             style={filter ? { filter } : undefined}
           />
         ) : (
           <div className="absolute inset-0" style={{ backgroundColor: dark }} />
         )}
+        <div className="absolute inset-0 bg-black/40" />
         <div
-          className="absolute inset-4 flex flex-col items-center justify-center px-4 text-center"
+          className={cn(
+            "absolute inset-4 flex flex-col items-center justify-center px-4 text-center",
+            stylePreset === "warm" && "rounded-2xl",
+          )}
           style={
             {
               color: light,
-              boxShadow: `inset 0 0 0 1px ${accent}99, inset 0 0 0 6px ${secondary}33`,
+              boxShadow: frameShadow,
             } as CSSProperties
           }
         >
-          <LogoMark logoUrl={logoUrl} className="mb-3 border-white/25" />
-          <p className="text-[10px] font-medium tracking-[0.22em] uppercase opacity-75">
+          <LogoMark logoUrl={logoUrl} className="mb-4 border-white/40" />
+          <p
+            className="text-[10px] font-semibold tracking-[0.3em] uppercase opacity-70"
+            style={{ fontFamily: typeFace }}
+          >
             {restaurantName}
           </p>
-          <p className="mt-4 font-serif text-3xl leading-none tracking-tight">
+          <p
+            className="mt-5 text-3xl leading-none tracking-tight"
+            style={{ fontFamily: typeFace }}
+          >
             {headline}
           </p>
-          {line ? (
-            <p className="mt-3 line-clamp-3 text-sm opacity-85">{line}</p>
+          {support ? (
+            <p className="mt-4 line-clamp-3 text-sm opacity-85">{support}</p>
           ) : null}
-          <div
-            className="mt-5 h-px w-12"
-            style={{ backgroundColor: accent }}
-            aria-hidden
+          <MotifRule
+            stylePreset={stylePreset}
+            accent={accent}
+            secondary={secondary}
+            className="mt-5"
           />
+          <p className="mt-3 text-xs font-semibold" style={{ color: accent }}>
+            {cta}
+          </p>
         </div>
       </div>
     );
   }
 
-  // signature_brand — optional soft photo wash for Markenkohärenz
   return (
     <div
       className={cn(
@@ -227,21 +306,21 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
         <img
           src={imageUrl}
           alt=""
-          className="absolute inset-0 size-full object-cover opacity-[0.14]"
+          className="absolute inset-0 size-full object-cover opacity-[0.12]"
           style={filter ? { filter } : undefined}
         />
       ) : null}
       <div
         className="absolute inset-0"
-        style={{ backgroundColor: light, opacity: imageUrl ? 0.92 : 1 }}
+        style={{ backgroundColor: light, opacity: imageUrl ? 0.94 : 1 }}
         aria-hidden
       />
       <div className="relative z-10 flex flex-col items-center">
         {logoUrl ? (
-          <LogoMark logoUrl={logoUrl} className="mb-4 size-12 border-border/40" />
+          <LogoMark logoUrl={logoUrl} className="mb-5 size-14 border-border/30" />
         ) : (
           <div
-            className="mb-4 size-12 rounded-full border"
+            className="mb-5 size-14 rounded-full border"
             style={{
               borderColor: `${accent}88`,
               backgroundColor: `${secondary}33`,
@@ -249,22 +328,30 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
             aria-hidden
           />
         )}
-        <p className="font-serif text-2xl leading-tight tracking-tight">
+        <p
+          className="text-3xl leading-tight tracking-tight"
+          style={{ fontFamily: typeFace }}
+        >
           {restaurantName}
         </p>
-        <div
-          className="my-4 h-px w-10"
-          style={{ backgroundColor: accent }}
-          aria-hidden
+        <MotifRule
+          stylePreset={stylePreset}
+          accent={accent}
+          secondary={secondary}
+          className="my-4"
         />
-        <p className="font-serif text-lg italic leading-snug opacity-90">
-          {line || headline}
+        <p
+          className="text-lg italic leading-snug opacity-90"
+          style={{ fontFamily: typeFace }}
+        >
+          {support || headline}
         </p>
-        {title?.trim() && line ? (
-          <p className="mt-3 text-[11px] tracking-[0.14em] uppercase opacity-55">
-            {headline}
-          </p>
-        ) : null}
+        <p
+          className="mt-6 text-xs font-semibold tracking-wide"
+          style={{ color: accent }}
+        >
+          {cta}
+        </p>
       </div>
     </div>
   );

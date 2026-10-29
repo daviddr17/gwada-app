@@ -4,7 +4,10 @@ import {
   type NewsPlatform,
 } from "@/lib/constants/news-platforms";
 import { isNewsStoriesPlatform } from "@/lib/news/news-stories-cache-constants";
-import { createAndPublishNewsPost } from "@/lib/news/news-publish-server";
+import {
+  createAndPublishNewsPost,
+  createNewsDraftPost,
+} from "@/lib/news/news-publish-server";
 import { parseNewsMedia } from "@/lib/news/news-media";
 import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
 
@@ -20,6 +23,8 @@ export async function POST(req: Request) {
     platforms?: string[];
     storyPlatforms?: string[];
     media?: unknown;
+    /** Nur speichern — später bearbeiten und veröffentlichen. */
+    saveAsDraft?: unknown;
   };
   const restaurantId = body.restaurantId?.trim() ?? "";
   const auth = await authorizeNewsRestaurant(restaurantId, { requireManage: true });
@@ -38,6 +43,22 @@ export async function POST(req: Request) {
   const storyPlatforms = (body.storyPlatforms ?? [])
     .filter((p): p is NewsPlatform => isNewsPlatform(p))
     .filter(isNewsStoriesPlatform);
+
+  if (body.saveAsDraft === true) {
+    const draft = await createNewsDraftPost(auth.sb, {
+      restaurantId,
+      userId: auth.userId,
+      postId: body.postId?.trim() || undefined,
+      title: body.title?.trim() || null,
+      body: text,
+      media: parseNewsMedia(body.media),
+      platforms: platforms.length ? platforms : ["gwada"],
+    });
+    if (!draft.ok) {
+      return NextResponse.json({ error: draft.error }, { status: 400 });
+    }
+    return NextResponse.json({ postId: draft.postId, status: "draft" });
+  }
 
   const result = await createAndPublishNewsPost(auth.sb, {
     restaurantId,

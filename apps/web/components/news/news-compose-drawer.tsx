@@ -21,8 +21,14 @@ import {
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NewsPlatformChip } from "@/components/news/news-platform-filter-chips";
-import { SocialAutopilotGenerateDrawer } from "@/components/social/social-autopilot-generate-drawer";
-import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import {
+  SocialAutopilotGenerateDrawer,
+  type SocialKiComposeResult,
+} from "@/components/social/social-autopilot-generate-drawer";
+import {
+  isNewsPlatform,
+  type NewsPlatform,
+} from "@/lib/constants/news-platforms";
 import type { NewsStoriesPlatform } from "@/lib/news/news-stories-cache-constants";
 import type { NewsMediaRow } from "@/lib/news/news-media";
 import { uploadNewsMedia } from "@/lib/news/news-media-api";
@@ -224,62 +230,103 @@ export function NewsComposeDrawer({
     [uploadFile],
   );
 
-  const save = useCallback(async () => {
-    if (!body.trim()) {
-      toast.error("Bitte Text eingeben.");
-      return;
-    }
-    if (platforms.includes("instagram") && media.length === 0) {
-      toast.error("Instagram benötigt mindestens ein Bild.");
-      return;
-    }
-    if (scheduleEnabled && !scheduledAt.trim()) {
-      toast.error("Bitte Zeitpunkt für die Planung wählen.");
-      return;
-    }
-    if (!postIdRef.current) postIdRef.current = crypto.randomUUID();
-    setSaving(true);
-    try {
-      const res = await fetch("/api/news/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurantId,
-          postId: postIdRef.current,
-          title: title.trim() || null,
-          body: body.trim(),
-          scheduledAt: effectiveScheduledAt
-            ? new Date(effectiveScheduledAt).toISOString()
-            : null,
-          platforms,
-          storyPlatforms: canPublishStories ? storyPlatforms : [],
-          media: media.map(({ previewUrl: _previewUrl, ...row }) => row),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "save_failed");
-      toast.success(effectiveScheduledAt ? "News geplant." : "News veröffentlicht.");
-      onOpenChange(false);
-      onSaved();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
-    } finally {
-      setSaving(false);
-    }
-  }, [
-    body,
-    title,
-    scheduleEnabled,
-    scheduledAt,
-    effectiveScheduledAt,
-    platforms,
-    storyPlatforms,
-    canPublishStories,
-    media,
-    restaurantId,
-    onOpenChange,
-    onSaved,
-  ]);
+  const applyKiCompose = useCallback((payload: SocialKiComposeResult) => {
+    setMedia((prev) => {
+      for (const item of prev) URL.revokeObjectURL(item.previewUrl);
+      return payload.media.map((m) => ({
+        id: m.id,
+        kind: m.kind,
+        storagePath: m.storagePath,
+        mimeType: m.mimeType,
+        sortOrder: m.sortOrder,
+        width: m.width ?? null,
+        height: m.height ?? null,
+        previewUrl: m.previewUrl,
+      }));
+    });
+    setTitle(payload.title?.trim() || "");
+    setBody(payload.body);
+    const nextPlatforms = payload.platforms.filter(isNewsPlatform);
+    setPlatforms(nextPlatforms.length > 0 ? nextPlatforms : ["gwada"]);
+    setScheduleEnabled(false);
+    setScheduledAt("");
+    setStoryPlatforms([]);
+    postIdRef.current = crypto.randomUUID();
+    setMode("manual");
+    toast.success("Post bereit — noch anpassen, dann veröffentlichen oder planen");
+  }, []);
+
+  const save = useCallback(
+    async (opts?: { asDraft?: boolean }) => {
+      if (!body.trim()) {
+        toast.error("Bitte Text eingeben.");
+        return;
+      }
+      const asDraft = opts?.asDraft === true;
+      if (!asDraft && platforms.includes("instagram") && media.length === 0) {
+        toast.error("Instagram benötigt mindestens ein Bild.");
+        return;
+      }
+      if (!asDraft && scheduleEnabled && !scheduledAt.trim()) {
+        toast.error("Bitte Zeitpunkt für die Planung wählen.");
+        return;
+      }
+      if (!postIdRef.current) postIdRef.current = crypto.randomUUID();
+      setSaving(true);
+      try {
+        const res = await fetch("/api/news/posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId,
+            postId: postIdRef.current,
+            title: title.trim() || null,
+            body: body.trim(),
+            scheduledAt:
+              !asDraft && effectiveScheduledAt
+                ? new Date(effectiveScheduledAt).toISOString()
+                : null,
+            platforms,
+            storyPlatforms:
+              !asDraft && canPublishStories ? storyPlatforms : [],
+            media: media.map(({ previewUrl: _previewUrl, ...row }) => row),
+            saveAsDraft: asDraft || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "save_failed");
+        toast.success(
+          asDraft
+            ? "Als Entwurf gespeichert — später bearbeiten und veröffentlichen."
+            : effectiveScheduledAt
+              ? "News geplant."
+              : "News veröffentlicht.",
+        );
+        onOpenChange(false);
+        onSaved();
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : "Speichern fehlgeschlagen.",
+        );
+      } finally {
+        setSaving(false);
+      }
+    },
+    [
+      body,
+      title,
+      scheduleEnabled,
+      scheduledAt,
+      effectiveScheduledAt,
+      platforms,
+      storyPlatforms,
+      canPublishStories,
+      media,
+      restaurantId,
+      onOpenChange,
+      onSaved,
+    ],
+  );
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
@@ -308,18 +355,13 @@ export function NewsComposeDrawer({
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          {mode === "ki" ? (
-            <p className="text-left text-sm text-muted-foreground">
-              Vorgaben wählen — Generieren erstellt genau einen Entwurf.
-            </p>
-          ) : null}
         </DrawerHeader>
 
         {mode === "ki" ? (
           <div className="flex min-h-0 flex-1 flex-col px-6 pb-2">
             <SocialAutopilotGenerateDrawer
               embedded
-              asNewsDrafts
+              forCompose
               open={open && mode === "ki"}
               onOpenChange={onOpenChange}
               restaurantId={restaurantId}
@@ -328,7 +370,7 @@ export function NewsComposeDrawer({
               initialTone={sessionTone}
               initialPlatforms={sessionPlatforms}
               initialFormat={sessionFormat}
-              onCreated={onSaved}
+              onComposeReady={applyKiCompose}
             />
           </div>
         ) : (
@@ -500,15 +542,30 @@ export function NewsComposeDrawer({
               ) : null}
             </div>
             <DrawerFooter className="border-t border-border/50 pt-2 shrink-0">
-              <DrawerFormFooter
-                onCancel={() => onOpenChange(false)}
-                cancelDisabled={saving || uploading}
-                submitLabel={effectiveScheduledAt ? "Planen" : "Veröffentlichen"}
-                submitPending={saving}
-                submitDisabled={uploading}
-                submitType="button"
-                onSubmit={() => void save()}
-              />
+              <div className="flex w-full flex-col gap-3">
+                <DrawerFormFooter
+                  onCancel={() => onOpenChange(false)}
+                  cancelDisabled={saving || uploading}
+                  submitLabel={
+                    effectiveScheduledAt ? "Planen" : "Veröffentlichen"
+                  }
+                  submitPending={saving}
+                  submitDisabled={uploading}
+                  submitType="button"
+                  onSubmit={() => void save()}
+                  contentPadding={0}
+                  className="border-0 pt-0"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 w-full rounded-xl"
+                  disabled={saving || uploading}
+                  onClick={() => void save({ asDraft: true })}
+                >
+                  Als Entwurf speichern
+                </Button>
+              </div>
             </DrawerFooter>
           </div>
         )}

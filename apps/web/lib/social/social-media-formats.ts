@@ -20,6 +20,8 @@ export type SocialMediaFormat = {
   ratioLabel: string;
   width: number;
   height: number;
+  /** Kurz: welche Kanäle davon profitieren. */
+  platformHint: string;
 };
 
 export const SOCIAL_MEDIA_FORMATS: Record<
@@ -32,6 +34,7 @@ export const SOCIAL_MEDIA_FORMATS: Record<
     ratioLabel: "1:1",
     width: 1080,
     height: 1080,
+    platformHint: "Universal — WhatsApp, Gwada, Grid-Vorschau",
   },
   portrait_4x5: {
     id: "portrait_4x5",
@@ -39,6 +42,7 @@ export const SOCIAL_MEDIA_FORMATS: Record<
     ratioLabel: "4:5",
     width: 1080,
     height: 1350,
+    platformHint: "Best für Instagram- & Facebook-Feed",
   },
   landscape_4x3: {
     id: "landscape_4x3",
@@ -46,6 +50,7 @@ export const SOCIAL_MEDIA_FORMATS: Record<
     ratioLabel: "4:3",
     width: 1440,
     height: 1080,
+    platformHint: "Gut für Google Business & Website",
   },
   classic_5x4: {
     id: "classic_5x4",
@@ -53,6 +58,7 @@ export const SOCIAL_MEDIA_FORMATS: Record<
     ratioLabel: "5:4",
     width: 1350,
     height: 1080,
+    platformHint: "Ruhiges Querformat — Facebook & Google",
   },
   story_9x16: {
     id: "story_9x16",
@@ -60,6 +66,7 @@ export const SOCIAL_MEDIA_FORMATS: Record<
     ratioLabel: "9:16",
     width: 1080,
     height: 1920,
+    platformHint: "Instagram-/Facebook-Story (Hochkant)",
   },
 };
 

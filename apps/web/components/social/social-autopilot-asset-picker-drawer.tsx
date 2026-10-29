@@ -22,12 +22,14 @@ export type AutopilotAssetPick = {
   sourceId: string;
   label: string;
   imageUrl: string;
+  platformLabel?: string;
 };
 
 type Group = "menu" | "gallery";
 
 /**
  * Lädt Speisekarte/Galerie erst beim Öffnen — nicht beim KI-Tab-Switch.
+ * Galerie: echte Thumbnails inkl. Facebook/Instagram/Google aus dem Cache.
  */
 export function SocialAutopilotAssetPickerDrawer({
   open,
@@ -67,6 +69,7 @@ export function SocialAutopilotAssetPickerDrawer({
             sourceId?: string;
             label?: string;
             imageUrl?: string | null;
+            platformLabel?: string;
           }>;
         };
         if (cancelled) return;
@@ -81,8 +84,14 @@ export function SocialAutopilotAssetPickerDrawer({
           )
           .map((o) => ({
             sourceId: o.sourceId as string,
-            label: String(o.label ?? "").trim() || (group === "menu" ? "Gericht" : "Foto"),
+            label:
+              String(o.label ?? "").trim() ||
+              (group === "menu" ? "Gericht" : "Foto"),
             imageUrl: o.imageUrl as string,
+            platformLabel:
+              typeof o.platformLabel === "string" && o.platformLabel.trim()
+                ? o.platformLabel.trim()
+                : undefined,
           }));
         setOptions(next);
       } catch {
@@ -100,7 +109,7 @@ export function SocialAutopilotAssetPickerDrawer({
   const description =
     group === "menu"
       ? "Ein Gericht mit Foto wählen — oder leer lassen."
-      : "Ein Foto wählen — oder leer lassen.";
+      : "Foto wählen (Gwada, Facebook, Instagram, Google) — oder leer lassen.";
 
   return (
     <Drawer
@@ -117,20 +126,71 @@ export function SocialAutopilotAssetPickerDrawer({
 
         <div className={cn(drawerScrollAreaClassName(6), "space-y-2 pb-4")}>
           {showSkeleton ? (
-            <div className="space-y-2" aria-busy>
-              {[0, 1, 2, 3].map((i) => (
-                <SkeletonCardFrame key={i} className="flex gap-3 p-3">
-                  <Skeleton className="size-14 shrink-0 rounded-lg" />
-                  <Skeleton className="h-4 w-2/3 self-center" />
-                </SkeletonCardFrame>
-              ))}
-            </div>
+            group === "gallery" ? (
+              <div className="grid grid-cols-3 gap-2" aria-busy>
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="aspect-square rounded-xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2" aria-busy>
+                {[0, 1, 2, 3].map((i) => (
+                  <SkeletonCardFrame key={i} className="flex gap-3 p-3">
+                    <Skeleton className="size-14 shrink-0 rounded-lg" />
+                    <Skeleton className="h-4 w-2/3 self-center" />
+                  </SkeletonCardFrame>
+                ))}
+              </div>
+            )
           ) : options.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
               {group === "menu"
                 ? "Keine Gerichte mit Foto — Galerie oder nur Stil nutzen."
-                : "Keine Galerie-Fotos — Speisekarte oder nur Stil nutzen."}
+                : "Keine Fotos in Galerie oder verbundenen Kanälen — Speisekarte oder nur Stil nutzen."}
             </p>
+          ) : group === "gallery" ? (
+            <ul className="grid grid-cols-3 gap-2">
+              {options.map((opt) => {
+                const on = draftId === opt.sourceId;
+                return (
+                  <li key={opt.sourceId}>
+                    <button
+                      type="button"
+                      aria-pressed={on}
+                      aria-label={opt.label}
+                      onClick={() =>
+                        setDraftId((prev) =>
+                          prev === opt.sourceId ? null : opt.sourceId,
+                        )
+                      }
+                      className={cn(
+                        "relative aspect-square w-full overflow-hidden rounded-xl border touch-manipulation transition-colors",
+                        on
+                          ? "border-accent/60 ring-2 ring-accent/40"
+                          : "border-border/50 hover:border-border",
+                      )}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={opt.imageUrl}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                      {opt.platformLabel ? (
+                        <span className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                          {opt.platformLabel}
+                        </span>
+                      ) : null}
+                      {on ? (
+                        <span className="absolute top-1 right-1 rounded-full bg-accent p-0.5 text-accent-foreground shadow-sm">
+                          <Check className="size-3.5" />
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           ) : (
             <ul className="space-y-2">
               {options.map((opt) => {

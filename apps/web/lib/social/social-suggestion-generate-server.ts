@@ -319,10 +319,12 @@ export async function generateSocialSuggestionsForRestaurant(
     ideaHints?: Record<string, SocialAutopilotIdeaHint>;
     /** Speisekarte-Artikel (UUIDs) — Generieren nutzt den ersten Treffer. */
     menuIds?: string[];
-    /** Galerie-Bilder (UUIDs) — Fallback wenn kein Gericht. */
+    /** Galerie-Bilder (UUIDs oder Cache-IDs) — Fallback wenn kein Gericht. */
     galleryIds?: string[];
     /** Ohne Medien: Marken-/Stil-Post mit Restaurant-KI. */
     styleOnly?: boolean;
+    /** Freitext-Thema / Prompt vom Nutzer. */
+    userBrief?: string;
     /**
      * Legacy: Katalog nach Quelle (ohne konkrete IDs).
      * Neu: lieber menuIds/galleryIds/styleOnly.
@@ -368,9 +370,14 @@ export async function generateSocialSuggestionsForRestaurant(
     .filter(Boolean);
   const menuIds = opts?.menuIds ?? [];
   const galleryIds = opts?.galleryIds ?? [];
-  const styleOnly = opts?.styleOnly === true;
+  const userBrief =
+    typeof opts?.userBrief === "string" ? opts.userBrief.trim() : "";
+  const styleOnly = opts?.styleOnly === true || Boolean(userBrief);
   const selectionMode =
-    menuIds.length > 0 || galleryIds.length > 0 || styleOnly;
+    menuIds.length > 0 ||
+    galleryIds.length > 0 ||
+    styleOnly ||
+    Boolean(userBrief);
   const sources = opts?.sources ?? [];
   const sourceMode =
     ideaIds.length === 0 && !selectionMode && sources.length > 0;
@@ -450,7 +457,11 @@ export async function generateSocialSuggestionsForRestaurant(
     const resolved = await resolveAutopilotSingleSelection(sb, restaurantId, {
       menuIds,
       galleryIds,
-      styleOnly: styleOnly || (menuIds.length === 0 && galleryIds.length === 0),
+      styleOnly:
+        styleOnly ||
+        Boolean(userBrief) ||
+        (menuIds.length === 0 && galleryIds.length === 0),
+      userBrief: userBrief || undefined,
     });
     if (resolved.skippedReason === "needs_media") {
       return {
@@ -643,6 +654,7 @@ export async function generateSocialSuggestionsForRestaurant(
     if (typeof d.source.captionDirection === "string") {
       facts.captionDirection = d.source.captionDirection;
     }
+    if (userBrief) facts.userBrief = userBrief;
     if (d.title) facts.title = d.title;
     if (d.asset.imageLabel) facts.imageLabel = d.asset.imageLabel;
     const directionHint =

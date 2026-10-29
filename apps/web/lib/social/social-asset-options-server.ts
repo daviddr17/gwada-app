@@ -1,7 +1,9 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { GALLERY_PLATFORM_LABELS } from "@/lib/constants/gallery-platforms";
 import { resolveEventsCoverSignedUrl } from "@/lib/events/events-media";
+import { readCachedGalleryItems } from "@/lib/gallery/gallery-cache-db";
 import { resolveGalleryMediaSignedUrl } from "@/lib/gallery/gallery-media";
 import { resolveRestaurantProfileImageSignedUrl } from "@/lib/restaurant/restaurant-profile-image";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
@@ -11,6 +13,8 @@ export type SocialAssetOption = SocialSuggestionAsset & {
   id: string;
   group: "gallery" | "menu" | "profile" | "event";
   label: string;
+  /** Plattform-Label für Galerie-Picker (Gwada / Facebook / …). */
+  platformLabel?: string;
 };
 
 export type SocialAssetOptionGroup =
@@ -34,7 +38,7 @@ export async function listSocialAssetOptions(
   if (want("gallery")) {
     const { data: galleryRows } = await sb
       .from("gwada_gallery_items")
-      .select("id, storage_path, thumb_storage_path, caption, is_pinned")
+      .select("id, storage_path, thumb_storage_path, caption, title, is_pinned")
       .eq("restaurant_id", restaurantId)
       .order("is_pinned", { ascending: false })
       .order("created_at", { ascending: false })
@@ -49,11 +53,15 @@ export async function listSocialAssetOptions(
         if (!storagePath) return null;
         const imageUrl = await resolveGalleryMediaSignedUrl(storagePath, 7200);
         if (!imageUrl) return null;
-        const label = String(row.caption ?? "").trim() || "Galerie";
+        const label =
+          String(row.caption ?? "").trim() ||
+          String(row.title ?? "").trim() ||
+          "Galerie";
         return {
           id: `gallery:${row.id}`,
           group: "gallery" as const,
           label,
+          platformLabel: GALLERY_PLATFORM_LABELS.gwada,
           imageUrl,
           imageLabel: label,
           source: "gallery" as const,
@@ -65,6 +73,46 @@ export async function listSocialAssetOptions(
     );
     for (const item of galleryResolved) {
       if (item) out.push(item);
+    }
+
+    // Facebook / Instagram / Google (Cache) — echte Vorschaubilder, kein Blind-Row.
+    const cached = await readCachedGalleryItems(sb, restaurantId, [
+      "facebook",
+      "instagram",
+      "google_business",
+    ]);
+    const seenUrls = new Set(
+      out
+        .map((o) => o.imageUrl)
+        .filter((u): u is string => typeof u === "string" && Boolean(u)),
+    );
+    for (const item of cached) {
+      if (item.mediaKind !== "image") continue;
+      const imageUrl = (
+        item.thumbUrl ||
+        item.previewUrl ||
+        item.fullUrl ||
+        ""
+      ).trim();
+      if (!imageUrl || seenUrls.has(imageUrl)) continue;
+      seenUrls.add(imageUrl);
+      const label =
+        item.caption?.trim() ||
+        item.title?.trim() ||
+        GALLERY_PLATFORM_LABELS[item.platform] ||
+        "Foto";
+      out.push({
+        id: item.id,
+        group: "gallery",
+        label,
+        platformLabel: GALLERY_PLATFORM_LABELS[item.platform],
+        imageUrl,
+        imageLabel: label,
+        source: "gallery",
+        // Prefixed so Generate externe Cache-IDs von Gwada-UUIDs unterscheiden kann.
+        sourceId: item.id,
+      });
+      if (out.filter((o) => o.group === "gallery").length >= 48) break;
     }
   }
 

@@ -13,8 +13,8 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import {
   SOCIAL_TONE_LABELS,
   type SocialBrandKit,
-  type SocialTone,
 } from "@/lib/social/social-brand-kit";
+import type { SocialAutopilotVoiceDraft } from "@/lib/social/social-autopilot-voice-draft";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import {
@@ -23,14 +23,7 @@ import {
   autopilotSecondaryButtonClassName,
 } from "@/lib/ui/social-autopilot-buttons";
 
-export type SocialAutopilotVoiceDraft = {
-  voiceNotes: string;
-  goldCaptions: string[];
-  tone: SocialTone | null;
-  sampleCount: number;
-  sourcePlatforms: string[];
-  fromLlm: boolean;
-};
+export type { SocialAutopilotVoiceDraft } from "@/lib/social/social-autopilot-voice-draft";
 
 /**
  * Selbsterklärendes Bottom Sheet: Schreibstil + optional aus Social lernen.

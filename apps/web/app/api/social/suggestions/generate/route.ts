@@ -5,6 +5,7 @@ import { parseSocialMediaFormatId } from "@/lib/social/social-media-formats";
 import {
   parseAutopilotGalleryIds,
   parseAutopilotMenuIds,
+  parseAutopilotUserBrief,
 } from "@/lib/social/social-autopilot-selection-server";
 import {
   generateSocialSuggestionsForRestaurant,
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Caption/Media-Generate über die Restaurant-KI (OpenAI/Grok aus Integrationen).
- * KI-Post: menuIds / galleryIds / styleOnly → genau ein Post.
+ * KI-Post: menuIds / galleryIds / styleOnly / userBrief → genau ein Post.
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
     menuIds?: unknown;
     galleryIds?: unknown;
     styleOnly?: unknown;
+    userBrief?: unknown;
     sources?: unknown;
     count?: unknown;
     tone?: unknown;
@@ -39,7 +41,8 @@ export async function POST(req: Request) {
     : [];
   const menuIds = parseAutopilotMenuIds(body.menuIds);
   const galleryIds = parseAutopilotGalleryIds(body.galleryIds);
-  const styleOnly = body.styleOnly === true;
+  const userBrief = parseAutopilotUserBrief(body.userBrief);
+  const styleOnly = body.styleOnly === true || Boolean(userBrief);
   const sources = parseSocialAutopilotSources(body.sources);
   const ideaHints = parseSocialAutopilotIdeaHints(body.ideaHints);
   const tone =
@@ -65,7 +68,10 @@ export async function POST(req: Request) {
   }
 
   const selectionMode =
-    menuIds.length > 0 || galleryIds.length > 0 || styleOnly;
+    menuIds.length > 0 ||
+    galleryIds.length > 0 ||
+    styleOnly ||
+    Boolean(userBrief);
   if (ideaIds.length === 0 && !selectionMode && sources.length === 0) {
     return Response.json(
       { error: "selection_required", generation: { created: 0 } },
@@ -83,6 +89,7 @@ export async function POST(req: Request) {
       menuIds,
       galleryIds,
       styleOnly,
+      userBrief: userBrief || undefined,
       sources,
       count: 1,
       tone,

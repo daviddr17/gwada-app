@@ -1,11 +1,24 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { readCachedGalleryItems } from "@/lib/gallery/gallery-cache-db";
 import { resolveGalleryMediaSignedUrl } from "@/lib/gallery/gallery-media";
 import { resolveRestaurantProfileImageSignedUrl } from "@/lib/restaurant/restaurant-profile-image";
 import { socialAutopilotIdeaId } from "@/lib/social/social-autopilot-ideas";
 import type { SocialAutopilotCatalogIdea } from "@/lib/social/social-autopilot-ideas-server";
+import { clipAutopilotText } from "@/lib/social/social-autopilot-bounds";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Max. Freitext für KI-Post-Vorgaben. */
+export const SOCIAL_AUTOPILOT_USER_BRIEF_MAX = 500;
+
+export function parseAutopilotUserBrief(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return clipAutopilotText(raw.trim(), SOCIAL_AUTOPILOT_USER_BRIEF_MAX);
+}
 
 function parseIdList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -65,18 +78,72 @@ async function resolveMenuIdea(
   };
 }
 
+async function resolveExternalCachedGalleryIdea(
+  sb: SupabaseClient,
+  restaurantId: string,
+  galleryId: string,
+): Promise<SocialAutopilotCatalogIdea | null> {
+  const cached = await readCachedGalleryItems(sb, restaurantId, [
+    "facebook",
+    "instagram",
+    "google_business",
+  ]);
+  const hit = cached.find((item) => item.id === galleryId);
+  if (!hit || hit.mediaKind !== "image") return null;
+  const imageUrl = (
+    hit.fullUrl ||
+    hit.previewUrl ||
+    hit.thumbUrl ||
+    ""
+  ).trim();
+  if (!imageUrl) return null;
+  const label =
+    hit.caption?.trim() || hit.title?.trim() || "Galerie";
+  const id = socialAutopilotIdeaId("gallery", galleryId);
+  return {
+    id,
+    slotKind: "ambient",
+    sourceBucket: "gallery",
+    title: label,
+    reasonLabel: "Galerie",
+    reasonDetail: label,
+    imageUrl,
+    imageLabel: label,
+    asset: {
+      imageUrl,
+      imageLabel: label,
+      source: "gallery",
+      sourceId: galleryId,
+    },
+  };
+}
+
 async function resolveGalleryIdea(
   sb: SupabaseClient,
   restaurantId: string,
   galleryId: string,
 ): Promise<SocialAutopilotCatalogIdea | null> {
+  const rawId = galleryId.trim();
+  if (!rawId) return null;
+
+  // Prefixed Cache-IDs (facebook:… / instagram:… / google_business:…)
+  if (rawId.includes(":")) {
+    return resolveExternalCachedGalleryIdea(sb, restaurantId, rawId);
+  }
+
+  if (!UUID_RE.test(rawId)) {
+    return resolveExternalCachedGalleryIdea(sb, restaurantId, rawId);
+  }
+
   const { data } = await sb
     .from("gwada_gallery_items")
     .select("id, storage_path, thumb_storage_path, caption")
     .eq("restaurant_id", restaurantId)
-    .eq("id", galleryId)
+    .eq("id", rawId)
     .maybeSingle();
-  if (!data) return null;
+  if (!data) {
+    return resolveExternalCachedGalleryIdea(sb, restaurantId, rawId);
+  }
   const storagePath = String(
     data.thumb_storage_path || data.storage_path || "",
   ).trim();
@@ -168,6 +235,8 @@ export async function resolveAutopilotSingleSelection(
     galleryIds?: string[];
     /** Explizit ohne Medien — Marken-/Stil-Post. */
     styleOnly?: boolean;
+    /** Freitext-Thema vom Nutzer (kein LLM bis Generate). */
+    userBrief?: string;
   },
 ): Promise<{
   idea: SocialAutopilotCatalogIdea | null;
@@ -179,20 +248,39 @@ export async function resolveAutopilotSingleSelection(
 
   const menuIds = opts.menuIds ?? [];
   const galleryIds = opts.galleryIds ?? [];
+  const userBrief = parseAutopilotUserBrief(opts.userBrief);
+
+  const withBrief = (
+    idea: SocialAutopilotCatalogIdea,
+  ): SocialAutopilotCatalogIdea => {
+    if (!userBrief) return idea;
+    return {
+      ...idea,
+      theme: userBrief.slice(0, 72),
+      captionDirection: userBrief,
+      title: idea.slotKind === "brand" ? userBrief.slice(0, 80) : idea.title,
+      aiSuggested: true,
+    };
+  };
 
   for (const menuId of menuIds) {
     const idea = await resolveMenuIdea(sb, restaurantId, menuId);
-    if (idea) return { idea };
+    if (idea) return { idea: withBrief(idea) };
   }
   for (const galleryId of galleryIds) {
     const idea = await resolveGalleryIdea(sb, restaurantId, galleryId);
-    if (idea) return { idea };
+    if (idea) return { idea: withBrief(idea) };
   }
 
   // Keine Medien gewählt → Stil/Marke (Restaurant-KI + Brand Kit).
-  if (opts.styleOnly || (menuIds.length === 0 && galleryIds.length === 0)) {
+  // Freitext allein reicht ebenfalls (styleOnly).
+  if (
+    opts.styleOnly ||
+    userBrief ||
+    (menuIds.length === 0 && galleryIds.length === 0)
+  ) {
     const idea = await resolveStyleOnlyIdea(sb, restaurantId);
-    if (idea) return { idea };
+    if (idea) return { idea: withBrief(idea) };
     return { idea: null, skippedReason: "needs_media" };
   }
 

@@ -73,12 +73,6 @@ export function SocialAutopilotOptionsDrawer({
     value: t,
     label: SOCIAL_TONE_LABELS[t],
   }));
-  const formatOptions = SOCIAL_MEDIA_FORMAT_IDS.filter(
-    (id) => id !== "story_9x16",
-  ).map((id) => ({
-    value: id,
-    label: `${SOCIAL_MEDIA_FORMATS[id].ratioLabel} · ${SOCIAL_MEDIA_FORMATS[id].label}`,
-  }));
 
   const resetDefaults = defaults ?? {
     tone: "warm" as SocialTone,
@@ -165,22 +159,44 @@ export function SocialAutopilotOptionsDrawer({
             </DrawerFilterField>
 
             <DrawerFilterField label="Format">
-              <SearchableSelect
-                value={format}
-                onValueChange={(v) => {
-                  if (
-                    typeof v === "string" &&
-                    SOCIAL_MEDIA_FORMAT_IDS.includes(v as SocialMediaFormatId)
-                  ) {
-                    onFormatChange(v as SocialMediaFormatId);
-                  }
-                }}
-                options={formatOptions}
-                placeholder="Format wählen"
-                className={selectClassName}
-                side="top"
-                aria-label="Post-Format"
-              />
+              <p className="mb-2 text-xs text-muted-foreground">
+                Welches Seitenverhältnis passt zu euren Kanälen?
+              </p>
+              <ul className="space-y-2">
+                {SOCIAL_MEDIA_FORMAT_IDS.filter((id) => id !== "story_9x16").map(
+                  (id) => {
+                    const meta = SOCIAL_MEDIA_FORMATS[id];
+                    const on = format === id;
+                    return (
+                      <li key={id}>
+                        <button
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => onFormatChange(id)}
+                          className={cn(
+                            "flex w-full items-start justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-left touch-manipulation transition-colors",
+                            on
+                              ? "border-accent/50 bg-accent/10 text-foreground"
+                              : "border-border/60 bg-card text-muted-foreground",
+                          )}
+                        >
+                          <span className="min-w-0 space-y-0.5">
+                            <span className="block text-sm font-medium text-foreground">
+                              {meta.ratioLabel} · {meta.label}
+                            </span>
+                            <span className="block text-[11px] leading-snug text-muted-foreground">
+                              {meta.platformHint}
+                            </span>
+                          </span>
+                          {on ? (
+                            <Check className="mt-0.5 size-4 shrink-0 text-foreground" />
+                          ) : null}
+                        </button>
+                      </li>
+                    );
+                  },
+                )}
+              </ul>
               <p className="mt-2 text-xs text-muted-foreground">
                 Stories (9:16) werden beim Publish automatisch zugeschnitten.
               </p>

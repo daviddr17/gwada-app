@@ -22,7 +22,17 @@ export const checklistenGuide: UserGuidePage = {
         ],
       },
     },
-
+    {
+      heading: "Persönliche Erinnerungen (Popup)",
+      body: "Unter Meine legst du Notizen mit optionalem Erinnerungszeitpunkt an. Zur Fälligkeit öffnet gwada ein In-App-Popup in der App-Zone — zusätzlich können WhatsApp/E-Mail an dich gehen (Profil → Benachrichtigungen → Persönliche Erinnerung). Das Popup gilt nur für dich; der In-App-Kanal „Persönliche Erinnerung“ steuert Popup und Glocke.",
+      table: {
+        headers: ["Aktion", "Wirkung"],
+        rows: [
+          ["OK", "Popup schließen — Erinnerung als zugestellt markiert"],
+          ["Erledigt", "Notiz abhaken und Popup schließen"],
+        ],
+      },
+    },
     {
       heading: "KPI-Pills (Übersicht)",
       table: {
@@ -87,13 +97,14 @@ export const checklistenGuide: UserGuidePage = {
         ],
       },
     },
-
   ],
   tips: [
     "Temperatur-ToDos entstehen automatisch bei Grenzwert-Überschreitung.",
     "Compliance-Erfassungen am Display zählen in „Heute erfasst“.",
+    "Teamchat findest du unter Nachrichten → Persönlich, nicht mehr unter Aufgaben.",
   ],
   related: [
+    { label: "Nachrichten → Persönlich", href: "/docs/handbook/messages" },
     { label: "Display → Checklisten", href: "/docs/handbook/display" },
     { label: "Mitarbeiter", href: "/docs/handbook/staff" },
   ],

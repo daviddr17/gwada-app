@@ -1,34 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# gwada-app
 
-## Getting Started
+Restaurant-Betriebssystem (Next.js Monorepo): Speisekarte, Reservierungen, Nachrichten, Team, Bestand, POS/Kiosk, öffentliche Profile und Public API / MCP.
 
-First, install dependencies and run the development server:
+## Setup
 
 ```bash
-# Einmalig nach Clone (Corepack-Signatur-Fix / pnpm-Pin):
 bash scripts/ensure-pnpm.sh
-
 pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App: [http://localhost:3000](http://localhost:3000) — Code unter `apps/web/`. Standard-DB: Entwickler-Supabase auf dem VPS (`.env.development`), siehe `docs/remote-dev-supabase.md`.
 
-The Next.js app lives in `apps/web/`. Root scripts delegate via pnpm workspaces.
+## Dokumentation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Was | Wo |
+|-----|-----|
+| Produkt-Handbuch + API | [gwada.app/docs](https://gwada.app/docs) (`apps/web/lib/docs`, `apps/web/app/(platform)/docs`) |
+| Restaurant MCP | `/docs/api/mcp` — `POST /api/v1/mcp` |
+| Live-Deploy / Infra | `docs/live-deploy.md`, `docs/coolify-live-deploy.md` |
+| Dev-DB | `docs/remote-dev-supabase.md` |
 
-## Learn More
+## Workspace
 
-To learn more about Next.js, take a look at the following resources:
+```
+apps/web          Next.js App + Handbuch/API-Docs
+apps/dashboard    Vite-Dashboard-Routen (generiert)
+packages/*        geteilte Pakete
+supabase/         Migrationen
+docs/             Ops-/Runbooks (nicht das Produkt-Handbuch)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Package Manager: **pnpm** (siehe `packageManager` in `package.json`).

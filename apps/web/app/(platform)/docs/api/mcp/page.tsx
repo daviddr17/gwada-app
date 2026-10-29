@@ -154,6 +154,10 @@ export default function DocsApiMcpPage() {
           Rate-Limit und Origin-Allowlist: wie{" "}
           <Link href="/docs/api/rate-limits">REST</Link>
         </li>
+        <li>
+          Öffentliche Module brauchen ein veröffentlichtes Restaurant; Bestellungen
+          (<code>purchase_orders</code>) sind die Ausnahme
+        </li>
       </ul>
 
       <h2>Nächste Schritte</h2>

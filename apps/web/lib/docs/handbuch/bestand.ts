@@ -81,7 +81,17 @@ export const bestandGuide: UserGuidePage = {
         "Bestand → Übersicht → Neue Zutat.",
         "Name, Lagereinheit, Lieferant, Kategorie und optional Mindestbestand eintragen.",
         "Aktuellen Bestand setzen oder später per Buchung / Spracheingabe anpassen.",
+        "Optional „Zusatzstoffe & Allergene“ setzen (länderpflichtige Codes) — fließt in Gerichte mit dieser Zutat im Rezept.",
         "Speichern — die Zutat erscheint in Übersicht, Rezepten und Display (wenn freigeschaltet).",
+      ],
+    },
+    {
+      heading: "Zusatzstoffe & Allergene an Zutaten",
+      body: "Im Zutat-Drawer kennzeichnest du Zusatzstoffe und Allergene mit Codes aus dem Länderkatalog. Am Gericht aggregiert die Speisekarte diese Codes aus dem Rezept; manuelle/KI-Ergänzungen am Artikel bleiben möglich.",
+      items: [
+        "Liste hängt vom Restaurant-Land ab (DE/AT/CH/FR)",
+        "Optional KI vorschlagen — nutzt den Restaurant-KI-Schlüssel (Credits)",
+        "Freiform-Allergen-Chips in der Speisekarte bleiben separat",
       ],
     },
   ],
@@ -89,6 +99,7 @@ export const bestandGuide: UserGuidePage = {
     "Leerer Bestand und offene Bestellungen erscheinen im Dashboard unter Heute → Bestand. Inaktive Zutaten zählen dort nicht.",
     "Mindestbestand (Schwellwert) löst Hinweise aus, wenn der Bestand darunter fällt.",
     "Das Bestandsprotokoll pro Zutat zeigt alle Buchungen chronologisch.",
+    "Kennzeichnungen an der Zutat einmal pflegen — alle Gerichte mit dieser Zutat erben sie über das Rezept.",
   ],
   related: [
     { label: "Speisekarte (Rezepte)", href: "/docs/handbook/menu" },

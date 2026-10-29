@@ -7,6 +7,7 @@ import {
   PosComingSoonSkeleton,
 } from "@/components/pos/pos-coming-soon-screen";
 import { POS_MODULE_NAV } from "@/components/pos/pos-module-nav";
+import { PosSettingsSubnav } from "@/components/pos/pos-settings-subnav";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
@@ -57,6 +58,7 @@ export function wrapPosComingSoonPage(Page: ComponentType): ComponentType {
   function Wrapped() {
     return (
       <PosComingSoonGate withModuleChrome>
+        <PosSettingsSubnav />
         <Page />
       </PosComingSoonGate>
     );

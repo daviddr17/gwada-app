@@ -175,6 +175,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/superadmin/notifications": "Benachrichtigungen",
   "/superadmin/templates": "Vorlagen",
   "/superadmin/templates/contract-templates": "Vertragsvorlagen",
+  "/superadmin/templates/food-markings": "Allergene & Zusatzstoffe",
   "/superadmin/contract-templates": "Vertragsvorlagen",
 };
 
@@ -273,6 +274,8 @@ const SEGMENT_SLUG_LABELS: Record<string, string> = {
   database: "Datenbank",
   "load-strategy": "Lade-Strategie",
   "contract-templates": "Vertragsvorlagen",
+  "food-markings": "Allergene & Zusatzstoffe",
+  kennzeichnungen: "Allergene & Zusatzstoffe",
   payments: "Zahlungen",
   imprint: "Impressum",
   privacy: "Datenschutz",

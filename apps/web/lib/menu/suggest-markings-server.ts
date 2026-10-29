@@ -2,9 +2,11 @@ import "server-only";
 
 import OpenAI from "openai";
 import {
-  foodMarkingsForCountry,
   normalizeFoodMarkingCodes,
+  sortFoodMarkingCodesAgainst,
+  type FoodMarkingDefinition,
 } from "@/lib/menu/food-marking-catalog";
+import { resolveFoodMarkingsForCountry } from "@/lib/menu/resolve-food-markings";
 import { normalizeCountryIso2 } from "@/lib/restaurant/country-profile";
 import type { AssistantLlmRuntime } from "@/lib/assistant/assistant-llm-source";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -49,10 +51,10 @@ function buildPrompt(params: {
   name: string;
   description?: string;
   countryIso2: string;
+  catalog: FoodMarkingDefinition[];
 }): { system: string; user: string; allowedCodes: string[] } {
-  const catalog = foodMarkingsForCountry(params.countryIso2);
-  const allowedCodes = catalog.map((m) => m.code);
-  const list = catalog
+  const allowedCodes = params.catalog.map((m) => m.code);
+  const list = params.catalog
     .map((m) => `${m.code}=${m.label} (${m.kind})`)
     .join("; ");
   const target =
@@ -160,11 +162,14 @@ export async function suggestFoodMarkings(params: {
   }
 
   const countryIso2 = await loadRestaurantCountryIso2(params.restaurantId);
+  const admin = createSupabaseAdminClient();
+  const catalog = await resolveFoodMarkingsForCountry(admin, countryIso2);
   const prompt = buildPrompt({
     kind: params.kind,
     name,
     description: params.description,
     countryIso2,
+    catalog,
   });
 
   const result = await runLlmSuggest({
@@ -174,7 +179,6 @@ export async function suggestFoodMarkings(params: {
     allowedCodes: prompt.allowedCodes,
   });
 
-  const admin = createSupabaseAdminClient();
   if (admin) {
     await insertRestaurantAiUsageEvent(admin, {
       restaurantId: params.restaurantId,
@@ -203,15 +207,16 @@ export async function suggestFoodMarkings(params: {
     };
   }
 
+  const allowed = new Set(catalog.map((m) => m.code));
+  const filtered = normalizeFoodMarkingCodes(result.codes, undefined).filter(
+    (c) => allowed.has(c),
+  );
+
   return {
     ok: true,
-    codes: sortAndFilter(result.codes, countryIso2),
+    codes: sortFoodMarkingCodesAgainst(filtered, catalog),
     aiConfigured: true,
     provider: llm.provider,
     model: llm.model,
   };
-}
-
-function sortAndFilter(codes: string[], countryIso2: string): string[] {
-  return normalizeFoodMarkingCodes(codes, countryIso2);
 }

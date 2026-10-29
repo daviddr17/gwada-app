@@ -6,10 +6,10 @@ import { toast } from "sonner";
 import { TagMultiCombobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import {
-  foodMarkingLabel,
-  foodMarkingsAsTaxonomy,
-  sortFoodMarkingCodes,
+  foodMarkingLabelFromDefinitions,
+  sortFoodMarkingCodesAgainst,
 } from "@/lib/menu/food-marking-catalog";
+import { useFoodMarkingsCatalog } from "@/lib/hooks/use-food-markings-catalog";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
 
@@ -42,15 +42,11 @@ export function FoodMarkingField({
 }: FoodMarkingFieldProps) {
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const [suggesting, setSuggesting] = useState(false);
-
-  const definitions = useMemo(
-    () => foodMarkingsAsTaxonomy(countryIso2),
-    [countryIso2],
-  );
+  const { definitions, taxonomy } = useFoodMarkingsCatalog(countryIso2);
 
   const fromIngredients = useMemo(
-    () => sortFoodMarkingCodes(readOnlyCodes ?? [], countryIso2),
-    [readOnlyCodes, countryIso2],
+    () => sortFoodMarkingCodesAgainst(readOnlyCodes ?? [], definitions),
+    [readOnlyCodes, definitions],
   );
 
   const handleSuggest = async () => {
@@ -99,9 +95,9 @@ export function FoodMarkingField({
         toast.message("Keine Kennzeichnungen vorgeschlagen.");
         return;
       }
-      const merged = sortFoodMarkingCodes(
+      const merged = sortFoodMarkingCodesAgainst(
         [...value, ...suggested],
-        countryIso2,
+        definitions,
       );
       onChange(merged);
       toast.success(
@@ -128,7 +124,7 @@ export function FoodMarkingField({
                 className="inline-flex max-w-full items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-950/40 dark:text-amber-50 dark:ring-amber-800/60"
               >
                 <span className="truncate">
-                  {foodMarkingLabel(countryIso2, code)}
+                  {foodMarkingLabelFromDefinitions(definitions, code)}
                 </span>
               </span>
             ))}
@@ -161,7 +157,7 @@ export function FoodMarkingField({
         </div>
         <TagMultiCombobox
           id={`food-markings-${kind}`}
-          definitions={definitions}
+          definitions={taxonomy}
           value={value}
           onChange={onChange}
           disabled={disabled}

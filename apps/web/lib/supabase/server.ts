@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAnonKey } from "@/lib/public-env";
+import {
+  STAY_SIGNED_IN_COOKIE,
+  mapAuthCookiesForStaySignedIn,
+  resolveStaySignedInPreference,
+} from "@/lib/auth/stay-signed-in";
 import { resolveRequestOrigin } from "@/lib/navigation/request-origin";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
@@ -21,6 +26,10 @@ export async function createSupabaseServerClient() {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
+  const staySignedIn = resolveStaySignedInPreference(
+    cookieStore.get(STAY_SIGNED_IN_COOKIE)?.value,
+  );
+
   return createServerClient(url, anonKey, {
     cookieOptions: gwadaSupabaseCookieOptions,
     cookies: {
@@ -29,9 +38,12 @@ export async function createSupabaseServerClient() {
       },
       setAll(cookiesToSet) {
         try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
-          );
+          for (const { name, value, options } of mapAuthCookiesForStaySignedIn(
+            cookiesToSet,
+            staySignedIn,
+          )) {
+            cookieStore.set(name, value, options);
+          }
         } catch {
           /* Server Component — session refresh runs in `proxy.ts`. */
         }

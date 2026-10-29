@@ -6,6 +6,7 @@ import {
   DISPLAY_DEVICE_COOKIE,
   DISPLAY_SESSION_COOKIE,
 } from "@/lib/display/display-cookies";
+import { STAY_SIGNED_IN_COOKIE } from "@/lib/auth/stay-signed-in";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 
 /** Volles OAuth-JSON im Cookie — Hauptursache für „header/cookie too large“. */
@@ -50,6 +51,8 @@ export function shouldStripCookieFromSupabaseProxy(name: string): boolean {
   if (name === OAUTH_PENDING_ID_COOKIE) return false;
   // UI-Locale muss die App-Zone erreichen (proxy slimmt sonst alle gwada_*).
   if (name === APP_LOCALE_COOKIE || name === EMBED_LOCALE_COOKIE) return false;
+  // Login „Angemeldet bleiben“ — nötig für Session- vs. Persistenz-Cookies beim Refresh.
+  if (name === STAY_SIGNED_IN_COOKIE) return false;
   if (isSupabaseSessionCookie(name)) return false;
   if (
     (AUTH_ENTRY_COOKIES_TO_CLEAR as readonly string[]).includes(name) ||

@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAnonKey } from "@/lib/public-env";
+import {
+  STAY_SIGNED_IN_COOKIE,
+  mapAuthCookiesForStaySignedIn,
+  resolveStaySignedInPreference,
+} from "@/lib/auth/stay-signed-in";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
@@ -143,6 +148,11 @@ export async function proxy(request: NextRequest) {
 
   const forwardRequest = slimAuthenticatedCookieRequest(request);
   const response = NextResponse.next({ request: forwardRequest });
+  // Preference aus dem Original-Request — slim kann gwada_* sonst entfernen;
+  // Cookie ist zusätzlich in bloated-request-cookies freigeschaltet.
+  const staySignedIn = resolveStaySignedInPreference(
+    request.cookies.get(STAY_SIGNED_IN_COOKIE)?.value,
+  );
 
   const supabase = createServerClient(resolveSupabaseUrl(request.nextUrl.origin), anonKey, {
     cookieOptions: gwadaSupabaseCookieOptions,
@@ -151,9 +161,12 @@ export async function proxy(request: NextRequest) {
         return forwardRequest.cookies.getAll();
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
+        for (const { name, value, options } of mapAuthCookiesForStaySignedIn(
+          cookiesToSet,
+          staySignedIn,
+        )) {
           response.cookies.set(name, value, options);
-        });
+        }
       },
     },
   });

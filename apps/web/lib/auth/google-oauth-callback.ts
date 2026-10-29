@@ -15,6 +15,11 @@ import { resolveRequestOriginFromRequest } from "@/lib/navigation/request-origin
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { getSupabaseAnonKey } from "@/lib/public-env";
+import {
+  STAY_SIGNED_IN_COOKIE,
+  mapAuthCookiesForStaySignedIn,
+  resolveStaySignedInPreference,
+} from "@/lib/auth/stay-signed-in";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -113,6 +118,9 @@ export async function handleGoogleOAuthCallback(
     return redirectLogin(origin, "Supabase ist nicht konfiguriert.", state.next);
   }
 
+  const staySignedIn = resolveStaySignedInPreference(
+    cookieStore.get(STAY_SIGNED_IN_COOKIE)?.value,
+  );
   const supabase = createServerClient(resolveSupabaseUrl(origin), anonKey, {
     cookieOptions: gwadaSupabaseCookieOptions,
     cookies: {
@@ -120,9 +128,12 @@ export async function handleGoogleOAuthCallback(
         return cookieStore.getAll();
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
+        for (const { name, value, options } of mapAuthCookiesForStaySignedIn(
+          cookiesToSet,
+          staySignedIn,
+        )) {
           cookieStore.set(name, value, options);
-        });
+        }
       },
     },
   });

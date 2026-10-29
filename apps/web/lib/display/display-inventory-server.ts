@@ -138,7 +138,7 @@ async function loadIngredientsAdmin(
   const { data: ings, error: e1 } = await admin
     .from("inventory_ingredients")
     .select(
-      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,article_number,image_path,supplier_id,category_id,production_site_id,brand_id,is_active",
+      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,article_number,image_path,marking_codes,supplier_id,category_id,production_site_id,brand_id,is_active",
     )
     .eq("restaurant_id", restaurantId)
     .order("name", { ascending: true });
@@ -183,6 +183,11 @@ async function loadIngredientsAdmin(
         typeof o.image_path === "string" && o.image_path.trim()
           ? o.image_path.trim()
           : null,
+      markingCodes: Array.isArray(o.marking_codes)
+        ? (o.marking_codes as unknown[]).filter(
+            (c): c is string => typeof c === "string" && c.trim().length > 0,
+          )
+        : [],
       supplierId: o.supplier_id as string,
       categoryId: o.category_id as string,
       productionSiteId: o.production_site_id as string,

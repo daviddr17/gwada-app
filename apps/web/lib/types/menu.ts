@@ -79,6 +79,11 @@ export interface MenuItem {
   recipe?: MenuRecipeLine[] | null;
   /** Zugeordnete Optionsgruppen (IDs), Reihenfolge = Anzeige */
   optionGroupIds?: string[];
+  /**
+   * Zusatzstoffe/Allergene direkt am Gericht (zusätzlich zur Aggregation aus Zutaten).
+   * Codes der länderspezifischen Kennzeichnungsliste.
+   */
+  markingCodes?: string[];
   /** Optional: Anzeige ab (YYYY-MM-DD, inklusive). */
   availableFrom?: string | null;
   /** Optional: Anzeige bis (YYYY-MM-DD, inklusive). */

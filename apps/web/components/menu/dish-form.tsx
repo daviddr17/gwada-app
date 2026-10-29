@@ -33,6 +33,9 @@ import {
   computeRecipeCost,
   formatEuroAmount,
 } from "@/lib/menu/recipe-cost-utils";
+import { markingCodesFromRecipeIngredients } from "@/lib/menu/aggregate-dish-markings";
+import { FoodMarkingField } from "@/components/menu/food-marking-field";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 
 type FormState = {
   name: string;
@@ -42,6 +45,7 @@ type FormState = {
   imageUrl: string;
   tags: MenuTag[];
   optionGroupIds: string[];
+  markingCodes: string[];
   active: boolean;
   listNumber: string;
   availableFrom: string;
@@ -57,6 +61,7 @@ const emptyForm: FormState = {
   imageUrl: "",
   tags: [],
   optionGroupIds: [],
+  markingCodes: [],
   active: true,
   listNumber: "",
   availableFrom: "",
@@ -91,6 +96,7 @@ function itemToFormState(item: MenuItem): FormState {
     imageUrl: item.imageUrl,
     tags: item.tags,
     optionGroupIds: item.optionGroupIds ?? [],
+    markingCodes: item.markingCodes ?? [],
     active: item.active !== false,
     listNumber:
       item.listNumber != null && !Number.isNaN(item.listNumber)
@@ -131,6 +137,7 @@ export function DishForm({
   onSubmit,
   onCancel,
 }: DishFormProps) {
+  const { profile } = useRestaurantProfile();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [recipeLineRemoveIndex, setRecipeLineRemoveIndex] = useState<
@@ -176,6 +183,20 @@ export function DishForm({
     () => new Map(ingredients.map((x) => [x.id, x])),
     [ingredients],
   );
+
+  const recipeMarkingCodes = useMemo(() => {
+    const recipeLines = form.recipe
+      .filter((l) => l.ingredientId.trim())
+      .map((l) => ({
+        ingredientId: l.ingredientId,
+        amount: Number.parseFloat(l.amount.replace(",", ".")) || 0,
+      }));
+    return markingCodesFromRecipeIngredients({
+      recipe: recipeLines,
+      ingredientsById,
+      countryIso2: profile.countryIso2,
+    });
+  }, [form.recipe, ingredientsById, profile.countryIso2]);
 
   const recipeCostSummary = useMemo(() => {
     const cost = computeRecipeCost(form.recipe, ingredientsById);
@@ -272,6 +293,7 @@ export function DishForm({
         "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80",
       tags: form.tags,
       optionGroupIds: form.optionGroupIds,
+      markingCodes: form.markingCodes,
       active: form.active,
       listNumber,
       availableFrom: form.availableFrom.trim() || null,
@@ -476,6 +498,25 @@ export function DishForm({
             value={form.tags}
             onChange={(tags) => setForm((p) => ({ ...p, tags }))}
             aria-label="Tags und Allergene"
+          />
+        </DishFormSection>
+
+        <DishFormSection title="Zusatzstoffe & Allergene">
+          <p className="text-xs text-muted-foreground">
+            Aggregation aus Rezept-Zutaten plus optionale Kennzeichnung direkt am
+            Gericht (Länderliste {profile.countryIso2 || "DE"}).
+          </p>
+          <FoodMarkingField
+            countryIso2={profile.countryIso2}
+            value={form.markingCodes}
+            onChange={(markingCodes) =>
+              setForm((p) => ({ ...p, markingCodes }))
+            }
+            suggestName={form.name}
+            suggestDescription={form.description}
+            kind="dish"
+            readOnlyCodes={recipeMarkingCodes}
+            readOnlyHint="Aus verknüpften Zutaten (Rezept)"
           />
         </DishFormSection>
 

@@ -31,12 +31,14 @@ import {
 } from "@/lib/ui/profile-avatar-image";
 import { cn } from "@/lib/utils";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { Switch } from "@/components/ui/switch";
 import {
   isIosTouchDevice,
   useDrawerFormKeyboardAssist,
 } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
+import { FoodMarkingField } from "@/components/menu/food-marking-field";
 import type {
   Ingredient,
   IngredientStockUnit,
@@ -94,6 +96,7 @@ export function IngredientDrawer({
 }: IngredientDrawerProps) {
   const mode = initial ? "edit" : "create";
   const { restaurantId } = useWorkspaceRestaurantUuid();
+  const { profile } = useRestaurantProfile();
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
@@ -111,6 +114,7 @@ export function IngredientDrawer({
   const [categoryId, setCategoryId] = useState("");
   const [productionSiteId, setProductionSiteId] = useState("");
   const [brandId, setBrandId] = useState("");
+  const [markingCodes, setMarkingCodes] = useState<string[]>([]);
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -142,6 +146,7 @@ export function IngredientDrawer({
         initial.productionSiteId || firstActiveId(productionSites),
       );
       setBrandId(initial.brandId || firstActiveId(brands));
+      setMarkingCodes(initial.markingCodes ?? []);
       setActive(initial.active !== false);
       return;
     }
@@ -161,6 +166,7 @@ export function IngredientDrawer({
     setCategoryId(firstActiveId(ingredientCategories));
     setProductionSiteId(firstActiveId(productionSites));
     setBrandId(firstActiveId(brands));
+    setMarkingCodes([]);
     setActive(true);
   });
 
@@ -284,6 +290,7 @@ export function IngredientDrawer({
           productionSiteId:
             productionSiteId || firstActiveId(productionSites),
           brandId: brandId || firstActiveId(brands),
+          markingCodes,
           active,
         };
         if (mode === "edit" && initial && onSave) {
@@ -490,6 +497,22 @@ export function IngredientDrawer({
                   EUR pro Lagereinheit — Grundlage für Food-Cost in Rezepten.
                 </p>
               </div>
+            </DrawerFormSection>
+
+            <DrawerFormSection title="Zusatzstoffe & Allergene">
+              <p className="text-xs text-muted-foreground">
+                Pflichtkennzeichnung laut Länderliste (
+                {profile.countryIso2 || "DE"}). Wird auf Gerichte mit dieser
+                Zutat im Rezept übernommen.
+              </p>
+              <FoodMarkingField
+                countryIso2={profile.countryIso2}
+                value={markingCodes}
+                onChange={setMarkingCodes}
+                suggestName={name}
+                kind="ingredient"
+                disabled={saving}
+              />
             </DrawerFormSection>
 
             <DrawerFormSection title="Status">

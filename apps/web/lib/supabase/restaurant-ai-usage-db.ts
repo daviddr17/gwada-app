@@ -6,7 +6,8 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 export type RestaurantAiUsageSource =
   | "autopilot"
   | "assistant"
-  | "brand_learn";
+  | "brand_learn"
+  | "menu_markings";
 
 export type RestaurantAiUsageEvent = {
   id: string;

@@ -27,7 +27,10 @@ Accept: application/json`}</pre>
       <p>
         Für Schreibzugriffe (derzeit nur{" "}
         <Link href="/docs/api/reservation">Reservierung</Link>) dieselbe Auth mit{" "}
-        <code>POST</code> und <code>Content-Type: application/json</code>.
+        <code>POST</code> und <code>Content-Type: application/json</code>. Dieselbe
+        Bearer-Auth gilt für{" "}
+        <Link href="/docs/api/mcp">Restaurant MCP</Link> unter{" "}
+        <code>POST /api/v1/mcp</code>.
       </p>
 
       <h2>Secret-Key</h2>

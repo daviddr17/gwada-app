@@ -96,10 +96,21 @@ export default function DocsApiPage() {
         pro Key — siehe Authentifizierung.
       </p>
 
+      <h2>MCP für KI-Agenten</h2>
+      <p>
+        Zusätzlich zur REST-API gibt es{" "}
+        <Link href="/docs/api/mcp">Restaurant MCP</Link> unter{" "}
+        <code>POST /api/v1/mcp</code> — Tool-Discovery (<code>tools/list</code>) und
+        Aufrufe mit denselben API-Schlüsseln und Modul-Scopes.
+      </p>
+
       <h2>Nächste Schritte</h2>
       <ul>
         <li>
           <Link href="/docs/api/authentication">Authentifizierung</Link>
+        </li>
+        <li>
+          <Link href="/docs/api/mcp">MCP (KI-Agenten)</Link>
         </li>
         <li>
           <Link href="/docs/api/rate-limits">Rate Limits &amp; Fehler</Link>

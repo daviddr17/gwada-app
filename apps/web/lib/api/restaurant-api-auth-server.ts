@@ -81,7 +81,8 @@ export function handleRestaurantApiPreflight(
   if (request.method !== "OPTIONS") return null;
   const headers = new Headers({
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Headers":
+      "Authorization, Content-Type, Accept, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
     "Access-Control-Max-Age": "86400",
   });
   const cors = buildRestaurantApiCorsHeaders(request, allowedOrigins);
@@ -91,14 +92,41 @@ export function handleRestaurantApiPreflight(
   return new Response(null, { status: 204, headers });
 }
 
+export type AuthenticateRestaurantApiKeyOptions = {
+  /** Default true. Purchase orders / MCP session auth may skip. */
+  requirePublished?: boolean;
+  /**
+   * When set, require this module in `enabled_modules` and record usage as
+   * `api:{module}`. Omit for MCP handshake / tools/list (scope checked per tool).
+   */
+  module?: RestaurantApiModuleId;
+  /** Usage dimension when `module` is omitted (default `mcp`). */
+  usageModuleId?: string;
+  /** Skip Insights counter (MCP records usage per tools/call / tools/list). */
+  skipUsageRecording?: boolean;
+};
+
+/**
+ * Authenticate a restaurant API key. Optionally enforce a module scope
+ * (REST `/api/v1/{module}`). MCP uses the same key without a module, then
+ * filters tools by `enabledModules`.
+ */
 export async function authenticateRestaurantApiKey(
   request: Request,
-  module: RestaurantApiModuleId,
-  options?: { requirePublished?: boolean },
+  moduleOrOptions?: RestaurantApiModuleId | AuthenticateRestaurantApiKeyOptions,
+  maybeOptions?: { requirePublished?: boolean },
 ): Promise<
-  | { ok: true; auth: AuthenticatedRestaurantApiKey }
+  | { ok: true; auth: AuthenticatedRestaurantApiKey; isPublished: boolean }
   | AuthFailure
 > {
+  const options: AuthenticateRestaurantApiKeyOptions =
+    typeof moduleOrOptions === "string" || moduleOrOptions === undefined
+      ? {
+          module: moduleOrOptions,
+          requirePublished: maybeOptions?.requirePublished,
+        }
+      : moduleOrOptions;
+
   const preflight = handleRestaurantApiPreflight(request);
   if (preflight) {
     return { ok: false, response: preflight };
@@ -137,7 +165,7 @@ export async function authenticateRestaurantApiKey(
   }
 
   const enabledModules = (row.enabled_modules ?? []) as RestaurantApiModuleId[];
-  if (!enabledModules.includes(module)) {
+  if (options.module && !enabledModules.includes(options.module)) {
     return { ok: false, response: jsonError(403, "module_not_enabled") };
   }
 
@@ -173,7 +201,8 @@ export async function authenticateRestaurantApiKey(
     return { ok: false, response: jsonError(404, "not_found") };
   }
 
-  if (options?.requirePublished !== false && !restaurant.is_published) {
+  const isPublished = Boolean(restaurant.is_published);
+  if (options.requirePublished !== false && !isPublished) {
     return { ok: false, response: jsonError(403, "restaurant_not_published") };
   }
 
@@ -182,10 +211,12 @@ export async function authenticateRestaurantApiKey(
     .update({ last_used_at: new Date().toISOString() })
     .eq("id", row.id as string);
 
-  recordApiUsageFireAndForget({
-    restaurantId: row.restaurant_id as string,
-    moduleId: module,
-  });
+  if (!options.skipUsageRecording) {
+    recordApiUsageFireAndForget({
+      restaurantId: row.restaurant_id as string,
+      moduleId: options.module ?? options.usageModuleId ?? "mcp",
+    });
+  }
 
   return {
     ok: true,
@@ -196,6 +227,7 @@ export async function authenticateRestaurantApiKey(
       enabledModules,
       allowedOrigins,
     },
+    isPublished,
   };
 }
 

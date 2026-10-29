@@ -136,7 +136,10 @@ export async function syncThreadLabelsToWahaServer(
 
   const gwadaWahaIds = new Set<string>();
   for (const row of assignments ?? []) {
-    const labelRaw = (row as { label: Record<string, unknown> | null }).label;
+    const embedded = (row as unknown as { label: unknown }).label;
+    const labelRaw = (
+      Array.isArray(embedded) ? embedded[0] : embedded
+    ) as Record<string, unknown> | null | undefined;
     const wahaId = labelRaw?.waha_label_id;
     if (typeof wahaId === "string" && wahaId.trim()) {
       gwadaWahaIds.add(wahaId.trim());

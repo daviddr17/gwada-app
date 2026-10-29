@@ -12,6 +12,8 @@ test("formats cover requested ratios", () => {
   assert.equal(SOCIAL_MEDIA_FORMATS.landscape_4x3.ratioLabel, "4:3");
   assert.equal(SOCIAL_MEDIA_FORMATS.classic_5x4.ratioLabel, "5:4");
   assert.equal(SOCIAL_MEDIA_FORMATS.story_9x16.ratioLabel, "9:16");
+  assert.ok(SOCIAL_MEDIA_FORMATS.portrait_4x5.platformHint.includes("Instagram"));
+  assert.ok(SOCIAL_MEDIA_FORMATS.story_9x16.platformHint.includes("Story"));
   assert.equal(cssAspectRatioForFormat("story_9x16"), "1080 / 1920");
 });
 

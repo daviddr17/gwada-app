@@ -55,7 +55,7 @@ function buildSystemPrompt(restaurantName: string): string {
     "Sprache: natürliches Deutsch, kein Marketing-Kauderwelsch, keine erfundenen Gerichte, Preise, Aktionen oder Bildinhalte.",
     "Nur Fakten aus dem JSON-Job nutzen. Galerie/Ambiente: Atmosphäre oder Bildunterschrift — nichts Spekulatives auf dem Teller.",
     "Jeder Post muss sich klar auf seinen Slot beziehen (Gerichtname, Event, Galerie-Caption, naher Feiertag) — keine austauschbaren Standardtexte.",
-    "Wenn facts.theme / facts.captionDirection gesetzt sind: Titel und Caption daran ausrichten (Brand-Stimme bleibt verbindlich).",
+    "Wenn facts.theme / facts.captionDirection / facts.userBrief gesetzt sind: Titel und Caption daran ausrichten (Brand-Stimme bleibt verbindlich). userBrief = Wunsch des Nutzers, was der Post behandeln soll.",
     "Die Captions in einem Batch müssen sich voneinander unterscheiden (Ton, Einstieg, Fokus).",
     "Jeder Caption-Text: 2–4 kurze Zeilen, dann optional CTA, dann Hashtags (max. 5) wenn im Brand Kit vorgegeben.",
     "Antwort ausschließlich als JSON-Array: [{\"index\":0,\"title\":\"…\",\"caption\":\"…\"}, …]",

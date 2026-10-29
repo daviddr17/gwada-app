@@ -154,7 +154,7 @@ export function PlatformFoodMarkingEditorDrawer({
     <>
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className={drawerContentClassName("form")}>
-          <DrawerHeader className={drawerFormHeaderClassName}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle>
               {isEdit ? "Kennzeichnung bearbeiten" : "Neue Kennzeichnung"}
             </DrawerTitle>
@@ -164,7 +164,7 @@ export function PlatformFoodMarkingEditorDrawer({
             </DrawerDescription>
           </DrawerHeader>
 
-          <div className={drawerScrollAreaClassName}>
+          <div className={drawerScrollAreaClassName(6)}>
             <DrawerFormBody>
               {loading ? (
                 <div className="space-y-3" aria-busy="true">

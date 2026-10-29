@@ -74,9 +74,9 @@ export function DashboardWidgetsPanel() {
 
   return (
     <Card className="border-border/50 shadow-card">
-      <CardHeader className="gap-2">
-        <CardTitle className="text-xl">Dashboard</CardTitle>
-        <CardDescription className="text-base leading-relaxed">
+      <CardHeader className="gap-1.5 pb-3">
+        <CardTitle className="text-base">Widgets</CardTitle>
+        <CardDescription className="text-sm leading-snug">
           Auch direkt vom{" "}
           <AppNavLink
             href="/dashboard"
@@ -84,12 +84,12 @@ export function DashboardWidgetsPanel() {
           >
             Dashboard
           </AppNavLink>{" "}
-          über das Raster-Icon anordenbar. Nur Module mit Rollenrecht und
-          Abo erscheinen — hier ein-/ausblenden und per Ziehen sortieren.
+          über das Raster-Icon. Nur Module mit Rollenrecht und Abo — hier
+          ein-/ausblenden und per Ziehen sortieren.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <ul className="list-none space-y-2 p-0" aria-label="Dashboard-Widgets">
+      <CardContent className="space-y-2 pt-0">
+        <ul className="list-none space-y-1 p-0" aria-label="Dashboard-Widgets">
           {orderedOptions.map((opt) => {
             const handle = sort.getHandleProps(opt.id);
             return (
@@ -98,7 +98,7 @@ export function DashboardWidgetsPanel() {
                   ref={(el) => sort.registerItemRef(opt.id, el)}
                   className={sort.getItemDropClassName(
                     opt.id,
-                    "flex items-center gap-2 rounded-xl border border-border/40 bg-muted/15 py-2 pe-3 ps-2",
+                    "flex items-center gap-1.5 rounded-lg border border-border/40 bg-muted/15 py-1 pe-2.5 ps-1",
                   )}
                 >
                   <button
@@ -106,21 +106,21 @@ export function DashboardWidgetsPanel() {
                     {...handle}
                     aria-label={`${opt.label} verschieben`}
                     className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                      "flex size-7 shrink-0 items-center justify-center rounded-md border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
                       handle.className,
                     )}
                   >
-                    <GripVertical className="size-4" aria-hidden />
+                    <GripVertical className="size-3.5" aria-hidden />
                   </button>
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <span className="min-w-0 space-y-0.5">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="min-w-0">
                       <span
                         id={`dashboard-widget-label-${opt.id}`}
-                        className="block text-sm font-medium leading-snug text-foreground"
+                        className="block text-sm font-medium leading-tight text-foreground"
                       >
                         {opt.label}
                       </span>
-                      <span className="block text-xs text-muted-foreground sm:text-sm">
+                      <span className="block text-[11px] leading-snug text-muted-foreground">
                         {opt.description}
                       </span>
                     </span>
@@ -129,7 +129,7 @@ export function DashboardWidgetsPanel() {
                     checked={visibility[opt.id]}
                     onCheckedChange={(v) => setWidgetVisible(opt.id, v === true)}
                     aria-labelledby={`dashboard-widget-label-${opt.id}`}
-                    className="shrink-0"
+                    className="shrink-0 scale-90"
                   />
                 </div>
               </li>
@@ -144,11 +144,13 @@ export function DashboardWidgetsPanel() {
             const opt = OPTION_BY_ID.get(id as DashboardWidgetId);
             if (!opt) return null;
             return (
-              <div className="flex gap-3 px-3 py-2">
-                <GripVertical className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 space-y-0.5">
-                  <span className="block text-sm font-medium">{opt.label}</span>
-                  <span className="block text-xs text-muted-foreground">
+              <div className="flex gap-2 px-2 py-1">
+                <GripVertical className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium leading-tight">
+                    {opt.label}
+                  </span>
+                  <span className="block text-[11px] leading-snug text-muted-foreground">
                     {opt.description}
                   </span>
                 </span>

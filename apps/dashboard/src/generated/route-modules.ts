@@ -120,7 +120,7 @@ const Lazy__dashboard_reservations_statistics = lazy(moduleSubpageLazy("reservie
 const Lazy__dashboard_reservations_floor_plan = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/floor-plan-screen").then((m) => ({ default: m.FloorPlanScreen as ComponentType }))));
 const Lazy__dashboard_settings_billing = settingsLazy(() => import("@/components/settings/restaurant-billing-panel").then((m) => ({ default: m.RestaurantBillingPanel as ComponentType })));
 const Lazy__dashboard_settings_api = settingsLazy(() => import("@/components/settings/restaurant-api-keys-panel").then((m) => ({ default: m.RestaurantApiKeysPanel as ComponentType })));
-const Lazy__dashboard_settings_dashboard = settingsLazy(() => import("@/components/settings/dashboard-shortcuts-panel").then((m) => ({ default: m.DashboardShortcutsPanel as ComponentType })));
+const Lazy__dashboard_settings_dashboard = settingsLazy(() => import("../routes/settings-dashboard-route").then((m) => ({ default: m.SettingsDashboardRoute as ComponentType })));
 const Lazy__dashboard_settings_displays = settingsLazy(() => import("@/components/settings/restaurant-displays-panel").then((m) => ({ default: m.RestaurantDisplaysPanel as ComponentType })));
 const Lazy__dashboard_settings_integrations = settingsLazy(() => import("../routes/settings-integrationen-route").then((m) => ({ default: m.SettingsIntegrationenRoute as ComponentType })));
 const Lazy__dashboard_settings_opening_hours_embed = settingsLazy(() => import("@/components/settings/opening-hours-embed-panel").then((m) => ({ default: m.OpeningHoursEmbedPanel as ComponentType })));

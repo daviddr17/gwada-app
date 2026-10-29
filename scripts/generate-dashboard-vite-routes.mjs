@@ -96,6 +96,11 @@ const MANUAL_PAGE_IMPORTS = {
     component: "SettingsOeffnungszeitenRoute",
     from: "../routes/settings-oeffnungszeiten-route",
   },
+  // Scan listet zwei Panels — Generator nimmt sonst nur imports[0] (Shortcuts).
+  "/dashboard/settings/dashboard": {
+    component: "SettingsDashboardRoute",
+    from: "../routes/settings-dashboard-route",
+  },
 };
 
 const PROFILE_PREFIX = "/dashboard/profile/";

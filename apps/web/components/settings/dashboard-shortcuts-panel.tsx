@@ -120,22 +120,21 @@ export function DashboardShortcutsPanel() {
 
   return (
     <Card className="border-border/50 shadow-card">
-      <CardHeader className="gap-2">
-        <CardTitle className="text-xl">Schnellaktionen</CardTitle>
-        <CardDescription className="text-base leading-relaxed">
-          Der Plus-Button unten rechts auf dem{" "}
+      <CardHeader className="gap-1.5 pb-3">
+        <CardTitle className="text-base">Schnellaktionen</CardTitle>
+        <CardDescription className="text-sm leading-snug">
+          Plus-Button unten rechts auf dem{" "}
           <AppNavLink
             href="/dashboard"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
             Dashboard
-          </AppNavLink>{" "}
-          öffnet bis zu {DASHBOARD_FAB_MAX_SHORTCUTS} Shortcuts. Aktiviere
-          maximal {DASHBOARD_FAB_MAX_SHORTCUTS} Aktionen und ziehe sie in die
-          gewünschte Reihenfolge.
+          </AppNavLink>
+          : max. {DASHBOARD_FAB_MAX_SHORTCUTS} Shortcuts, per Ziehen
+          sortieren.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2 pt-0">
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">
             {visibleShortcutCount} / {DASHBOARD_FAB_MAX_SHORTCUTS}
@@ -144,7 +143,7 @@ export function DashboardShortcutsPanel() {
         </p>
         {limitError || overShortcutLimit ? (
           <p
-            className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            className="rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive"
             role="alert"
           >
             {overShortcutLimit
@@ -152,7 +151,7 @@ export function DashboardShortcutsPanel() {
               : `Maximal ${DASHBOARD_FAB_MAX_SHORTCUTS} Shortcuts aktiv. Deaktiviere zuerst einen anderen.`}
           </p>
         ) : null}
-        <ul className="list-none space-y-2 p-0" aria-label="Dashboard-Shortcuts">
+        <ul className="list-none space-y-1 p-0" aria-label="Dashboard-Shortcuts">
           {orderedOptions.map((opt) => {
             const handle = sort.getHandleProps(opt.id);
             const Icon = opt.icon;
@@ -164,7 +163,7 @@ export function DashboardShortcutsPanel() {
                   ref={(el) => sort.registerItemRef(opt.id, el)}
                   className={sort.getItemDropClassName(
                     opt.id,
-                    "flex items-center gap-2 rounded-xl border border-border/40 bg-muted/15 py-2 pe-3 ps-2",
+                    "flex items-center gap-1.5 rounded-lg border border-border/40 bg-muted/15 py-1 pe-2.5 ps-1",
                   )}
                 >
                   <button
@@ -172,27 +171,27 @@ export function DashboardShortcutsPanel() {
                     {...handle}
                     aria-label={`${opt.label} verschieben`}
                     className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                      "flex size-7 shrink-0 items-center justify-center rounded-md border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
                       handle.className,
                     )}
                   >
-                    <GripVertical className="size-4" aria-hidden />
+                    <GripVertical className="size-3.5" aria-hidden />
                   </button>
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
                     <span
-                      className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground"
                       aria-hidden
                     >
-                      <Icon className="size-4" />
+                      <Icon className="size-3.5" />
                     </span>
-                    <span className="min-w-0 space-y-0.5">
+                    <span className="min-w-0">
                       <span
                         id={`dashboard-shortcut-label-${opt.id}`}
-                        className="block text-sm font-medium leading-snug text-foreground"
+                        className="block text-sm font-medium leading-tight text-foreground"
                       >
                         {opt.label}
                       </span>
-                      <span className="block text-xs text-muted-foreground sm:text-sm">
+                      <span className="block text-[11px] leading-snug text-muted-foreground">
                         {opt.description}
                       </span>
                     </span>
@@ -204,7 +203,7 @@ export function DashboardShortcutsPanel() {
                       handleShortcutVisibleChange(opt.id, v === true)
                     }
                     aria-labelledby={`dashboard-shortcut-label-${opt.id}`}
-                    className="shrink-0"
+                    className="shrink-0 scale-90"
                   />
                 </div>
               </li>
@@ -219,11 +218,13 @@ export function DashboardShortcutsPanel() {
             const opt = OPTION_BY_ID.get(id as DashboardShortcutId);
             if (!opt) return null;
             return (
-              <div className="flex gap-3 px-3 py-2">
-                <GripVertical className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 space-y-0.5">
-                  <span className="block text-sm font-medium">{opt.label}</span>
-                  <span className="block text-xs text-muted-foreground">
+              <div className="flex gap-2 px-2 py-1">
+                <GripVertical className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium leading-tight">
+                    {opt.label}
+                  </span>
+                  <span className="block text-[11px] leading-snug text-muted-foreground">
                     {opt.description}
                   </span>
                 </span>

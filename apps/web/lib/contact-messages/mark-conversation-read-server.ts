@@ -4,8 +4,6 @@ import type { ContactMessagePlatform } from "@/lib/constants/contact-message-pla
 import { upsertConversationRead } from "@/lib/supabase/contact-conversation-reads-db";
 import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaMarkChatAsRead, wahaMarkChatAsUnread } from "@/lib/waha/waha-chat-read";
-import { syncEmailThreadSeenOnImap } from "@/lib/contact-messages/email-inbox-service";
-import { setEmailThreadExternalSeenInDb } from "@/lib/contacts/email-message-external-seen-db";
 import { setMirrorThreadExternalSeenInDb } from "@/lib/contacts/message-thread-external-seen-db";
 import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-whatsapp-phone";
 import { wahaChatIdFromPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
@@ -49,13 +47,8 @@ export async function markConversationReadDbServer(
   });
   if (error) return { error };
 
-  if (params.platform === "email") {
-    await setEmailThreadExternalSeenInDb(admin, {
-      restaurantId: params.restaurantId,
-      conversationKey: params.conversationKey,
-      seen: true,
-    });
-  }
+  // E-Mail: Gelesen bleibt persönlich (contact_conversation_reads). Shared
+  // IMAP/`external_seen` nicht mitschreiben — sonst verlieren Kollegen Unread.
 
   if (params.platform === "whatsapp") {
     await setMirrorThreadExternalSeenInDb(admin, {
@@ -101,20 +94,7 @@ export async function syncConversationReadExternalServer(
     return;
   }
 
-  if (params.platform === "email") {
-    const imap = await syncEmailThreadSeenOnImap(admin, {
-      restaurantId: params.restaurantId,
-      contactId: params.conversationKey,
-      seen: true,
-    });
-    if (imap.error && imap.error !== "no_contact_email") {
-      console.warn(
-        "[gwada] mark-read imap",
-        params.conversationKey,
-        imap.error,
-      );
-    }
-  }
+  // E-Mail: kein IMAP-\\Seen-Sync — Unread ist pro Mitarbeiter in Gwada.
 }
 
 /** Vollständig synchron (DB + extern) — nur wenn Response auf extern warten soll. */
@@ -168,21 +148,7 @@ export async function markConversationUnreadServer(
     }
   }
 
-  if (params.platform === "email") {
-    await setEmailThreadExternalSeenInDb(admin, {
-      restaurantId: params.restaurantId,
-      conversationKey: params.conversationKey,
-      seen: false,
-    });
-    const imap = await syncEmailThreadSeenOnImap(admin, {
-      restaurantId: params.restaurantId,
-      contactId: params.conversationKey,
-      seen: false,
-    });
-    if (imap.error && imap.error !== "no_contact_email") {
-      return { error: imap.error };
-    }
-  }
+  // E-Mail: Mark-unread nur persönliche Read-Zeile (siehe personalReadOnly).
 
   return { error: null };
 }

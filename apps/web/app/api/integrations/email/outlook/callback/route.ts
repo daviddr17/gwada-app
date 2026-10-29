@@ -1,6 +1,11 @@
 import { OUTLOOK_OAUTH_SCOPE_IDS } from "@/lib/constants/integration-oauth-scopes";
 import { syncInboxHistoryOnConnect } from "@/lib/contacts/sync-inbox-history-on-connect-server";
+import { syncUserRestaurantEmailInbox } from "@/lib/contacts/sync-user-restaurant-email-inbox";
 import { isRestaurantEmailMailboxStatus } from "@/lib/email/restaurant-email-mailbox";
+import {
+  parseSharedInboxAccess,
+  sharedInboxAccessToConfigPatch,
+} from "@/lib/email/shared-inbox-access";
 import {
   buildOutlookMailboxConfig,
   decodeOutlookOAuthState,
@@ -14,6 +19,10 @@ import { parseGoogleGrantedScopes } from "@/lib/integrations/google-business-oau
 import { redirectToSettingsIntegrations } from "@/lib/integrations/meta-oauth-shared";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchRestaurantEmailSmtpConfig } from "@/lib/supabase/restaurant-email-integration-db";
+import {
+  fetchUserRestaurantEmailConfigAdmin,
+  upsertUserRestaurantEmailIntegration,
+} from "@/lib/supabase/user-restaurant-email-integration-db";
 
 export const dynamic = "force-dynamic";
 
@@ -94,22 +103,80 @@ export async function GET(req: Request) {
     });
   }
 
+  const grantedScopes = parseGoogleGrantedScopes(tokenResult.scope);
+
+  if (state.purpose === "personal" && state.userId) {
+    const existing = await fetchUserRestaurantEmailConfigAdmin(admin, {
+      restaurantId: state.restaurantId,
+      userId: state.userId,
+    });
+    const existingCfg = outlookConfigFromJson(existing?.config ?? {});
+    const config = buildOutlookMailboxConfig({
+      email: emailResult.email,
+      fromName: existingCfg.from_name,
+      accessToken: tokenResult.accessToken,
+      refreshToken: tokenResult.refreshToken,
+      grantedScopes:
+        grantedScopes.length > 0
+          ? grantedScopes
+          : [...OUTLOOK_OAUTH_SCOPE_IDS],
+      existingRefreshToken: existingCfg.refresh_token,
+    });
+    if (!config.refresh_token) {
+      return redirectToSettingsIntegrations(req, {
+        provider: "email",
+        result: "error",
+        message: "outlook_refresh_token_missing",
+      });
+    }
+    const { error } = await upsertUserRestaurantEmailIntegration(admin, {
+      restaurantId: state.restaurantId,
+      userId: state.userId,
+      status: "outlook",
+      config,
+    });
+    if (error) {
+      return redirectToSettingsIntegrations(req, {
+        provider: "email",
+        result: "error",
+        message: error,
+      });
+    }
+    void syncUserRestaurantEmailInbox(admin, {
+      restaurantId: state.restaurantId,
+      userId: state.userId,
+    }).catch((e) => {
+      console.warn("[contact-inbox] personal outlook sync", e);
+    });
+    return redirectToSettingsIntegrations(req, {
+      provider: "email",
+      result: "connected",
+      message: "personal",
+    });
+  }
+
   const existing = await fetchRestaurantEmailSmtpConfig(
     admin,
     state.restaurantId,
   );
   const existingCfg = outlookConfigFromJson(existing?.config ?? {});
-  const grantedScopes = parseGoogleGrantedScopes(tokenResult.scope);
-
-  const config = buildOutlookMailboxConfig({
-    email: emailResult.email,
-    fromName: existingCfg.from_name,
-    accessToken: tokenResult.accessToken,
-    refreshToken: tokenResult.refreshToken,
-    grantedScopes:
-      grantedScopes.length > 0 ? grantedScopes : [...OUTLOOK_OAUTH_SCOPE_IDS],
-    existingRefreshToken: existingCfg.refresh_token,
-  });
+  const sharedPatch = sharedInboxAccessToConfigPatch(
+    parseSharedInboxAccess(existing?.config ?? {}),
+  );
+  const config = {
+    ...buildOutlookMailboxConfig({
+      email: emailResult.email,
+      fromName: existingCfg.from_name,
+      accessToken: tokenResult.accessToken,
+      refreshToken: tokenResult.refreshToken,
+      grantedScopes:
+        grantedScopes.length > 0
+          ? grantedScopes
+          : [...OUTLOOK_OAUTH_SCOPE_IDS],
+      existingRefreshToken: existingCfg.refresh_token,
+    }),
+    ...sharedPatch,
+  };
 
   if (!config.refresh_token) {
     return redirectToSettingsIntegrations(req, {

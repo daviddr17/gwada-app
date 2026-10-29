@@ -10,6 +10,7 @@ import {
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { enrichUnifiedInboxReadStateServer } from "@/lib/contact-messages/unified-inbox-read-state";
 import { inboxQueryPlatformsForChannels } from "@/lib/contact-messages/inbox-query-platforms";
+import { resolveCanAccessSharedEmailInbox } from "@/lib/email/resolve-shared-inbox-access-server";
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -24,9 +25,16 @@ async function fetchPlatformConversationsAdmin(
   params: {
     restaurantId: string;
     platform: ContactMessagePlatform;
+    viewerUserId: string;
+    includeSharedEmail: boolean;
   },
 ): Promise<ContactConversationPreview[]> {
-  const rows = await fetchContactConversationsAdmin(admin, params);
+  const rows = await fetchContactConversationsAdmin(admin, {
+    restaurantId: params.restaurantId,
+    platform: params.platform,
+    viewerUserId: params.viewerUserId,
+    includeSharedEmail: params.includeSharedEmail,
+  });
   return enrichConversationPreviewAvatars(admin, rows);
 }
 
@@ -44,10 +52,18 @@ export async function loadInboxConversationsServer(
     platform?: ContactMessagePlatform;
   },
 ): Promise<LoadInboxConversationsServerResult> {
-  const channels = await resolveRestaurantChannelConnectionsServer({
-    restaurantId: params.restaurantId,
-    supabase: params.supabase,
-  });
+  const [channels, sharedAccess] = await Promise.all([
+    resolveRestaurantChannelConnectionsServer({
+      restaurantId: params.restaurantId,
+      supabase: params.supabase,
+    }),
+    resolveCanAccessSharedEmailInbox({
+      admin,
+      restaurantId: params.restaurantId,
+      userId: params.userId,
+      userClient: params.supabase,
+    }),
+  ]);
 
   const platforms = inboxQueryPlatformsForChannels(channels, params.platform);
   const sources = await Promise.all(
@@ -55,6 +71,8 @@ export async function loadInboxConversationsServer(
       fetchPlatformConversationsAdmin(admin, {
         restaurantId: params.restaurantId,
         platform,
+        viewerUserId: params.userId,
+        includeSharedEmail: sharedAccess.canAccessShared,
       }),
     ),
   );

@@ -1,9 +1,13 @@
-import type { WahaChatMessage } from "@/lib/waha/waha-inbox";
-
 export type WahaReplyQuote = {
   /** WAHA message id of the quoted message (without waha: prefix). */
   messageId: string | null;
   body: string;
+};
+
+/** Webhook + chat overview payloads both carry optional reply fields. */
+export type WahaReplyQuoteSource = {
+  replyTo?: unknown;
+  _data?: unknown;
 };
 
 function readString(value: unknown): string {
@@ -21,9 +25,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  * Kanal-agnostisch nutzbar: nur WAHA-Felder lesen.
  */
 export function parseWahaReplyQuote(
-  message: Pick<WahaChatMessage, "id" | "body" | "_data"> & {
-    replyTo?: unknown;
-  },
+  message: WahaReplyQuoteSource,
 ): WahaReplyQuote | null {
   const top = asRecord(message.replyTo);
   if (top) {

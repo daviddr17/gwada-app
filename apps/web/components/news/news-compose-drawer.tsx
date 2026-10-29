@@ -553,8 +553,7 @@ export function NewsComposeDrawer({
                   submitDisabled={uploading}
                   submitType="button"
                   onSubmit={() => void save()}
-                  contentPadding={0}
-                  className="border-0 pt-0"
+                  className="border-0 px-0 pt-0 pb-0"
                 />
                 <Button
                   type="button"

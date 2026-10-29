@@ -48,29 +48,42 @@ jobs:
           ENV_OUT="$(mktemp)"
           gwada_ssh "root@${LIVE_VPS_HOST}" bash -s <<'REMOTE' >"${ENV_OUT}"
           set -euo pipefail
+          LIVE_DIR="${GWADA_LIVE_COMPOSE_DIR:-/opt/gwada/live}"
           COOLIFY_APP_ID="${GWADA_COOLIFY_APP_UUID:-d3cg1b54arvue2tcm8u34qty}"
-          COMPOSE_DIR="/data/coolify/applications/${COOLIFY_APP_ID}"
+          COOLIFY_DIR="/data/coolify/applications/${COOLIFY_APP_ID}"
           url=""
           key=""
-          # Prefer running app container env (resolved values, not Coolify templates).
-          container="$(
-            docker ps --format '{{.Names}}' \
-              | grep "${COOLIFY_APP_ID}-" \
-              | head -1 || true
-          )"
-          if [ -n "${container}" ]; then
-            url="$(docker exec "${container}" printenv NEXT_PUBLIC_SUPABASE_URL 2>/dev/null || true)"
-            key="$(docker exec "${container}" printenv SUPABASE_SERVICE_ROLE_KEY 2>/dev/null || true)"
-            echo "container=${container}" >&2
-          fi
           is_http_url() {
             case "$1" in
               http://*|https://*) return 0 ;;
               *) return 1 ;;
             esac
           }
+          # Prefer running live app container env (Compose+Caddy), then Coolify leftover.
+          container="$(
+            docker ps --format '{{.Names}}' \
+              | grep -E 'gwada-app|gwada_app|gwada-live' \
+              | head -1 || true
+          )"
+          if [ -z "${container}" ]; then
+            container="$(
+              docker ps --format '{{.Names}}' \
+                | grep "${COOLIFY_APP_ID}-" \
+                | head -1 || true
+            )"
+          fi
+          if [ -n "${container}" ]; then
+            url="$(docker exec "${container}" printenv NEXT_PUBLIC_SUPABASE_URL 2>/dev/null || true)"
+            key="$(docker exec "${container}" printenv SUPABASE_SERVICE_ROLE_KEY 2>/dev/null || true)"
+            echo "container=${container}" >&2
+          fi
           if ! is_http_url "${url}" || [ -z "${key}" ]; then
-            for f in "${COMPOSE_DIR}/.env" "${COMPOSE_DIR}/.env.production"; do
+            for f in \
+              "${LIVE_DIR}/.env" \
+              "${LIVE_DIR}/.env.production" \
+              "${COOLIFY_DIR}/.env" \
+              "${COOLIFY_DIR}/.env.production"
+            do
               [ -f "$f" ] || continue
               u="$(grep -E '^NEXT_PUBLIC_SUPABASE_URL=' "$f" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
               k="$(grep -E '^SUPABASE_SERVICE_ROLE_KEY=' "$f" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"

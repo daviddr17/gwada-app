@@ -4,10 +4,10 @@ export const checklistenGuide: UserGuidePage = {
   slug: "tasks",
   title: "Aufgaben",
   description:
-    "Persönliche Notizen, Team-ToDos, Team-Chat, HACCP und Protokoll.",
+    "Persönliche Notizen, Team-ToDos, HACCP und Protokoll.",
   intro: [
-    "Aufgaben vereint persönliche Erinnerungen, Team-ToDos (Opening, Closing), internen Team-Chat und HACCP-Erfassungen. Was du siehst, hängt von deinen Berechtigungen ab.",
-    "Erfassungen können am Display-Terminal in der Küche erfolgen — das Dashboard dient der Übersicht, dem Chat und dem Abhaken durch Teamleiter.",
+    "Aufgaben vereint persönliche Erinnerungen, Team-ToDos (Opening, Closing) und HACCP-Erfassungen. Der 1:1-Teamchat liegt unter Nachrichten → Persönlich. Was du siehst, hängt von deinen Berechtigungen ab.",
+    "Erfassungen können am Display-Terminal in der Küche erfolgen — das Dashboard dient der Übersicht und dem Abhaken durch Teamleiter.",
   ],
   sections: [
     {
@@ -17,7 +17,6 @@ export const checklistenGuide: UserGuidePage = {
         rows: [
           ["Meine", "Private Notizen und Erinnerungen (nur du)"],
           ["Team", "Offene Team-ToDos, KPI-Übersicht und operative Aufgaben"],
-          ["Nachrichten", "1:1-Chat unter Kollegen"],
           ["Protokoll", "Abgeschlossene Einträge und Änderungshistorie"],
           ["Einstellungen", "Erinnerungen, Korrekturmaßnahmen, Compliance-Optionen"],
         ],

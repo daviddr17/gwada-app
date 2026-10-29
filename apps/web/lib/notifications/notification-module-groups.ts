@@ -14,7 +14,13 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
   {
     id: "general",
     title: "Allgemein",
-    moduleIds: ["messages", "messages_follow_up", "reviews", "changelog"],
+    moduleIds: [
+      "messages",
+      "messages_follow_up",
+      "staff_messages",
+      "reviews",
+      "changelog",
+    ],
   },
   {
     id: "reservations",
@@ -35,14 +41,13 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
   {
     id: "staff",
     title: "Mitarbeiter",
-    description: "Schichten, Aufgaben und Team-Chat.",
+    description: "Schichten, Aufgaben und Mitarbeiter-Events.",
     moduleIds: [
       "staff_shift_start",
       "staff_shift_end",
       "staff_todo_completed",
       "staff_todo_deferred",
       "personal_reminder",
-      "staff_messages",
       "staff_contract_signed",
       "staff_document_assigned",
       "staff_display_time_request",

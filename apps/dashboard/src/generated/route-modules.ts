@@ -131,7 +131,6 @@ const Lazy__dashboard_changelog = changelogLazy(() => import("@/components/chang
 const Lazy__dashboard_staff_work_hours_fix = staffLazy(() => import("@/components/staff/staff-labor-compliance-screen").then((m) => ({ default: m.StaffLaborComplianceScreen as ComponentType })));
 const Lazy__dashboard_staff_work_hours_payroll = staffLazy(() => import("@/components/staff/staff-payroll-settlement-screen").then((m) => ({ default: m.StaffPayrollSettlementScreen as ComponentType })));
 const Lazy__dashboard_tasks_mine = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-meine-screen").then((m) => ({ default: m.AufgabenMeineScreen as ComponentType }))));
-const Lazy__dashboard_tasks_messages = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-nachrichten-screen").then((m) => ({ default: m.AufgabenNachrichtenScreen as ComponentType }))));
 const Lazy__dashboard_tasks_guides = lazy(moduleSubpageLazy("checklisten", () => import("@/components/guides/guides-screen").then((m) => ({ default: m.GuidesScreen as ComponentType }))));
 const Lazy__dashboard_settings_online_ordering = settingsLazy(() => import("@/components/pos/pos-settings-online-ordering-screen").then((m) => ({ default: m.PosSettingsOnlineOrderingScreen as ComponentType })));
 
@@ -271,7 +270,7 @@ export const DASHBOARD_ROUTE_ENTRIES: DashboardRouteEntry[] = [
   { path: "/staff/work-hours/fix", fullPath: "/dashboard/staff/work-hours/fix", Lazy: Lazy__dashboard_staff_work_hours_fix },
   { path: "/staff/work-hours/payroll", fullPath: "/dashboard/staff/work-hours/payroll", Lazy: Lazy__dashboard_staff_work_hours_payroll },
   { path: "/tasks/mine", fullPath: "/dashboard/tasks/mine", Lazy: Lazy__dashboard_tasks_mine },
-  { path: "/tasks/messages", fullPath: "/dashboard/tasks/messages", Lazy: Lazy__dashboard_tasks_messages },
+  { path: "/tasks/messages", fullPath: "/dashboard/contacts/messages?mailbox=personal", redirect: "/dashboard/contacts/messages?mailbox=personal" },
   { path: "/tasks/guides", fullPath: "/dashboard/tasks/guides", Lazy: Lazy__dashboard_tasks_guides },
   { path: "/tasks/eigenkontrolle", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
   { path: "/settings/online-ordering", fullPath: "/dashboard/settings/online-ordering", Lazy: Lazy__dashboard_settings_online_ordering },

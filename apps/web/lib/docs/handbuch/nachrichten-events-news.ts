@@ -6,8 +6,8 @@ export const nachrichtenGuide: UserGuidePage = {
   description:
     "Multi-Channel-Inbox, Kontaktverwaltung, Tags und Kanal-Einstellungen.",
   intro: [
-    "Nachrichten ist dein zentraler Posteingang: WhatsApp, E-Mail, Facebook, Instagram und der Gwada-eigene Chat — alles in einer Inbox. Dazu gehört eine Kontaktliste mit allen Gästen, Lieferanten und Anfragen.",
-    "Jede Konversation ist einem Kontakt zugeordnet (oder wird beim Antworten verknüpft). Ungelesene Nachrichten erscheinen im Dashboard unter Heute → Post und Aufmerk.",
+    "Nachrichten ist dein zentraler Posteingang: WhatsApp, E-Mail, Facebook, Instagram und der Gwada-eigene Chat — im Multipostfach. Persönliche Mitarbeiternachrichten (1:1-Teamchat) liegen im persönlichen Postfach und erscheinen nicht im Multipostfach.",
+    "Jede Gäste-Konversation ist einem Kontakt zugeordnet (oder wird beim Antworten verknüpft). Ungelesene Nachrichten erscheinen im Dashboard unter Heute → Post und Aufmerk.",
   ],
   sections: [
     {
@@ -15,7 +15,7 @@ export const nachrichtenGuide: UserGuidePage = {
       table: {
         headers: ["Tab", "Zweck"],
         rows: [
-          ["Nachrichten", "Inbox — alle Konversationen"],
+          ["Nachrichten", "Inbox — Multipostfach und persönliches Postfach"],
           ["Kontakte", "Adressbuch mit Stammdaten, Tags, Timeline"],
           ["Statistiken", "Antwortzeiten, Volumen pro Kanal"],
           ["Export", "Kontakte als Datei exportieren"],
@@ -24,8 +24,19 @@ export const nachrichtenGuide: UserGuidePage = {
       },
     },
     {
-      heading: "Plattform-Chips (Nachrichten)",
-      body: "Horizontale Chips filtern die Inbox nach Kanal — kein Bottom Sheet:",
+      heading: "Postfach-Chips",
+      body: "Oben im Nachrichten-Bereich wählst du das Postfach:",
+      table: {
+        headers: ["Chip", "Bedeutung"],
+        rows: [
+          ["Multipostfach", "Geteilte Gäste-Threads (WhatsApp, E-Mail, Meta, Gwada) — kein privater Teamchat"],
+          ["Persönlich", "1:1-Mitarbeiternachrichten nur für dich und den Kollegen"],
+        ],
+      },
+    },
+    {
+      heading: "Plattform-Chips (Multipostfach)",
+      body: "Horizontale Chips filtern das Multipostfach nach Kanal — kein Bottom Sheet:",
       table: {
         headers: ["Chip", "Bedeutung"],
         rows: [

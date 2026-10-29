@@ -89,7 +89,17 @@ import {
 import { ContactConversationAttachmentIcon } from "@/components/contacts/contact-conversation-attachment-icon";
 import { ContactMessageComposer } from "@/components/contacts/contact-message-composer";
 import { ContactInboxFilterChips } from "@/components/contacts/contact-inbox-filter-chips";
+import { InboxMailboxChips } from "@/components/contacts/inbox-mailbox-chips";
+import { StaffPersonalMailboxPanel } from "@/components/contacts/staff-personal-mailbox-panel";
 import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
+import {
+  INBOX_MAILBOX_PERSONAL,
+  INBOX_MAILBOX_SHARED,
+  inboxPersonalMailboxHref,
+  inboxSharedMailboxHref,
+  parseInboxMailbox,
+  type InboxMailbox,
+} from "@/lib/contact-messages/inbox-mailbox";
 import {
   AppFullscreenOverlay,
 } from "@/components/ui/app-fullscreen-overlay";
@@ -427,6 +437,10 @@ export function ContactsMessagesScreen({
   const contactParam = searchParams.get("contact");
   const platformParam = searchParams.get("platform");
   const readParam = searchParams.get("read");
+  const mailboxParam = searchParams.get("mailbox");
+  const staffConversationParam = searchParams.get("c");
+  const inboxMailbox = parseInboxMailbox(mailboxParam);
+  const isPersonalMailbox = inboxMailbox === INBOX_MAILBOX_PERSONAL;
 
   /** Keep-alive: nie Soft-Nav zurückreißen — auch nicht nach async await. */
   const navigateNachrichten = useCallback(
@@ -919,14 +933,16 @@ export function ContactsMessagesScreen({
   useLayoutEffect(() => {
     if (!active) return;
     if (!isNachrichtenMessagesPath(pathname)) return;
+    if (isPersonalMailbox) return;
     const resolved = parseInboxPlatformFilter(platformParam, contactParam);
     setInboxFilter((prev) => (prev === resolved ? prev : resolved));
-  }, [active, pathname, platformParam, contactParam]);
+  }, [active, pathname, platformParam, contactParam, isPersonalMailbox]);
 
   useEffect(() => {
     // Keep-alive: versteckt bleibt gemountet — URL-Sync darf Soft-Nav nicht zurückreißen.
     if (!active) return;
     if (!isNachrichtenMessagesPath(pathname)) return;
+    if (isPersonalMailbox) return;
     if (connectionsLoading || !workspaceReady || !restaurantId) return;
 
     const resolved = parseInboxPlatformFilter(platformParam, contactParam);
@@ -945,6 +961,8 @@ export function ContactsMessagesScreen({
     if (needsFilterInUrl) {
       const params = new URLSearchParams(searchParams.toString());
       params.set("platform", next);
+      params.set("mailbox", INBOX_MAILBOX_SHARED);
+      params.delete("c");
       if (contactParam) params.set("contact", contactParam);
       navigateNachrichten(
         `/dashboard/contacts/messages?${params.toString()}`,
@@ -958,6 +976,7 @@ export function ContactsMessagesScreen({
     restaurantId,
     platformParam,
     contactParam,
+    isPersonalMailbox,
     isInboxFilterAvailable,
     navigateNachrichten,
     searchParams,
@@ -1804,12 +1823,38 @@ export function ContactsMessagesScreen({
     setPendingContactId(null);
     const params = new URLSearchParams(searchParams.toString());
     params.set("platform", filter);
+    params.set("mailbox", INBOX_MAILBOX_SHARED);
     params.delete("contact");
+    params.delete("c");
     applyConversationReadFilterToSearchParams(params, readFilter);
     navigateNachrichten(
       `/dashboard/contacts/messages?${params.toString()}`,
     );
   };
+
+  const selectMailbox = useCallback(
+    (next: InboxMailbox) => {
+      if (next === INBOX_MAILBOX_PERSONAL) {
+        navigateNachrichten(inboxPersonalMailboxHref());
+        return;
+      }
+      navigateNachrichten(
+        inboxSharedMailboxHref({
+          platform: platformParam || INBOX_FILTER_ALL,
+        }),
+      );
+    },
+    [navigateNachrichten, platformParam],
+  );
+
+  const selectStaffConversation = useCallback(
+    (conversationId: string | null) => {
+      navigateNachrichten(
+        inboxPersonalMailboxHref({ conversationId }),
+      );
+    },
+    [navigateNachrichten],
+  );
 
   const canOpenLinkedContact = useCallback(
     (contactId: string) => isLinkedContactId(contactId),
@@ -1855,6 +1900,7 @@ export function ContactsMessagesScreen({
       setWhatsappThreadChatId(null);
       if (opts?.displayName) setContactName(opts.displayName);
       const params = new URLSearchParams();
+      params.set("mailbox", INBOX_MAILBOX_SHARED);
       params.set("platform", INBOX_FILTER_ALL);
       params.set("contact", contactId);
       navigateNachrichten(
@@ -3809,119 +3855,142 @@ showReplyComposer ? (
   const renderInboxFilterSection = (
     fullscreenAction: "enter" | "exit" | null,
   ) =>
-    showInboxListChrome ? (
-        <div className="shrink-0 space-y-3">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-      <ContactInboxFilterChips
-        filter={inboxFilter}
-        onFilterChange={selectInboxFilter}
-        isPlatformAvailable={isInboxFilterAvailable}
-        disabled={connectionsLoading}
-      />
-      {inboxLabels.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <ContactTagChip
-            tag={{
-              id: "__all__",
-              name: "Alle Labels",
-              background_color: "#64748b",
-            }}
-            selected={labelFilterId == null}
-            onClick={() => setLabelFilterId(null)}
-          />
-          {inboxLabels.map((label) => (
-            <ContactTagChip
-              key={label.id}
-              tag={label}
-              selected={labelFilterId === label.id}
-              onClick={() =>
-                setLabelFilterId((prev) =>
-                  prev === label.id ? null : label.id,
-                )
-              }
+    showInboxListChrome || isPersonalMailbox ? (
+      <div className="shrink-0 space-y-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1 space-y-2">
+            <InboxMailboxChips
+              mailbox={inboxMailbox}
+              onMailboxChange={selectMailbox}
             />
-          ))}
+            {!isPersonalMailbox ? (
+              <>
+                <ContactInboxFilterChips
+                  filter={inboxFilter}
+                  onFilterChange={selectInboxFilter}
+                  isPlatformAvailable={isInboxFilterAvailable}
+                  disabled={connectionsLoading}
+                />
+                {inboxLabels.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    <ContactTagChip
+                      tag={{
+                        id: "__all__",
+                        name: "Alle Labels",
+                        background_color: "#64748b",
+                      }}
+                      selected={labelFilterId == null}
+                      onClick={() => setLabelFilterId(null)}
+                    />
+                    {inboxLabels.map((label) => (
+                      <ContactTagChip
+                        key={label.id}
+                        tag={label}
+                        selected={labelFilterId === label.id}
+                        onClick={() =>
+                          setLabelFilterId((prev) =>
+                            prev === label.id ? null : label.id,
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+          {fullscreenAction === "enter" ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={moduleTableFullscreenToggleButtonClassName}
+                    onClick={() => setInboxWorkspaceFullscreen(true)}
+                    aria-label="Nachrichten im Vollbild anzeigen"
+                  />
+                }
+              >
+                <Maximize2 className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent side="top">Vollbild</TooltipContent>
+            </Tooltip>
+          ) : fullscreenAction === "exit" ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={moduleTableFullscreenToggleButtonClassName}
+                    onClick={closeInboxWorkspaceFullscreen}
+                    aria-label="Vollbild schließen"
+                  />
+                }
+              >
+                <Minimize2 className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent side="top">Vollbild schließen</TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
-      ) : null}
-        </div>
-        {fullscreenAction === "enter" ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className={moduleTableFullscreenToggleButtonClassName}
-                onClick={() => setInboxWorkspaceFullscreen(true)}
-                aria-label="Nachrichten im Vollbild anzeigen"
-              />
-            }
-          >
-            <Maximize2 className="size-4" />
-          </TooltipTrigger>
-          <TooltipContent side="top">Vollbild</TooltipContent>
-        </Tooltip>
-        ) : fullscreenAction === "exit" ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className={moduleTableFullscreenToggleButtonClassName}
-                onClick={closeInboxWorkspaceFullscreen}
-                aria-label="Vollbild schließen"
-              />
-            }
-          >
-            <Minimize2 className="size-4" />
-          </TooltipTrigger>
-          <TooltipContent side="top">Vollbild schließen</TooltipContent>
-        </Tooltip>
+
+        {!isPersonalMailbox &&
+        !connectionsLoading &&
+        inboxFilter === "whatsapp" &&
+        !whatsappConnected ? (
+          <p className="text-sm text-muted-foreground">
+            WhatsApp ist nicht verbunden. Unter Einstellungen → Integrationen
+            verknüpfen, dann erscheinen die Chats hier.
+          </p>
+        ) : null}
+
+        {!isPersonalMailbox &&
+        !connectionsLoading &&
+        inboxFilter === "email" &&
+        !emailConnected ? (
+          <p className="text-sm text-muted-foreground">
+            Kein eigenes E-Mail-Konto verbunden. Unter Einstellungen →
+            Integrationen einen SMTP/IMAP-Zugang als „Eigene Verbindung“
+            einrichten.
+          </p>
+        ) : null}
+
+        {!isPersonalMailbox &&
+        !connectionsLoading &&
+        inboxFilter === "facebook" &&
+        facebookEnabled &&
+        !facebookConnected ? (
+          <p className="text-sm text-muted-foreground">
+            Facebook ist nicht verbunden. Unter Einstellungen → Integrationen die
+            Facebook-Seite verknüpfen.
+          </p>
+        ) : null}
+
+        {!isPersonalMailbox &&
+        !connectionsLoading &&
+        inboxFilter === "instagram" &&
+        instagramEnabled &&
+        !instagramConnected ? (
+          <p className="text-sm text-muted-foreground">
+            Instagram ist nicht verbunden. Unter Einstellungen → Integrationen das
+            Instagram-Business-Konto verknüpfen.
+          </p>
         ) : null}
       </div>
+    ) : null;
 
-      {!connectionsLoading &&
-      inboxFilter === "whatsapp" &&
-      !whatsappConnected ? (
-        <p className="text-sm text-muted-foreground">
-          WhatsApp ist nicht verbunden. Unter Einstellungen → Integrationen
-          verknüpfen, dann erscheinen die Chats hier.
-        </p>
-      ) : null}
-
-      {!connectionsLoading && inboxFilter === "email" && !emailConnected ? (
-        <p className="text-sm text-muted-foreground">
-          Kein eigenes E-Mail-Konto verbunden. Unter Einstellungen →
-          Integrationen einen SMTP/IMAP-Zugang als „Eigene Verbindung“
-          einrichten.
-        </p>
-      ) : null}
-
-      {!connectionsLoading &&
-      inboxFilter === "facebook" &&
-      facebookEnabled &&
-      !facebookConnected ? (
-        <p className="text-sm text-muted-foreground">
-          Facebook ist nicht verbunden. Unter Einstellungen → Integrationen die
-          Facebook-Seite verknüpfen.
-        </p>
-      ) : null}
-
-      {!connectionsLoading &&
-      inboxFilter === "instagram" &&
-      instagramEnabled &&
-      !instagramConnected ? (
-        <p className="text-sm text-muted-foreground">
-          Instagram ist nicht verbunden. Unter Einstellungen → Integrationen das
-          Instagram-Business-Konto verknüpfen.
-        </p>
-      ) : null}
-        </div>
-      ) : null;
+  const inboxBody = isPersonalMailbox ? (
+    <StaffPersonalMailboxPanel
+      conversationIdFromUrl={staffConversationParam}
+      onSelectConversation={selectStaffConversation}
+    />
+  ) : (
+    inboxSplitPane
+  );
 
   return (
     <>
@@ -3934,7 +4003,7 @@ showReplyComposer ? (
     >
       {renderInboxFilterSection(isLgUp ? "enter" : null)}
 
-      {inboxSplitPane}
+      {inboxBody}
     </div>
       ) : null}
 
@@ -3947,7 +4016,7 @@ showReplyComposer ? (
         {inboxWorkspaceFullscreen ? (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 pb-4 pt-3">
             {renderInboxFilterSection("exit")}
-            {inboxSplitPane}
+            {inboxBody}
           </div>
         ) : null}
       </AppFullscreenOverlay>

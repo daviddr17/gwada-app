@@ -239,7 +239,8 @@ export function ProfilePasskeysCard({
           <Button
             type="button"
             variant="outline"
-            className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
+            size="sm"
+            className="h-9 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
             disabled={busy}
             onClick={() => void handleAdd()}
           >

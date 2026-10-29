@@ -728,8 +728,7 @@ export function RestaurantSettingsPanel({
             <CardTitle className="text-xl">Gäste-Sprache</CardTitle>
             <CardDescription>
               Standardsprache für Embeds und Profil. Inhalte werden im Browser
-              in die gewählte Gästesprache übersetzt — nicht in der Datenbank
-              gespeichert.
+              in die gewählte Gästesprache übersetzt.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">

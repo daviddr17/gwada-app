@@ -9,7 +9,7 @@ function OAuthRowSkeleton() {
         <Skeleton className="h-4 w-16 rounded-md" />
         <Skeleton className="h-5 w-44 rounded-full" />
       </div>
-      <Skeleton className="h-11 w-full max-w-[14rem] shrink-0 rounded-xl sm:ms-auto" />
+      <Skeleton className="h-9 w-full max-w-[14rem] shrink-0 rounded-xl sm:ms-auto" />
     </div>
   );
 }

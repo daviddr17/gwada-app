@@ -21,12 +21,10 @@ export function RestaurantSettingsSkeleton({
       <div className="space-y-6 pb-4">
         <SkeletonCardFrame className="shadow-card">
           <div className="space-y-2 border-b border-border/30 pb-4">
-            <Skeleton className="h-8 w-80 max-w-full rounded-md" />
+            <Skeleton className="h-7 w-56 max-w-full rounded-md" />
             <Skeleton className="h-4 w-full max-w-xl rounded-md" />
-            <Skeleton className="h-4 w-full max-w-lg rounded-md" />
           </div>
           <div className="space-y-3 pt-5">
-            <Skeleton className="h-5 w-48 rounded-md" />
             {Array.from({ length: 7 }, (_, i) => (
               <div
                 key={i}
@@ -39,6 +37,26 @@ export function RestaurantSettingsSkeleton({
                 </div>
               </div>
             ))}
+          </div>
+        </SkeletonCardFrame>
+        <SkeletonCardFrame className="shadow-card">
+          <div className="space-y-2 border-b border-border/30 pb-4">
+            <Skeleton className="h-7 w-36 rounded-md" />
+            <Skeleton className="h-4 w-full max-w-lg rounded-md" />
+          </div>
+          <div className="pt-5">
+            <Skeleton className="h-4 w-full max-w-md rounded-md" />
+          </div>
+        </SkeletonCardFrame>
+        <SkeletonCardFrame className="shadow-card">
+          <div className="space-y-2 border-b border-border/30 pb-4">
+            <Skeleton className="h-7 w-40 rounded-md" />
+            <Skeleton className="h-4 w-full max-w-xl rounded-md" />
+          </div>
+          <div className="space-y-4 pt-5">
+            <Skeleton className="h-28 w-full rounded-xl" />
+            <Skeleton className="h-5 w-28 rounded-md" />
+            <Skeleton className="h-4 w-full max-w-md rounded-md" />
           </div>
         </SkeletonCardFrame>
       </div>

@@ -254,11 +254,13 @@ export async function resolveAutopilotSingleSelection(
     idea: SocialAutopilotCatalogIdea,
   ): SocialAutopilotCatalogIdea => {
     if (!userBrief) return idea;
+    // Freitext NICHT als captionDirection — sonst überschreibt z. B. Halloween
+    // ein Sommerterassen-Foto. Brief läuft separat als facts.userBrief.
     return {
       ...idea,
-      theme: userBrief.slice(0, 72),
-      captionDirection: userBrief,
-      title: idea.slotKind === "brand" ? userBrief.slice(0, 80) : idea.title,
+      ...(idea.slotKind === "brand"
+        ? { title: userBrief.slice(0, 80) }
+        : {}),
       aiSuggested: true,
     };
   };

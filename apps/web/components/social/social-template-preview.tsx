@@ -70,7 +70,17 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
   const line =
     overlayLine?.trim() ||
     overlayLineFromCaption(caption, { cta: ctaLabel ?? "" });
-  const headline = title?.trim() || "Diese Woche";
+  const headlineFromCaption = line.split(/[.!?\n]/)[0]?.trim();
+  const headline =
+    (title?.trim() &&
+    title.trim().toLowerCase() !== "galerie" &&
+    title.trim().toLowerCase() !== "gallery"
+      ? title.trim()
+      : null) ||
+    (headlineFromCaption && headlineFromCaption.length >= 3
+      ? headlineFromCaption
+      : null) ||
+    restaurantName;
   const cta = (ctaLabel?.trim() || "Tisch reservieren") + " →";
   const filter = photoLookFilter(photoLook);
 
@@ -112,6 +122,9 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
           {line ? (
             <p className="mt-1 line-clamp-2 text-sm text-white/85">{line}</p>
           ) : null}
+          <p className="mt-3 text-xs font-medium" style={{ color: accent }}>
+            {cta}
+          </p>
         </div>
       </div>
     );
@@ -139,32 +152,27 @@ export const SocialTemplatePreview = memo(function SocialTemplatePreview({
           style={{ backgroundColor: dark, color: light }}
         >
           <div
-            className="absolute inset-x-0 top-0 h-0.5"
-            style={{ backgroundColor: secondary, opacity: 0.55 }}
+            className="absolute left-5 top-0 h-0.5 w-12"
+            style={{ backgroundColor: accent }}
             aria-hidden
           />
           <div className="space-y-2">
-            <p className="text-[10px] font-medium tracking-[0.18em] uppercase opacity-70">
+            <p className="text-[10px] font-medium tracking-[0.2em] uppercase opacity-65">
               {restaurantName}
             </p>
-            <p className="font-serif text-xl leading-tight">{headline}</p>
+            <p className="font-serif text-2xl leading-tight tracking-tight">
+              {headline}
+            </p>
             {line ? (
               <p className="line-clamp-2 text-sm opacity-80">{line}</p>
             ) : null}
           </div>
-          <div>
-            <div
-              className="mb-2 h-px w-10"
-              style={{ backgroundColor: accent }}
-              aria-hidden
-            />
-            <p
-              className="text-[11px] font-medium tracking-wide"
-              style={{ color: accent }}
-            >
-              {cta}
-            </p>
-          </div>
+          <p
+            className="text-xs font-medium tracking-wide"
+            style={{ color: accent }}
+          >
+            {cta}
+          </p>
         </div>
       </div>
     );

@@ -20,13 +20,14 @@ import {
 import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import type { NewsMediaRow } from "@/lib/news/news-media";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import type { SocialTone } from "@/lib/social/social-brand-kit";
 import {
   SOCIAL_MEDIA_FORMATS,
   type SocialMediaFormatId,
 } from "@/lib/social/social-media-formats";
-import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { autopilotPrimaryButtonClassName } from "@/lib/ui/social-autopilot-buttons";
@@ -42,10 +43,17 @@ type KiCue = {
   detail?: string;
 };
 
+export type SocialKiComposeResult = {
+  suggestionId: string;
+  title: string | null;
+  body: string;
+  platforms: NewsPlatform[];
+  media: Array<NewsMediaRow & { previewUrl: string }>;
+};
+
 /**
- * KI-Post: leichte Vorgaben → ein Generieren → ein Entwurf.
- * Kein Ideas-Preload, kein Pitch-LLM beim Tab-Öffnen.
- * Caption/Bild über Restaurant-KI (OpenAI/Grok aus Integrationen).
+ * KI-Post: leichte Vorgaben → ein Generieren → Compose-Ergebnis.
+ * Embedded in Neue News: Sheet bleibt offen, Inhalt editierbar (Publish/Planen).
  */
 export function SocialAutopilotGenerateDrawer({
   open,
@@ -57,8 +65,10 @@ export function SocialAutopilotGenerateDrawer({
   initialPlatforms,
   initialFormat,
   onCreated,
+  onComposeReady,
   embedded = false,
-  asNewsDrafts = true,
+  asNewsDrafts = false,
+  forCompose = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -68,9 +78,12 @@ export function SocialAutopilotGenerateDrawer({
   initialTone: SocialTone;
   initialPlatforms: NewsPlatform[];
   initialFormat: SocialMediaFormatId;
-  onCreated: () => void | Promise<void>;
+  onCreated?: () => void | Promise<void>;
+  /** Nach Generieren: Content in Compose übernehmen (Sheet bleibt offen). */
+  onComposeReady?: (payload: SocialKiComposeResult) => void;
   embedded?: boolean;
   asNewsDrafts?: boolean;
+  forCompose?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>("setup");
   const [userBrief, setUserBrief] = useState("");
@@ -134,7 +147,6 @@ export function SocialAutopilotGenerateDrawer({
     formatTouched,
   ]);
 
-  // Feiertage/Events — leicht, kein LLM (erst wenn Sheet offen).
   useEffect(() => {
     if (!open || !restaurantId) return;
     let cancelled = false;
@@ -189,8 +201,8 @@ export function SocialAutopilotGenerateDrawer({
     const menuIds = menuPick ? [menuPick.sourceId] : [];
     const galleryIds = galleryPick ? [galleryPick.sourceId] : [];
     const brief = userBrief.trim();
-    const styleOnly =
-      menuIds.length === 0 && galleryIds.length === 0;
+    const styleOnly = menuIds.length === 0 && galleryIds.length === 0;
+    const wantCompose = Boolean(onComposeReady) || forCompose;
 
     try {
       const res = await fetch("/api/social/suggestions/generate", {
@@ -207,7 +219,8 @@ export function SocialAutopilotGenerateDrawer({
           tone: sessionTone,
           platforms: sessionPlatforms,
           mediaFormat: sessionFormat,
-          asNewsDrafts,
+          forCompose: wantCompose,
+          asNewsDrafts: wantCompose ? false : asNewsDrafts,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -215,6 +228,7 @@ export function SocialAutopilotGenerateDrawer({
           created?: number;
           newsDraftsCreated?: number;
           skippedReason?: string;
+          compose?: SocialKiComposeResult;
         };
         error?: string;
       };
@@ -250,16 +264,28 @@ export function SocialAutopilotGenerateDrawer({
         return;
       }
 
+      if (wantCompose && onComposeReady && gen?.compose?.body) {
+        onComposeReady(gen.compose);
+        setPhase("setup");
+        return;
+      }
+
+      if (wantCompose && !gen?.compose) {
+        toast.error(
+          "Layout konnte nicht gebaut werden — bitte Foto prüfen und erneut versuchen",
+        );
+        setPhase("setup");
+        return;
+      }
+
       const drafts =
         typeof gen?.newsDraftsCreated === "number"
           ? gen.newsDraftsCreated
           : (gen?.created ?? 0);
       if (drafts > 0) {
-        toast.success(
-          "Entwurf in der News-Liste — dort freigeben oder bearbeiten",
-        );
+        toast.success("Entwurf bereit");
         onOpenChange(false);
-        void onCreated();
+        void onCreated?.();
         return;
       }
       toast.message("Kein Entwurf erstellt");
@@ -300,17 +326,11 @@ export function SocialAutopilotGenerateDrawer({
             className="min-h-24 rounded-xl"
             placeholder="z. B. Sonntagsbrunch bewerben, Sommerterrasse, neues Gericht …"
           />
-          <p className="text-xs text-muted-foreground">
-            Freitext optional — zusammen mit Speisekarte/Galerie und Stil.
-          </p>
         </div>
 
         {(cuesLoading || cues.length > 0) && (
           <div className="space-y-2">
             <p className="text-sm font-medium text-foreground">Ideen</p>
-            <p className="text-xs text-muted-foreground">
-              Tippen füllt den Freitext — Feiertage und eure Events.
-            </p>
             {cuesLoading && cues.length === 0 ? (
               <div className="flex gap-2 overflow-hidden" aria-busy>
                 {[0, 1, 2].map((i) => (
@@ -413,9 +433,6 @@ export function SocialAutopilotGenerateDrawer({
               Ändern
             </span>
           </button>
-          <p className="text-xs text-muted-foreground">
-            {SOCIAL_MEDIA_FORMATS[sessionFormat]?.platformHint}
-          </p>
         </div>
 
         {aiConfigured === false ? (
@@ -550,11 +567,11 @@ export function SocialAutopilotGenerateDrawer({
             <DrawerTitle>
               {phase === "creating" ? "Einen Moment …" : "KI-Post"}
             </DrawerTitle>
-            <DrawerDescription>
-              {phase === "creating"
-                ? `${aiLabel} schreibt einen Post für euch.`
-                : "Vorgaben wählen — Generieren erstellt genau einen Entwurf."}
-            </DrawerDescription>
+            {phase === "creating" ? (
+              <DrawerDescription>
+                {aiLabel} schreibt einen Post für euch.
+              </DrawerDescription>
+            ) : null}
           </DrawerHeader>
           {mainBody}
         </DrawerContent>

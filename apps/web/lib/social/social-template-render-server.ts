@@ -23,7 +23,22 @@ import {
 import { normalizeHex } from "@/lib/theme/color-utils";
 
 const SIZE = 1080;
-const LOGO_MARK_SIZE = 72;
+const LOGO_MARK_SIZE = 88;
+
+/** Headline für Overlay: Titel, sonst erste Caption-Zeile — nie „Diese Woche“. */
+function layoutHeadline(
+  title: string | null | undefined,
+  captionLine: string,
+  fallback: string,
+): string {
+  const t = title?.trim();
+  if (t && t.toLowerCase() !== "galerie" && t.toLowerCase() !== "gallery") {
+    return t.slice(0, 42);
+  }
+  const fromCaption = captionLine.split(/[.!?\n]/)[0]?.trim();
+  if (fromCaption && fromCaption.length >= 3) return fromCaption.slice(0, 42);
+  return fallback.slice(0, 42);
+}
 
 const FONT_INTER =
   "/usr/share/fonts/truetype/macos/Inter-SemiBold.ttf";
@@ -166,18 +181,21 @@ function premiumEditorialOverlay(params: {
   restaurantName: string;
   title: string | null;
   captionLine: string;
+  ctaLabel: string;
 }): Buffer {
   const name = escapeXml(params.restaurantName.slice(0, 48));
-  const title = params.title ? escapeXml(params.title.slice(0, 42)) : "";
-  const captionLines = wrapLines(params.captionLine, 38, 2).map(escapeXml);
+  const headline = escapeXml(
+    layoutHeadline(params.title, params.captionLine, params.restaurantName),
+  );
+  const captionLines = wrapLines(params.captionLine, 36, 2).map(escapeXml);
   const accent = escapeXml(params.accent);
   const secondary = escapeXml(params.secondary ?? params.accent);
+  const cta = escapeXml((params.ctaLabel.trim() || "Reservieren").slice(0, 28));
   const css = fontFaceCss();
-  const captionY = title ? 930 : 900;
   const captions = captionLines
     .map(
       (line, i) =>
-        `<text x="72" y="${captionY + i * 34}" fill="#ffffff" fill-opacity="0.9" font-size="26" font-family="GwadaInter, Helvetica, sans-serif">${line}</text>`,
+        `<text x="72" y="${908 + i * 32}" fill="#ffffff" fill-opacity="0.88" font-size="24" font-family="GwadaInter, Helvetica, sans-serif">${line}</text>`,
     )
     .join("");
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
@@ -185,16 +203,17 @@ function premiumEditorialOverlay(params: {
   <defs><style type="text/css"><![CDATA[${css}]]></style>
     <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#000" stop-opacity="0"/>
-      <stop offset="55%" stop-color="#000" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#000" stop-opacity="0.58"/>
+      <stop offset="48%" stop-color="#000" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0.72"/>
     </linearGradient>
   </defs>
   <rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
-  <text x="72" y="820" fill="#ffffff" fill-opacity="0.72" font-size="16" letter-spacing="4" font-family="GwadaInterSemi, Helvetica, sans-serif">${name}</text>
-  <rect x="72" y="838" width="40" height="1.5" fill="${accent}"/>
-  <rect x="118" y="838" width="16" height="1.5" fill="${secondary}" fill-opacity="0.7"/>
-  ${title ? `<text x="72" y="890" fill="#ffffff" font-size="46" font-family="GwadaSerifBold, Georgia, serif">${title}</text>` : ""}
+  <text x="72" y="780" fill="#ffffff" fill-opacity="0.7" font-size="15" letter-spacing="5" font-family="GwadaInterSemi, Helvetica, sans-serif">${name}</text>
+  <rect x="72" y="798" width="36" height="2" fill="${accent}"/>
+  <rect x="114" y="798" width="12" height="2" fill="${secondary}" fill-opacity="0.65"/>
+  <text x="72" y="860" fill="#ffffff" font-size="52" font-family="GwadaSerifBold, Georgia, serif">${headline}</text>
   ${captions}
+  <text x="72" y="1010" fill="${accent}" font-size="20" font-family="GwadaInterSemi, Helvetica, sans-serif">${cta} →</text>
 </svg>`;
   return Buffer.from(svg);
 }
@@ -210,13 +229,16 @@ function premiumAtelierOverlay(params: {
   ctaLabel: string;
 }): Buffer {
   const name = escapeXml(params.restaurantName.slice(0, 42));
-  const title = escapeXml((params.title?.trim() || "Diese Woche").slice(0, 40));
+  const title = escapeXml(
+    layoutHeadline(params.title, params.captionLine, params.restaurantName),
+  );
   const captionLines = wrapLines(params.captionLine, 34, 2).map(escapeXml);
   const accent = escapeXml(params.accent);
-  const secondary = escapeXml(params.secondary ?? params.accent);
   const dark = escapeXml(params.dark);
   const light = escapeXml(params.light);
-  const cta = escapeXml(`${params.ctaLabel.slice(0, 28)} →`);
+  const cta = escapeXml(
+    `${(params.ctaLabel.trim() || "Reservieren").slice(0, 28)} →`,
+  );
   const css = fontFaceCss();
   const captions = captionLines
     .map(
@@ -224,17 +246,22 @@ function premiumAtelierOverlay(params: {
         `<text x="72" y="${760 + i * 32}" fill="${light}" fill-opacity="0.82" font-size="24" font-family="GwadaInter, Helvetica, sans-serif">${line}</text>`,
     )
     .join("");
-  const panelTop = Math.round(SIZE * 0.58);
+  const panelTop = Math.round(SIZE * 0.56);
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
-  <defs><style type="text/css"><![CDATA[${css}]]></style></defs>
+  <defs><style type="text/css"><![CDATA[${css}]]></style>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${dark}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="${dark}" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="${panelTop - 48}" width="${SIZE}" height="48" fill="url(#fade)"/>
   <rect x="0" y="${panelTop}" width="${SIZE}" height="${SIZE - panelTop}" fill="${dark}"/>
-  <rect x="0" y="${panelTop}" width="${SIZE}" height="3" fill="${secondary}" fill-opacity="0.55"/>
-  <text x="72" y="700" fill="${light}" fill-opacity="0.65" font-size="15" letter-spacing="4" font-family="GwadaInterSemi, Helvetica, sans-serif">${name}</text>
-  <text x="72" y="748" fill="${light}" font-size="40" font-family="GwadaSerifBold, Georgia, serif">${title}</text>
+  <rect x="72" y="${panelTop}" width="48" height="3" fill="${accent}"/>
+  <text x="72" y="690" fill="${light}" fill-opacity="0.62" font-size="14" letter-spacing="5" font-family="GwadaInterSemi, Helvetica, sans-serif">${name}</text>
+  <text x="72" y="748" fill="${light}" font-size="44" font-family="GwadaSerifBold, Georgia, serif">${title}</text>
   ${captions}
-  <rect x="72" y="920" width="48" height="1.5" fill="${accent}"/>
-  <text x="72" y="960" fill="${accent}" font-size="20" font-family="GwadaInterSemi, Helvetica, sans-serif">${cta}</text>
+  <text x="72" y="980" fill="${accent}" font-size="22" font-family="GwadaInterSemi, Helvetica, sans-serif">${cta}</text>
 </svg>`;
   return Buffer.from(svg);
 }
@@ -248,7 +275,9 @@ function premiumSoireeOverlay(params: {
   captionLine: string;
 }): Buffer {
   const name = escapeXml(params.restaurantName.slice(0, 42));
-  const title = escapeXml((params.title?.trim() || "Event").slice(0, 36));
+  const title = escapeXml(
+    layoutHeadline(params.title, params.captionLine, "Einladung"),
+  );
   const captionLines = wrapLines(params.captionLine, 32, 3).map(escapeXml);
   const accent = escapeXml(params.accent);
   const secondary = escapeXml(params.secondary ?? params.accent);
@@ -427,6 +456,7 @@ async function renderPremiumFeedLayout(params: {
     restaurantName: params.restaurantName,
     title: params.title,
     captionLine,
+    ctaLabel: params.ctaLabel,
   });
   return sharp(base)
     .composite([

@@ -21,8 +21,14 @@ import {
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NewsPlatformChip } from "@/components/news/news-platform-filter-chips";
-import { SocialAutopilotGenerateDrawer } from "@/components/social/social-autopilot-generate-drawer";
-import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import {
+  SocialAutopilotGenerateDrawer,
+  type SocialKiComposeResult,
+} from "@/components/social/social-autopilot-generate-drawer";
+import {
+  isNewsPlatform,
+  type NewsPlatform,
+} from "@/lib/constants/news-platforms";
 import type { NewsStoriesPlatform } from "@/lib/news/news-stories-cache-constants";
 import type { NewsMediaRow } from "@/lib/news/news-media";
 import { uploadNewsMedia } from "@/lib/news/news-media-api";
@@ -224,6 +230,32 @@ export function NewsComposeDrawer({
     [uploadFile],
   );
 
+  const applyKiCompose = useCallback((payload: SocialKiComposeResult) => {
+    setMedia((prev) => {
+      for (const item of prev) URL.revokeObjectURL(item.previewUrl);
+      return payload.media.map((m) => ({
+        id: m.id,
+        kind: m.kind,
+        storagePath: m.storagePath,
+        mimeType: m.mimeType,
+        sortOrder: m.sortOrder,
+        width: m.width ?? null,
+        height: m.height ?? null,
+        previewUrl: m.previewUrl,
+      }));
+    });
+    setTitle(payload.title?.trim() || "");
+    setBody(payload.body);
+    const nextPlatforms = payload.platforms.filter(isNewsPlatform);
+    setPlatforms(nextPlatforms.length > 0 ? nextPlatforms : ["gwada"]);
+    setScheduleEnabled(false);
+    setScheduledAt("");
+    setStoryPlatforms([]);
+    postIdRef.current = crypto.randomUUID();
+    setMode("manual");
+    toast.success("Post bereit — noch anpassen, dann veröffentlichen oder planen");
+  }, []);
+
   const save = useCallback(async () => {
     if (!body.trim()) {
       toast.error("Bitte Text eingeben.");
@@ -308,18 +340,13 @@ export function NewsComposeDrawer({
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          {mode === "ki" ? (
-            <p className="text-left text-sm text-muted-foreground">
-              Vorgaben wählen — Generieren erstellt genau einen Entwurf.
-            </p>
-          ) : null}
         </DrawerHeader>
 
         {mode === "ki" ? (
           <div className="flex min-h-0 flex-1 flex-col px-6 pb-2">
             <SocialAutopilotGenerateDrawer
               embedded
-              asNewsDrafts
+              forCompose
               open={open && mode === "ki"}
               onOpenChange={onOpenChange}
               restaurantId={restaurantId}
@@ -328,7 +355,7 @@ export function NewsComposeDrawer({
               initialTone={sessionTone}
               initialPlatforms={sessionPlatforms}
               initialFormat={sessionFormat}
-              onCreated={onSaved}
+              onComposeReady={applyKiCompose}
             />
           </div>
         ) : (

@@ -45,6 +45,7 @@ export async function GET(_req: Request, context: RouteContext) {
     latestVersion: status.latest?.version ?? null,
     latestPublishedAt: status.latest?.publishedAt ?? null,
     latestHtmlUrl: status.latest?.htmlUrl ?? null,
+    latestReleaseBody: status.latest?.body ?? null,
     updateAvailable: status.updateAvailable,
     error: status.current.ok ? undefined : status.current.error,
     canUpdate: Boolean(

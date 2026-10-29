@@ -201,6 +201,8 @@ export type WahaServerVersionStatus = {
   latestVersion: string | null;
   latestPublishedAt: string | null;
   latestHtmlUrl: string | null;
+  /** GitHub Release-Notes (Markdown) — UI parst lesbar. */
+  latestReleaseBody: string | null;
   updateAvailable: boolean;
   canUpdate: boolean;
   error?: string;
@@ -226,6 +228,7 @@ export async function fetchSuperadminWahaServerVersion(
       latestVersion: null,
       latestPublishedAt: null,
       latestHtmlUrl: null,
+      latestReleaseBody: null,
       updateAvailable: false,
       canUpdate: false,
       error: body.error ?? body.message ?? `http_${res.status}`,
@@ -240,6 +243,10 @@ export async function fetchSuperadminWahaServerVersion(
     latestVersion: body.latestVersion ?? null,
     latestPublishedAt: body.latestPublishedAt ?? null,
     latestHtmlUrl: body.latestHtmlUrl ?? null,
+    latestReleaseBody:
+      typeof body.latestReleaseBody === "string"
+        ? body.latestReleaseBody
+        : null,
     updateAvailable: Boolean(body.updateAvailable),
     canUpdate: Boolean(body.canUpdate),
     error: body.error,

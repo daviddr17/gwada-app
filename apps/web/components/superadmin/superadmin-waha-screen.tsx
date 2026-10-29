@@ -12,6 +12,7 @@ import {
 } from "@/components/superadmin/superadmin-table-cells";
 import { SuperadminWahaSessionDrawer } from "@/components/superadmin/superadmin-waha-session-drawer";
 import { SuperadminWahaSessionRowMenu } from "@/components/superadmin/superadmin-waha-session-row-menu";
+import { SuperadminWahaVersionDrawer } from "@/components/superadmin/superadmin-waha-version-drawer";
 import { WahaSessionStatusBadge } from "@/components/superadmin/waha-session-status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -177,6 +178,8 @@ export function SuperadminWahaScreen() {
   const [versionsById, setVersionsById] = useState<
     Record<string, WahaServerVersionStatus>
   >({});
+  const [versionDrawerServer, setVersionDrawerServer] =
+    useState<WahaServerPublic | null>(null);
   const [updateConfirmServer, setUpdateConfirmServer] =
     useState<WahaServerPublic | null>(null);
   const [updateConfirmTyped, setUpdateConfirmTyped] = useState("");
@@ -755,8 +758,8 @@ export function SuperadminWahaScreen() {
                     </span>
                   );
                 }
-                return (
-                  <div className="text-xs leading-snug">
+                const versionBlock = (
+                  <div className="text-xs leading-snug text-left">
                     <div className="font-mono">
                       {v.currentVersion ?? "—"}
                       {v.engine ? (
@@ -780,6 +783,19 @@ export function SuperadminWahaScreen() {
                         : "neueste: —"}
                     </div>
                   </div>
+                );
+                if (!v.updateAvailable) {
+                  return versionBlock;
+                }
+                return (
+                  <button
+                    type="button"
+                    className="rounded-md text-left outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                    title="Versionshinweise anzeigen"
+                    onClick={() => setVersionDrawerServer(r)}
+                  >
+                    {versionBlock}
+                  </button>
                 );
               },
             },
@@ -863,10 +879,7 @@ export function SuperadminWahaScreen() {
                             !updateReady
                           }
                           title={updateTitle}
-                          onClick={() => {
-                            setUpdateConfirmTyped("");
-                            setUpdateConfirmServer(r);
-                          }}
+                          onClick={() => setVersionDrawerServer(r)}
                         >
                           Update
                         </DropdownMenuItem>
@@ -1307,6 +1320,36 @@ export function SuperadminWahaScreen() {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      <SuperadminWahaVersionDrawer
+        open={versionDrawerServer != null}
+        onOpenChange={(open) => {
+          if (!open) setVersionDrawerServer(null);
+        }}
+        serverName={versionDrawerServer?.name ?? "—"}
+        version={
+          versionDrawerServer
+            ? (versionsById[versionDrawerServer.id] ?? null)
+            : null
+        }
+        canStartUpdate={Boolean(
+          versionDrawerServer &&
+            versionDrawerServer.docker_container_name &&
+            serverHasSsh(versionDrawerServer) &&
+            versionsById[versionDrawerServer.id]?.updateAvailable,
+        )}
+        updateBusy={
+          versionDrawerServer != null &&
+          updateBusyId === versionDrawerServer.id
+        }
+        onStartUpdate={() => {
+          const s = versionDrawerServer;
+          if (!s) return;
+          setVersionDrawerServer(null);
+          setUpdateConfirmTyped("");
+          setUpdateConfirmServer(s);
+        }}
+      />
 
       <ConfirmDialog
         open={updateConfirmServer != null}

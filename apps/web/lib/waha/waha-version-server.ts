@@ -97,16 +97,22 @@ export async function fetchLatestWahaRelease(options?: {
       name?: string;
       published_at?: string;
       html_url?: string;
+      body?: string | null;
     };
     const version = normalizeWahaVersion(body.tag_name ?? body.name ?? null);
     if (!version) {
       latestCache = { at: now, value: null };
       return null;
     }
+    const releaseBody =
+      typeof body.body === "string" && body.body.trim()
+        ? body.body.trim()
+        : null;
     const value: WahaLatestReleaseInfo = {
       version,
       publishedAt: body.published_at ?? null,
       htmlUrl: body.html_url ?? null,
+      body: releaseBody,
     };
     latestCache = { at: now, value };
     return value;

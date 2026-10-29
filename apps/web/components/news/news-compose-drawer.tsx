@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { Upload, X } from "lucide-react";
@@ -20,12 +20,14 @@ import {
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { NewsChannelInsightsList } from "@/components/news/news-channel-insights";
 import { NewsPlatformChip } from "@/components/news/news-platform-filter-chips";
 import {
   SocialAutopilotGenerateDrawer,
   type SocialKiComposeResult,
 } from "@/components/social/social-autopilot-generate-drawer";
 import {
+  NEWS_FILTER_ALL,
   isNewsPlatform,
   type NewsPlatform,
 } from "@/lib/constants/news-platforms";
@@ -33,6 +35,8 @@ import type { NewsStoriesPlatform } from "@/lib/news/news-stories-cache-constant
 import type { NewsMediaRow } from "@/lib/news/news-media";
 import { uploadNewsMedia } from "@/lib/news/news-media-api";
 import { validateNewsMediaFile } from "@/lib/news/validate-news-media-file";
+import { peekNewsFeedCache } from "@/lib/news/news-feed-client-cache";
+import { computeNewsChannelInsights } from "@/lib/news/news-insights";
 import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
 import {
   defaultSocialBrandKit,
@@ -148,6 +152,21 @@ export function NewsComposeDrawer({
       c.capabilities.canPublishStory &&
       (c.key === "instagram" || c.key === "facebook"),
   );
+
+  const channelInsights = useMemo(() => {
+    if (!open || mode !== "manual") return [];
+    const cached = peekNewsFeedCache(restaurantId, NEWS_FILTER_ALL);
+    const rows = computeNewsChannelInsights(cached?.items ?? []);
+    const connected = new Set(
+      connectors.filter((c) => c.connected || c.key === "gwada").map((c) => c.key),
+    );
+    return rows.filter(
+      (row) =>
+        connected.has(row.platform) &&
+        row.platform !== "gwada" &&
+        (row.reach != null || row.engagement != null || row.posts > 0),
+    );
+  }, [open, mode, restaurantId, connectors]);
 
   const effectiveScheduledAt = scheduleEnabled ? scheduledAt : "";
   const canPublishStories = media.length > 0 && !effectiveScheduledAt;
@@ -512,6 +531,17 @@ export function NewsComposeDrawer({
                     );
                   })}
                 </div>
+                {channelInsights.length > 0 ? (
+                  <div className="mt-3 space-y-1.5">
+                    <p className="text-xs text-muted-foreground">
+                      Reichweite &amp; Engagement je Kanal (aus dem News-Feed)
+                    </p>
+                    <NewsChannelInsightsList
+                      channels={channelInsights}
+                      compact
+                    />
+                  </div>
+                ) : null}
               </DrawerFormSection>
               {storyEligibleConnectors.length > 0 ? (
                 <DrawerFormSection contentPadding={4} title="Zusätzlich als Story">

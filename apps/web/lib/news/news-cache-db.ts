@@ -6,6 +6,7 @@ import {
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
 import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
+import { syncPublicationInsightsFromCacheItems } from "@/lib/news/news-post-channel-insights";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -197,5 +198,16 @@ export async function upsertNewsPlatformCache(
       item_count: items.length,
     },
     { onConflict: "restaurant_id,platform" },
+  );
+
+  // Insights der gematchten Gwada-Publications mit Feed-Zahlen aktualisieren.
+  void syncPublicationInsightsFromCacheItems(
+    admin,
+    restaurantId,
+    platform,
+    items.map((item) => ({
+      externalId: externalIdFromNewsItem(item),
+      insights: item.insights,
+    })),
   );
 }

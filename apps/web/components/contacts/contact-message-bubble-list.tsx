@@ -20,6 +20,7 @@ import {
 import {
   ContactMessageReactions,
   useMessageReactionLongPress,
+  type ReactionOptimisticPatch,
 } from "@/components/contacts/contact-message-reactions";
 import { ContactMessageAttachments } from "@/components/contacts/contact-message-attachments";
 import { ContactMessageEmailBody } from "@/components/contacts/contact-message-email-body";
@@ -52,8 +53,10 @@ export type ContactMessageWahaReactionsConfig = {
   restaurantId: string;
   chatId: string;
   onReactionChange?: () => void;
+  onOptimisticReaction?: (patch: ReactionOptimisticPatch) => void;
   onMessageDeleted?: () => void;
   onEditMessage?: (message: ContactMessageRow) => void;
+  onReplyMessage?: (message: ContactMessageRow) => void;
   editingMessageId?: string | null;
   onOptimisticMessageDelete?: (message: ContactMessageRow) => void;
 };
@@ -61,6 +64,7 @@ export type ContactMessageWahaReactionsConfig = {
 export type ContactMessageMetaReactionsConfig = {
   restaurantId: string;
   onReactionChange?: () => void;
+  onOptimisticReaction?: (patch: ReactionOptimisticPatch) => void;
 };
 
 function formatWhen(iso: string): string {
@@ -148,6 +152,11 @@ export const ContactMessageBubbleList = memo(function ContactMessageBubbleList({
             isWahaEditableMessage(primary) &&
             wahaReactions?.onEditMessage,
         );
+        const showReply = Boolean(
+          wahaReactions?.onReplyMessage &&
+            (primary.waha_message_id ||
+              primary.external_source_id?.startsWith("waha:")),
+        );
 
         return (
           <MessageBubbleRow
@@ -158,6 +167,7 @@ export const ContactMessageBubbleList = memo(function ContactMessageBubbleList({
             showReactions={showReactions}
             showDelete={showDelete}
             showEdit={showEdit}
+            showReply={showReply}
             wahaReactions={wahaReactions}
             metaReactions={metaReactions}
             metaMessageId={metaMessageId}
@@ -188,6 +198,7 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
   showReactions,
   showDelete,
   showEdit,
+  showReply,
   wahaReactions,
   metaReactions,
   metaMessageId,
@@ -205,6 +216,7 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
   showReactions: boolean;
   showDelete: boolean;
   showEdit: boolean;
+  showReply: boolean;
   wahaReactions?: ContactMessageWahaReactionsConfig;
   metaReactions?: ContactMessageMetaReactionsConfig;
   metaMessageId: string | null;
@@ -335,6 +347,20 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
           )}
           {...(showReactions ? longPress : {})}
         >
+          {primary.reply_to_body ? (
+            <div
+              className={cn(
+                "mb-2 rounded-lg border-l-2 px-2 py-1 text-xs",
+                outbound
+                  ? "border-accent-foreground/40 bg-black/10 text-accent-foreground/90"
+                  : "border-accent/50 bg-background/70 text-muted-foreground",
+              )}
+            >
+              <p className="line-clamp-3 whitespace-pre-wrap break-words">
+                {primary.reply_to_body}
+              </p>
+            </div>
+          ) : null}
           {primary.attachments?.length || fallbackMediaAttachments ? (
             <ContactMessageAttachments
               attachments={
@@ -374,6 +400,10 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
             onUpdated={
               wahaReactions?.onReactionChange ?? metaReactions?.onReactionChange
             }
+            onOptimisticReaction={
+              wahaReactions?.onOptimisticReaction ??
+              metaReactions?.onOptimisticReaction
+            }
             pickerOpen={pickerOpen}
             onPickerOpenChange={onPickerOpenChange}
             toolbarVisible={toolbarVisible}
@@ -381,6 +411,11 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
             onEdit={
               showEdit && wahaReactions?.onEditMessage
                 ? () => wahaReactions.onEditMessage!(primary)
+                : undefined
+            }
+            onReply={
+              showReply && wahaReactions?.onReplyMessage
+                ? () => wahaReactions.onReplyMessage!(primary)
                 : undefined
             }
             deleting={deleting}

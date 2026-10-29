@@ -191,6 +191,29 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
           onInboundInsert();
         } else if (source === "waha_ack") {
           scheduleWahaMetadataRefresh();
+        } else if (source === "waha_reaction") {
+          const reactionPayload = payload.new.payload as
+            | {
+                wahaMessageId?: string;
+                emoji?: string;
+                fromMe?: boolean;
+                senderId?: string | null;
+              }
+            | null
+            | undefined;
+          if (reactionPayload?.wahaMessageId) {
+            void import("@/lib/contact-messages/inbox-reaction-live").then(
+              ({ dispatchInboxReactionLive }) => {
+                dispatchInboxReactionLive({
+                  restaurantId,
+                  wahaMessageId: reactionPayload.wahaMessageId!,
+                  emoji: reactionPayload.emoji ?? "",
+                  fromMe: Boolean(reactionPayload.fromMe),
+                  senderId: reactionPayload.senderId ?? null,
+                });
+              },
+            );
+          }
         }
       },
     });

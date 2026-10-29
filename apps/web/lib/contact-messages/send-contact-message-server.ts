@@ -60,6 +60,9 @@ export type SendContactMessageServerInput = {
   clientSendId?: string;
   /** Kein separates Nachrichten-Push (z. B. Gast-Nachricht bei neuer Reservierung). */
   suppressNotifications?: boolean;
+  /** WhatsApp quote/reply — WAHA message id. */
+  replyToWahaMessageId?: string | null;
+  replyToBody?: string | null;
 };
 
 async function isWhatsappSessionWorking(restaurantId: string): Promise<boolean> {
@@ -295,6 +298,7 @@ export async function sendContactMessageServer(
         externalText ||
         (voiceFile ? "Sprachnachricht" : attachmentFiles.length > 0 ? " " : " ");
 
+      const replyToWahaMessageId = input.replyToWahaMessageId?.trim() || null;
       const pending = await insertPendingOutboundWhatsappMessage(admin, {
         restaurantId: input.restaurantId,
         threadContactId: input.contactId,
@@ -305,6 +309,10 @@ export async function sendContactMessageServer(
         sendBatchId,
         deliveryStatus:
           !sessionOk ? "failed" : !chatId ? "failed" : "pending",
+        replyToExternalSourceId: replyToWahaMessageId
+          ? `waha:${replyToWahaMessageId}`
+          : null,
+        replyToBody: input.replyToBody ?? null,
       });
 
       if (!pending.ok) {
@@ -369,6 +377,7 @@ export async function sendContactMessageServer(
           restaurantId: input.restaurantId,
           chatId,
           text: externalText,
+          replyTo: replyToWahaMessageId,
         });
         if (!sent.ok) {
           deliveryStatus = "failed";

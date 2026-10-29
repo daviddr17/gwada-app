@@ -5,7 +5,7 @@
 Beim WhatsApp-Verbinden (`syncWhatsappFromWaha`) wird pro Restaurant-Session konfiguriert:
 
 - **URL:** `https://<SITE>/api/integrations/waha/webhook` (`NEXT_PUBLIC_SITE_URL` / `getPublicSiteUrl()`)
-- **Events:** `message` (eingehend), `message.any` (alle Erstellungen inkl. Handy-Outbound `fromMe`), `message.ack` (gelesen / Zustellstatus)
+- **Events:** `message` (eingehend), `message.any` (alle Erstellungen inkl. Handy-Outbound `fromMe`), `message.ack` (gelesen / Zustellstatus), `message.reaction` (Live-Reactions), `session.status` (Integrations-Status ohne Poll)
 - **Metadata:** `gwada.restaurant_id` = Restaurant-UUID
 - **Update:** `wahaUpdateSessionWebhooks` bei Connect und Session-Restart
 - **Session-Config:** `webjs.tagsEventsOn: true` (falls WEBJS-Engine), NOWEB-Store wie bisher
@@ -34,6 +34,19 @@ Nach Deploy: Webhooks auf bestehenden Sessions refreshen (`pnpm refresh:waha:liv
 4. Client: leiser Inbox-Refresh → WAHA-Overview für `external_unread_count` (Glocke + Kontakte)
 
 Damit entfällt der Voll-Sync aller WAHA-Threads beim Glocke-Öffnen; Pull bleibt nur als Overview-Refresh nach Signal.
+
+## Ablauf bei Reaction (`message.reaction`)
+
+1. WAHA POST mit `payload.reaction.messageId` + `payload.reaction.text` (leer = entfernt)
+2. **DB:** `contact_messages.reactions` JSONB mergen (wenn `external_source_id = waha:…` existiert)
+3. **Signal:** `restaurant_inbox_signals` (`source: waha_reaction`, `payload` mit messageId/emoji) → Client patched offenen Thread **ohne** Full-Reload
+4. Eigene Reactions: Optimistic UI im Bubble, dann Network — kein `loadThread`
+
+## Ablauf bei Session-Status (`session.status`)
+
+1. WAHA POST mit `payload.status` (WORKING / SCAN_QR_CODE / FAILED / …)
+2. `restaurant_integrations` (WhatsApp) upsert — gleiche Mapping-Logik wie Connect-Poll
+3. Kein Inbox-Row / kein Toast
 
 ## Fallbacks
 

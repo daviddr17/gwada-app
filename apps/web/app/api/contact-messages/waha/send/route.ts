@@ -23,6 +23,8 @@ export async function POST(req: Request) {
   let voiceFile: OutboundAttachmentFile | undefined;
 
   let clientSendId = "";
+  let replyToWahaMessageId = "";
+  let replyToBody = "";
 
   const multipart = await parseMultipartSend(req);
   if (multipart) {
@@ -44,6 +46,8 @@ export async function POST(req: Request) {
     contactId = multipart.fields.contactId?.trim() ?? "";
     storeUnderContact = multipart.fields.storeUnderContact !== "false";
     clientSendId = multipart.fields.clientSendId?.trim() ?? "";
+    replyToWahaMessageId = multipart.fields.replyToWahaMessageId?.trim() ?? "";
+    replyToBody = multipart.fields.replyToBody?.trim() ?? "";
   } else {
     const body = (await req.json().catch(() => ({}))) as {
       restaurantId?: string;
@@ -52,6 +56,8 @@ export async function POST(req: Request) {
       messageBody?: string;
       storeUnderContact?: boolean;
       clientSendId?: string;
+      replyToWahaMessageId?: string;
+      replyToBody?: string;
     };
     restaurantId = body.restaurantId?.trim() ?? "";
     messageBody = body.messageBody?.trim() ?? "";
@@ -59,6 +65,8 @@ export async function POST(req: Request) {
     contactId = body.contactId?.trim() ?? "";
     storeUnderContact = body.storeUnderContact !== false;
     clientSendId = body.clientSendId?.trim() ?? "";
+    replyToWahaMessageId = body.replyToWahaMessageId?.trim() ?? "";
+    replyToBody = body.replyToBody?.trim() ?? "";
   }
 
   if (
@@ -99,6 +107,8 @@ export async function POST(req: Request) {
       sentBy: auth.userId,
       attachmentFiles,
       voiceFile,
+      replyToWahaMessageId: replyToWahaMessageId || null,
+      replyToBody: replyToBody || null,
     });
     return Response.json(result);
   }
@@ -115,6 +125,8 @@ export async function POST(req: Request) {
     clientSendId: clientSendId || undefined,
     attachmentFiles,
     voiceFile,
+    replyToWahaMessageId: replyToWahaMessageId || null,
+    replyToBody: replyToBody || null,
   });
 
   return Response.json(result);

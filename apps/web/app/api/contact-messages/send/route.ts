@@ -28,6 +28,8 @@ export async function POST(req: Request) {
   let attachmentFiles: OutboundAttachmentFile[] = [];
   let voiceFile: OutboundAttachmentFile | undefined;
   let clientSendId = "";
+  let replyToWahaMessageId = "";
+  let replyToBody = "";
 
   const multipart = await parseMultipartSend(req);
   if (multipart) {
@@ -65,6 +67,8 @@ export async function POST(req: Request) {
     reservationId = multipart.fields.reservationId?.trim() || null;
     restaurantName = multipart.fields.restaurantName?.trim() || null;
     clientSendId = multipart.fields.clientSendId?.trim() ?? "";
+    replyToWahaMessageId = multipart.fields.replyToWahaMessageId?.trim() ?? "";
+    replyToBody = multipart.fields.replyToBody?.trim() ?? "";
   } else {
     const body = (await req.json().catch(() => ({}))) as {
       restaurantId?: string;
@@ -81,6 +85,8 @@ export async function POST(req: Request) {
       reservationId?: string | null;
       restaurantName?: string | null;
       clientSendId?: string;
+      replyToWahaMessageId?: string;
+      replyToBody?: string;
     };
     restaurantId = body.restaurantId?.trim() ?? "";
     contactId = body.contactId?.trim() ?? "";
@@ -90,6 +96,8 @@ export async function POST(req: Request) {
     reservationId = body.reservationId?.trim() || null;
     restaurantName = body.restaurantName?.trim() || null;
     clientSendId = body.clientSendId?.trim() ?? "";
+    replyToWahaMessageId = body.replyToWahaMessageId?.trim() ?? "";
+    replyToBody = body.replyToBody?.trim() ?? "";
   }
 
   if (
@@ -149,6 +157,8 @@ export async function POST(req: Request) {
     attachmentFiles,
     voiceFile,
     clientSendId: clientSendId || undefined,
+    replyToWahaMessageId: replyToWahaMessageId || null,
+    replyToBody: replyToBody || null,
   });
 
   return Response.json(result);

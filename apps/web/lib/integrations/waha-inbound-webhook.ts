@@ -13,8 +13,13 @@ import { resolveWahaInboundMirrorContent } from "@/lib/contact-messages/waha-mes
 import { persistWahaAttachmentMeta } from "@/lib/contact-messages/persist-waha-attachment-meta";
 import { persistWahaConversationDisplayLabel } from "@/lib/contact-messages/persist-waha-conversation-label-server";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
+import { applyContactMessageReactionEvent } from "@/lib/waha/apply-contact-message-reaction";
 import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
 import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
+import {
+  parseWahaReplyQuote,
+  wahaExternalSourceId,
+} from "@/lib/waha/waha-reply-quote";
 import {
   linkOutboundWhatsappFromWahaWebhook,
 } from "@/lib/contact-messages/outbound-whatsapp-db-server";
@@ -22,19 +27,31 @@ import {
   setMirrorThreadExternalSeenInDb,
   setWhatsappMessageExternalSeenInDb,
 } from "@/lib/contacts/message-thread-external-seen-db";
+import {
+  integrationStateFromWahaSession,
+  upsertRestaurantWhatsappIntegration,
+} from "@/lib/supabase/restaurant-integrations-db";
 import { findRestaurantIdByWahaSessionNameAdmin } from "@/lib/supabase/waha-servers-db";
+import type { ContactMessageReaction } from "@/lib/supabase/contact-messages-db";
+import type { WahaSessionStatus } from "@/lib/types/restaurant-integration";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WahaWebhookBody = {
   event?: string;
   session?: string;
   metadata?: Record<string, string>;
+  me?: {
+    id?: string;
+    pushName?: string;
+    name?: string;
+  } | null;
   payload?: {
     id?: string;
     timestamp?: number;
     from?: string;
     to?: string;
     fromMe?: boolean;
+    participant?: string;
     body?: string;
     hasMedia?: boolean;
     ack?: number;
@@ -42,6 +59,13 @@ export type WahaWebhookBody = {
     pushName?: string;
     notifyName?: string;
     verifiedBizName?: string;
+    /** session.status */
+    status?: WahaSessionStatus | string;
+    replyTo?: unknown;
+    reaction?: {
+      text?: string | null;
+      messageId?: string | null;
+    };
     _data?: {
       notifyName?: string;
       pushName?: string;
@@ -108,6 +132,12 @@ export async function handleWahaWebhook(
   }
   if (event === "message.ack") {
     return handleWahaMessageAck(admin, body);
+  }
+  if (event === "message.reaction") {
+    return handleWahaMessageReaction(admin, body);
+  }
+  if (event === "session.status") {
+    return handleWahaSessionStatus(admin, body);
   }
   return { ok: true, imported: false, reason: "ignored_event" };
 }
@@ -189,6 +219,7 @@ export async function handleWahaInboundWebhook(
   }
   const mirrorBody = mirrored.body || "WhatsApp-Nachricht";
   const mediaKind = mirrored.mediaKind;
+  const quote = parseWahaReplyQuote(payload);
 
   const scheduleAvatarSync = (linkedContactId: string | null) => {
     void syncWhatsappChatAvatarFromWaha(admin, {
@@ -225,6 +256,10 @@ export async function handleWahaInboundWebhook(
       attachmentKind: mediaKind,
       conversationLabel,
       externalSeen: false,
+      replyToExternalSourceId: quote?.messageId
+        ? wahaExternalSourceId(quote.messageId)
+        : null,
+      replyToBody: quote?.body ?? null,
     });
 
     if (conversationLabel) {
@@ -259,6 +294,10 @@ export async function handleWahaInboundWebhook(
     createdAt: wahaTimestampToIso(payload.timestamp),
     attachmentKind: mediaKind,
     externalSeen: false,
+    replyToExternalSourceId: quote?.messageId
+      ? wahaExternalSourceId(quote.messageId)
+      : null,
+    replyToBody: quote?.body ?? null,
   });
 
   if (imported) persistMediaMeta(messageId);
@@ -401,4 +440,117 @@ export async function handleWahaMessageAck(
   });
 
   return { ok: true, imported: false, reason: "ack_signal" };
+}
+
+export async function handleWahaMessageReaction(
+  admin: SupabaseClient,
+  body: WahaWebhookBody,
+): Promise<WahaWebhookResult> {
+  const payload = body.payload;
+  const targetId = payload?.reaction?.messageId?.trim();
+  if (!targetId) {
+    return { ok: true, imported: false, reason: "no_reaction_target" };
+  }
+
+  let restaurantId = restaurantIdFromWebhook(body);
+  if (!restaurantId && body.session) {
+    restaurantId = await restaurantIdFromSessionName(admin, body.session);
+  }
+  if (!restaurantId) {
+    return { ok: false, imported: false, reason: "unknown_restaurant" };
+  }
+
+  const emoji = (payload?.reaction?.text ?? "").trim();
+  const fromMe = payload?.fromMe === true;
+  const senderId =
+    payload?.participant?.trim() ||
+    payload?.from?.trim() ||
+    undefined;
+
+  const externalSourceId = wahaExternalSourceId(targetId);
+  const { data: msgRow } = await admin
+    .from("contact_messages")
+    .select("id, reactions")
+    .eq("restaurant_id", restaurantId)
+    .eq("external_source_id", externalSourceId)
+    .maybeSingle();
+
+  const row = msgRow as {
+    id: string;
+    reactions: ContactMessageReaction[] | null;
+  } | null;
+
+  let nextReactions: ContactMessageReaction[] | null = null;
+  if (row) {
+    nextReactions = applyContactMessageReactionEvent(row.reactions, {
+      emoji,
+      fromMe,
+      senderId,
+    });
+    await admin
+      .from("contact_messages")
+      .update({ reactions: nextReactions })
+      .eq("restaurant_id", restaurantId)
+      .eq("id", row.id);
+  }
+
+  await insertInboxSignalServer(admin, {
+    restaurantId,
+    source: "waha_reaction",
+    payload: {
+      wahaMessageId: targetId,
+      emoji,
+      fromMe,
+      senderId: senderId ?? null,
+    },
+  });
+
+  return {
+    ok: true,
+    imported: Boolean(row),
+    reason: row ? "reaction_patched" : "reaction_signal_only",
+  };
+}
+
+export async function handleWahaSessionStatus(
+  admin: SupabaseClient,
+  body: WahaWebhookBody,
+): Promise<WahaWebhookResult> {
+  const statusRaw = body.payload?.status;
+  if (!statusRaw || typeof statusRaw !== "string") {
+    return { ok: true, imported: false, reason: "no_status" };
+  }
+
+  let restaurantId = restaurantIdFromWebhook(body);
+  if (!restaurantId && body.session) {
+    restaurantId = await restaurantIdFromSessionName(admin, body.session);
+  }
+  if (!restaurantId) {
+    return { ok: false, imported: false, reason: "unknown_restaurant" };
+  }
+
+  const mapped = integrationStateFromWahaSession({
+    name: body.session,
+    status: statusRaw as WahaSessionStatus,
+    me: body.me ?? null,
+  });
+
+  const { error } = await upsertRestaurantWhatsappIntegration(
+    admin,
+    restaurantId,
+    {
+      status: mapped.status,
+      phone_number: mapped.phone_number,
+      display_name: mapped.display_name,
+      connected_at: mapped.connected_at,
+      last_error: mapped.status === "failed" ? "session_status_failed" : null,
+    },
+  );
+
+  if (error) {
+    console.warn("[waha] session.status upsert", error);
+    return { ok: false, imported: false, reason: "upsert_failed" };
+  }
+
+  return { ok: true, imported: true, reason: "session_status" };
 }

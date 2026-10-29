@@ -308,9 +308,6 @@ export function SocialAutopilotGenerateDrawer({
         {(cuesLoading || cues.length > 0) && (
           <div className="space-y-2">
             <p className="text-sm font-medium text-foreground">Ideen</p>
-            <p className="text-xs text-muted-foreground">
-              Tippen füllt den Freitext — Feiertage und eure Events.
-            </p>
             {cuesLoading && cues.length === 0 ? (
               <div className="flex gap-2 overflow-hidden" aria-busy>
                 {[0, 1, 2].map((i) => (

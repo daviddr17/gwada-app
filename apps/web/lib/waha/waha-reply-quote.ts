@@ -41,12 +41,12 @@ export function parseWahaReplyQuote(
   const data = asRecord(message._data);
   if (!data) return null;
 
+  const nestedMessage = asRecord(data.message);
   const contextInfo =
     asRecord(data.contextInfo) ??
-    asRecord(asRecord(data.message)?.extendedTextMessage)?.contextInfo ??
-    asRecord(asRecord(data.message)?.imageMessage)?.contextInfo ??
-    asRecord(asRecord(data.message)?.documentMessage)?.contextInfo ??
-    null;
+    asRecord(asRecord(nestedMessage?.extendedTextMessage)?.contextInfo) ??
+    asRecord(asRecord(nestedMessage?.imageMessage)?.contextInfo) ??
+    asRecord(asRecord(nestedMessage?.documentMessage)?.contextInfo);
 
   if (!contextInfo) return null;
 

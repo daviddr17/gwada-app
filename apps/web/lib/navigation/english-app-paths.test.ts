@@ -48,6 +48,21 @@ test("settings kasse stays the fiscal alias", () => {
   );
 });
 
+test("online-ordering redirects from restaurant settings to POS", () => {
+  assert.equal(
+    canonicalizeAppHref("/dashboard/settings/online-ordering"),
+    "/dashboard/pos/settings/online-ordering",
+  );
+  assert.equal(
+    canonicalizeAppHref("/settings/online-ordering"),
+    "/dashboard/pos/settings/online-ordering",
+  );
+  assert.equal(
+    canonicalizeAppHref("/dashboard/pos/settings/online-ordering"),
+    "/dashboard/pos/settings/online-ordering",
+  );
+});
+
 test("already english paths are unchanged", () => {
   const href = "/dashboard/menu/overview?tab=1#karte";
   assert.equal(canonicalizeAppHref(href), href);

@@ -11,6 +11,8 @@ export async function wahaSendText(params: {
   text: string;
   /** WAHA: Link-Vorschau bei URLs (Standard aus — weniger Ballast bei Push/Systemnachrichten). */
   linkPreview?: boolean;
+  /** WAHA message id to quote/reply (NOWEB+; all engines that support reply_to). */
+  replyTo?: string | null;
 }): Promise<
   | { ok: true; wahaMessageId?: string | null }
   | { ok: false; error: string }
@@ -22,6 +24,7 @@ export async function wahaSendText(params: {
 
   const session = wahaSessionNameForRestaurant(params.restaurantId);
   const url = `${config.baseUrl}/api/sendText`;
+  const replyTo = params.replyTo?.trim() || undefined;
 
   let res: Response;
   try {
@@ -37,6 +40,7 @@ export async function wahaSendText(params: {
         chatId: params.chatId,
         text: params.text,
         linkPreview: params.linkPreview ?? false,
+        ...(replyTo ? { reply_to: replyTo } : {}),
       }),
       cache: "no-store",
       signal: AbortSignal.timeout(WAHA_SEND_TEXT_TIMEOUT_MS),

@@ -60,6 +60,10 @@ export type ContactMessageRow = {
   /** WAHA ACK (1 gesendet, 2 zugestellt, 3 gelesen, 4 abgespielt). */
   waha_ack?: number | null;
   reactions?: ContactMessageReaction[];
+  /** Quote/Reply: externe ID der zitierten Nachricht (`waha:…` / Meta / …). */
+  reply_to_external_source_id?: string | null;
+  /** Quote/Reply: Text-Snapshot der zitierten Nachricht. */
+  reply_to_body?: string | null;
   attachments?: ContactMessageAttachment[];
 };
 
@@ -127,7 +131,10 @@ const MESSAGE_SELECT = `
   send_batch_id,
   external_source_id,
   external_seen,
-  suppress_notifications
+  suppress_notifications,
+  reactions,
+  reply_to_external_source_id,
+  reply_to_body
 `;
 
 export function mapContactMessageRowFromRecord(

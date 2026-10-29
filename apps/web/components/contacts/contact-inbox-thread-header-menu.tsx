@@ -5,6 +5,7 @@ import {
   Mail,
   Plus,
   Star,
+  Tags,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -21,11 +22,13 @@ export type ContactInboxThreadHeaderMenuProps = {
   canCreateReservation: boolean;
   canSendReviewLink: boolean;
   canAssignStaff: boolean;
+  canManageLabels?: boolean;
   assignStaffKind?: "phone" | "email";
   onCreateContact: () => void;
   onReservation: () => void;
   onReviewInvite: () => void;
   onAssignStaff: () => void;
+  onManageLabels?: () => void;
 };
 
 export function ContactInboxThreadHeaderMenu({
@@ -33,17 +36,20 @@ export function ContactInboxThreadHeaderMenu({
   canCreateReservation,
   canSendReviewLink,
   canAssignStaff,
+  canManageLabels = false,
   assignStaffKind = "phone",
   onCreateContact,
   onReservation,
   onReviewInvite,
   onAssignStaff,
+  onManageLabels,
 }: ContactInboxThreadHeaderMenuProps) {
   if (
     !canCreateContact &&
     !canCreateReservation &&
     !canSendReviewLink &&
-    !canAssignStaff
+    !canAssignStaff &&
+    !canManageLabels
   ) {
     return null;
   }
@@ -92,6 +98,12 @@ export function ContactInboxThreadHeaderMenu({
             {assignStaffKind === "email"
               ? "E-Mail Mitarbeiter zuordnen"
               : "Nummer Mitarbeiter zuordnen"}
+          </DropdownMenuItem>
+        ) : null}
+        {canManageLabels && onManageLabels ? (
+          <DropdownMenuItem onClick={onManageLabels}>
+            <Tags className="size-4" aria-hidden />
+            Labels
           </DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>

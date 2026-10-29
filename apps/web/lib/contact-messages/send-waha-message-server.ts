@@ -47,6 +47,9 @@ export async function sendWahaMessageServer(
     clientSendId?: string;
     attachmentFiles?: OutboundAttachmentFile[];
     voiceFile?: OutboundAttachmentFile;
+    /** WAHA message id to quote (reply_to). */
+    replyToWahaMessageId?: string | null;
+    replyToBody?: string | null;
   },
 ): Promise<{
   ok: boolean;
@@ -69,6 +72,7 @@ export async function sendWahaMessageServer(
     return { ok: false, errors: ["whatsapp:session_not_working"] };
   }
 
+  const replyToWahaMessageId = params.replyToWahaMessageId?.trim() || null;
   const mirrorBody = mirrorBodyForVoiceOrMedia({ text, voiceFile, files });
   const pending = await insertPendingOutboundWhatsappMessage(admin, {
     restaurantId: params.restaurantId,
@@ -77,6 +81,10 @@ export async function sendWahaMessageServer(
     sentBy: params.sentBy ?? null,
     clientSendId: params.clientSendId,
     deliveryStatus: "pending",
+    replyToExternalSourceId: replyToWahaMessageId
+      ? `waha:${replyToWahaMessageId}`
+      : null,
+    replyToBody: params.replyToBody ?? null,
   });
 
   if (!pending.ok) {
@@ -147,6 +155,7 @@ export async function sendWahaMessageServer(
       restaurantId: params.restaurantId,
       chatId,
       text,
+      replyTo: replyToWahaMessageId,
     });
     if (!sent.ok) {
       await finalizeOutboundWhatsappMessage(admin, {

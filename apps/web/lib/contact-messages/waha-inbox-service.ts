@@ -22,6 +22,7 @@ import {
   mergeReactionsOntoRow,
   parseReactionsFromWahaMessage,
 } from "@/lib/waha/waha-message-reactions";
+import { parseWahaReplyQuote } from "@/lib/waha/waha-reply-quote";
 import { wahaMediaProxyUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
 import {
   extractWahaMessageDisplayText,
@@ -390,6 +391,7 @@ export async function fetchWahaThreadMessages(
         parseReactionsFromWahaMessage(m),
         reactionsByMessageId,
       );
+      const quote = parseWahaReplyQuote(m);
       const fromMe = Boolean(m.fromMe);
       return {
         id: `waha:${m.id}`,
@@ -404,6 +406,10 @@ export async function fetchWahaThreadMessages(
         created_at: wahaTimestampToIso(m.timestamp),
         waha_message_id: m.id,
         waha_ack: typeof m.ack === "number" ? m.ack : null,
+        reply_to_external_source_id: quote?.messageId
+          ? `waha:${quote.messageId}`
+          : null,
+        reply_to_body: quote?.body ?? null,
         reactions,
         attachments: media
           ? [

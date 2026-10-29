@@ -8,4 +8,9 @@ describe("WAHA_SESSION_WEBHOOK_EVENTS", () => {
     assert.ok(WAHA_SESSION_WEBHOOK_EVENTS.includes("message.any"));
     assert.ok(WAHA_SESSION_WEBHOOK_EVENTS.includes("message.ack"));
   });
+
+  it("includes session.status and message.reaction for live inbox", () => {
+    assert.ok(WAHA_SESSION_WEBHOOK_EVENTS.includes("session.status"));
+    assert.ok(WAHA_SESSION_WEBHOOK_EVENTS.includes("message.reaction"));
+  });
 });

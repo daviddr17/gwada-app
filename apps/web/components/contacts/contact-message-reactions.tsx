@@ -1,17 +1,24 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { MessageSquareReply, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ContactMessageEmojiPickerSheet } from "@/components/contacts/contact-message-emoji-picker-sheet";
 import { Button } from "@/components/ui/button";
 import { triggerWahaReaction } from "@/lib/contact-messages/trigger-waha-reaction";
 import { triggerMetaReaction } from "@/lib/contact-messages/trigger-meta-reaction";
+import { applyContactMessageReactionEvent } from "@/lib/waha/apply-contact-message-reaction";
 import type { ContactMessageReaction } from "@/lib/supabase/contact-messages-db";
 import { cn } from "@/lib/utils";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const;
 const LONG_PRESS_MS = 450;
+
+export type ReactionOptimisticPatch = {
+  wahaMessageId?: string;
+  metaMessageId?: string;
+  reactions: ContactMessageReaction[];
+};
 
 export function useMessageReactionLongPress(onOpen: () => void) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,11 +71,13 @@ export function ContactMessageReactions({
   restaurantId,
   outbound,
   onUpdated,
+  onOptimisticReaction,
   pickerOpen,
   onPickerOpenChange,
   toolbarVisible = false,
   onDelete,
   onEdit,
+  onReply,
   deleting,
   editing,
   className,
@@ -80,12 +89,15 @@ export function ContactMessageReactions({
   restaurantId: string;
   outbound: boolean;
   onUpdated?: () => void;
+  /** Instant-Live: patch thread before network round-trip. */
+  onOptimisticReaction?: (patch: ReactionOptimisticPatch) => void;
   pickerOpen: boolean;
   onPickerOpenChange: (open: boolean) => void;
   /** Hover/Long-Press — ersetzt rein CSS-basiertes group-hover (stabiler beim Scrollen). */
   toolbarVisible?: boolean;
   onDelete?: () => void | Promise<void>;
   onEdit?: () => void;
+  onReply?: () => void;
   deleting?: boolean;
   editing?: boolean;
   className?: string;
@@ -93,6 +105,11 @@ export function ContactMessageReactions({
   const [emojiSheetOpen, setEmojiSheetOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const confirmedRef = useRef(reactions ?? []);
+
+  useEffect(() => {
+    confirmedRef.current = reactions ?? [];
+  }, [reactions]);
 
   const list = reactions ?? [];
   const grouped = groupReactionsForDisplay(list);
@@ -107,6 +124,15 @@ export function ContactMessageReactions({
   const sendReaction = async (emoji: string) => {
     setPending(true);
     const reaction = myReaction?.emoji === emoji ? "" : emoji;
+    const next = applyContactMessageReactionEvent(confirmedRef.current, {
+      emoji: reaction,
+      fromMe: true,
+    });
+    onOptimisticReaction?.({
+      wahaMessageId,
+      metaMessageId,
+      reactions: next,
+    });
     let result: { ok: boolean; error?: string };
     if (metaMessageId && metaPlatform) {
       result = await triggerMetaReaction({
@@ -127,9 +153,15 @@ export function ContactMessageReactions({
     }
     setPending(false);
     if (!result.ok) {
+      onOptimisticReaction?.({
+        wahaMessageId,
+        metaMessageId,
+        reactions: confirmedRef.current,
+      });
       toast.error(`Reaction: ${result.error}`);
       return;
     }
+    confirmedRef.current = next;
     setEmojiSheetOpen(false);
     closePicker();
     onUpdated?.();
@@ -196,6 +228,22 @@ export function ContactMessageReactions({
         >
           <Plus className="size-4" strokeWidth={2.25} aria-hidden />
         </Button>
+        {onReply ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="size-7 shrink-0 rounded-full"
+            aria-label="Antworten"
+            disabled={pending || deleting || editing}
+            onClick={() => {
+              closePicker();
+              onReply();
+            }}
+          >
+            <MessageSquareReply className="size-3.5" aria-hidden />
+          </Button>
+        ) : null}
         {onEdit ? (
           <Button
             type="button"

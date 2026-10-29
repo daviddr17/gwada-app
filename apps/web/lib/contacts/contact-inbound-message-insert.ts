@@ -25,6 +25,10 @@ export type ContactInboundInsertRow = {
   suppressNotifications?: boolean;
   /** IMAP \\Seen für email-imap:-Spiegel (Unread aus DB). */
   externalSeen?: boolean;
+  /** Quote/Reply: externe ID der zitierten Nachricht. */
+  replyToExternalSourceId?: string | null;
+  /** Quote/Reply: Text-Snapshot der zitierten Nachricht. */
+  replyToBody?: string | null;
 };
 
 export type ContactInboundInsertResult = {
@@ -80,6 +84,12 @@ export async function insertContactMessageIfNew(
         ? { external_seen: row.externalSeen }
         : {}),
       ...(row.createdAt ? { created_at: row.createdAt } : {}),
+      ...(row.replyToExternalSourceId
+        ? { reply_to_external_source_id: row.replyToExternalSourceId }
+        : {}),
+      ...(row.replyToBody
+        ? { reply_to_body: row.replyToBody.slice(0, 2000) }
+        : {}),
     })
     .select("id")
     .single();

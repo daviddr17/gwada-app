@@ -59,6 +59,8 @@ import {
   type InboxThreadAssignStaffKind,
 } from "@/components/contacts/inbox-thread-assign-staff-sheet";
 import { ContactInboxThreadHeaderMenu } from "@/components/contacts/contact-inbox-thread-header-menu";
+import { InboxThreadLabelsSheet } from "@/components/contacts/inbox-thread-labels-sheet";
+import { ContactTagChip } from "@/components/contacts/contact-tag-chip";
 import { InboxThreadStaffBadge } from "@/components/contacts/inbox-thread-staff-badge";
 import {
   ContactInboxThreadChrome,
@@ -171,10 +173,16 @@ import {
   isOptimisticContactMessage,
   mergeLoadedThreadWithOptimistic,
   OPTIMISTIC_MESSAGE_ID_PREFIX,
+  patchMessageReactionsByWahaId,
   patchWhatsappMessageByWahaId,
   removeOptimisticMessage,
   removeWhatsappMessageByWahaId,
 } from "@/lib/contact-messages/optimistic-thread-messages";
+import {
+  applyInboxReactionLiveToMessages,
+  GWADA_INBOX_REACTION_LIVE_EVENT,
+  type InboxReactionLiveDetail,
+} from "@/lib/contact-messages/inbox-reaction-live";
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
 import { ensureWhatsappWahaProxyAttachments } from "@/lib/contact-messages/ensure-whatsapp-waha-proxy-attachments";
 import { dedupeWhatsappOutboundThreadRows, isWahaEditableMessage, contactThreadRowsEqual } from "@/lib/contact-messages/whatsapp-mirror-preview";
@@ -205,6 +213,12 @@ import {
   inboxLinkContactImportWarning,
 } from "@/lib/contact-messages/inbox-link-contact-errors";
 import { conversationThreadKeyFromRow } from "@/lib/contact-messages/conversation-thread-key";
+import {
+  fetchInboxLabelAssignmentsForThreads,
+  fetchInboxLabelsForRestaurant,
+  type InboxLabelRow,
+} from "@/lib/supabase/inbox-labels-db";
+import { wahaMessageIdFromExternalSourceId } from "@/lib/waha/waha-reply-quote";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import {
   isSilentClientSendResult,
@@ -520,6 +534,16 @@ export function ContactsMessagesScreen({
     messageId: string;
     initialBody: string;
   } | null>(null);
+  const [replyToMessage, setReplyToMessage] = useState<{
+    wahaMessageId: string;
+    body: string;
+  } | null>(null);
+  const [inboxLabels, setInboxLabels] = useState<InboxLabelRow[]>([]);
+  const [threadLabelsByKey, setThreadLabelsByKey] = useState<
+    Map<string, InboxLabelRow[]>
+  >(() => new Map());
+  const [labelsSheetOpen, setLabelsSheetOpen] = useState(false);
+  const [labelFilterId, setLabelFilterId] = useState<string | null>(null);
   const [whatsappThreadPhone, setWhatsappThreadPhone] = useState<string | null>(
     null,
   );
@@ -605,6 +629,7 @@ export function ContactsMessagesScreen({
 
   useEffect(() => {
     setEditingWahaMessage(null);
+    setReplyToMessage(null);
   }, [overlayThreadId]);
 
   const applyThreadFromCache = useCallback(
@@ -643,8 +668,21 @@ export function ContactsMessagesScreen({
       inboxFilter,
     );
     const searched = filterContactConversations(byPlatform, chatSearch);
-    return filterConversationsByRead(searched, readFilter);
-  }, [conversations, chatSearch, readFilter, inboxFilter]);
+    const byRead = filterConversationsByRead(searched, readFilter);
+    if (!labelFilterId) return byRead;
+    return byRead.filter((c) =>
+      (threadLabelsByKey.get(c.contact_id) ?? []).some(
+        (l) => l.id === labelFilterId,
+      ),
+    );
+  }, [
+    conversations,
+    chatSearch,
+    readFilter,
+    inboxFilter,
+    labelFilterId,
+    threadLabelsByKey,
+  ]);
 
   const chatListTotalCount = filteredConversations.length;
   const chatListTotalPages = totalPagesFromCount(
@@ -1534,11 +1572,18 @@ export function ContactsMessagesScreen({
         }
         if (idx === -1) return prev;
 
+        const current = prev[idx]!;
         const next = [...prev];
         next[idx] = {
-          ...next[idx]!,
+          ...current,
           ...enriched,
-          attachments: next[idx]!.attachments ?? enriched.attachments,
+          attachments: current.attachments ?? enriched.attachments,
+          reactions: enriched.reactions ?? current.reactions,
+          reply_to_external_source_id:
+            enriched.reply_to_external_source_id ??
+            current.reply_to_external_source_id,
+          reply_to_body: enriched.reply_to_body ?? current.reply_to_body,
+          waha_message_id: enriched.waha_message_id ?? current.waha_message_id,
         };
         if (contactThreadRowsEqual(prev, next)) return prev;
         patchThreadCache(next);
@@ -1552,6 +1597,52 @@ export function ContactsMessagesScreen({
     onInsert: applyRealtimeThreadInsert,
     onUpdate: applyRealtimeThreadUpdate,
   }, { enabled: active });
+
+  useEffect(() => {
+    if (!active || !restaurantId) return;
+    const onReactionLive = (event: Event) => {
+      const detail = (event as CustomEvent<InboxReactionLiveDetail>).detail;
+      if (!detail || detail.restaurantId !== restaurantId) return;
+      setMessages((prev) => {
+        const next = applyInboxReactionLiveToMessages(prev, detail);
+        if (!contactThreadRowsEqual(prev, next)) {
+          patchThreadCache(next);
+        }
+        return next;
+      });
+    };
+    window.addEventListener(GWADA_INBOX_REACTION_LIVE_EVENT, onReactionLive);
+    return () => {
+      window.removeEventListener(
+        GWADA_INBOX_REACTION_LIVE_EVENT,
+        onReactionLive,
+      );
+    };
+  }, [active, restaurantId, patchThreadCache]);
+
+  const refreshInboxLabels = useCallback(async () => {
+    if (!restaurantId) {
+      setInboxLabels([]);
+      setThreadLabelsByKey(new Map());
+      return;
+    }
+    const { data: labels } = await fetchInboxLabelsForRestaurant(restaurantId);
+    setInboxLabels(labels);
+    const keys = conversations.map((c) => c.contact_id);
+    if (overlayThreadId && !keys.includes(overlayThreadId)) {
+      keys.push(overlayThreadId);
+    }
+    const { data: map } = await fetchInboxLabelAssignmentsForThreads(
+      restaurantId,
+      keys,
+    );
+    setThreadLabelsByKey(map);
+  }, [restaurantId, conversations, overlayThreadId]);
+
+  useEffect(() => {
+    if (!active || !restaurantId) return;
+    void refreshInboxLabels();
+  }, [active, restaurantId, conversations.length, refreshInboxLabels]);
 
   useEffect(() => {
     // Cache-Events auch versteckt — nur setState, hält Inbox warm.
@@ -2564,21 +2655,67 @@ export function ContactsMessagesScreen({
     [],
   );
 
+  /** Own reactions are optimistic — no silent full-thread reload (Instant-Live). */
   const handleWahaReactionChange = useCallback(() => {
-    if (!overlayThreadId) return;
-    void loadThread({ silent: true, contactId: overlayThreadId });
-  }, [loadThread, overlayThreadId]);
+    void loadConversations({ silent: true });
+  }, [loadConversations]);
+
+  const handleOptimisticReaction = useCallback(
+    (patch: {
+      wahaMessageId?: string;
+      metaMessageId?: string;
+      reactions: ContactMessageRow["reactions"];
+    }) => {
+      if (patch.wahaMessageId) {
+        setMessages((prev) => {
+          const next = patchMessageReactionsByWahaId(
+            prev,
+            patch.wahaMessageId!,
+            patch.reactions,
+          );
+          if (!contactThreadRowsEqual(prev, next)) {
+            patchThreadCache(next);
+          }
+          return next;
+        });
+        return;
+      }
+      if (patch.metaMessageId) {
+        setMessages((prev) => {
+          const next = prev.map((m) =>
+            m.meta_message_id === patch.metaMessageId
+              ? { ...m, reactions: patch.reactions }
+              : m,
+          );
+          if (!contactThreadRowsEqual(prev, next)) {
+            patchThreadCache(next);
+          }
+          return next;
+        });
+      }
+    },
+    [patchThreadCache],
+  );
+
+  const handleReplyToMessage = useCallback((message: ContactMessageRow) => {
+    const wahaId =
+      message.waha_message_id?.trim() ||
+      wahaMessageIdFromExternalSourceId(message.external_source_id);
+    if (!wahaId) return;
+    setEditingWahaMessage(null);
+    setReplyToMessage({
+      wahaMessageId: wahaId,
+      body: message.body?.trim() || "Nachricht",
+    });
+  }, []);
 
   const handleWahaMessageDeleted = useCallback(() => {
     void loadConversations({ silent: true });
   }, [loadConversations]);
 
   const handleMetaReactionChange = useCallback(() => {
-    if (overlayThreadId) {
-      void loadThread({ silent: true, contactId: overlayThreadId });
-    }
     void loadConversations({ silent: true });
-  }, [loadThread, loadConversations, overlayThreadId]);
+  }, [loadConversations]);
 
   const threadHasWhatsappMessages = useMemo(
     () => displayMessages.some((m) => messageDisplayPlatform(m) === "whatsapp"),
@@ -2595,9 +2732,11 @@ export function ContactsMessagesScreen({
       restaurantId,
       chatId: whatsappThreadChatId,
       onReactionChange: handleWahaReactionChange,
+      onOptimisticReaction: handleOptimisticReaction,
       onMessageDeleted: handleWahaMessageDeleted,
       onOptimisticMessageDelete: handleOptimisticDeleteWahaMessage,
       onEditMessage: handleStartEditWahaMessage,
+      onReplyMessage: handleReplyToMessage,
       editingMessageId: editingWahaMessage?.messageId ?? null,
     };
   }, [
@@ -2607,9 +2746,11 @@ export function ContactsMessagesScreen({
     threadHasWhatsappMessages,
     overlayThreadId,
     handleWahaReactionChange,
+    handleOptimisticReaction,
     handleWahaMessageDeleted,
     handleOptimisticDeleteWahaMessage,
     handleStartEditWahaMessage,
+    handleReplyToMessage,
     editingWahaMessage?.messageId,
   ]);
 
@@ -2621,8 +2762,15 @@ export function ContactsMessagesScreen({
     return {
       restaurantId,
       onReactionChange: handleMetaReactionChange,
+      onOptimisticReaction: handleOptimisticReaction,
     };
-  }, [restaurantId, overlayThreadId, linkedThread, handleMetaReactionChange]);
+  }, [
+    restaurantId,
+    overlayThreadId,
+    linkedThread,
+    handleMetaReactionChange,
+    handleOptimisticReaction,
+  ]);
 
   const applyWhatsappSendSuccess = useCallback(
     (
@@ -2716,6 +2864,14 @@ export function ContactsMessagesScreen({
         if (sendInstagram) channels.push("instagram");
       }
 
+      const replyToWahaMessageId =
+        sendWhatsapp || (voiceNote && channels.includes("whatsapp"))
+          ? replyToMessage?.wahaMessageId
+          : undefined;
+      const replyToBody = replyToWahaMessageId
+        ? replyToMessage?.body
+        : undefined;
+
       let optimisticWhatsapp: ContactMessageRow | null = null;
       let whatsappClientSendId: string | undefined;
       if ((sendWhatsapp || voiceNote) && sendContactId) {
@@ -2730,6 +2886,10 @@ export function ContactsMessagesScreen({
             ? URL.createObjectURL(voiceNote)
             : undefined,
           clientId: whatsappClientSendId,
+          replyToExternalSourceId: replyToWahaMessageId
+            ? `waha:${replyToWahaMessageId}`
+            : null,
+          replyToBody: replyToBody ?? null,
         });
         setMessages((prev) =>
           appendOptimisticMessage(prev, optimisticWhatsapp!),
@@ -2744,6 +2904,8 @@ export function ContactsMessagesScreen({
         channels,
         restaurantName,
         clientSendId: whatsappClientSendId,
+        replyToWahaMessageId: replyToWahaMessageId ?? null,
+        replyToBody: replyToBody ?? null,
         files,
         voiceNote,
       });
@@ -2755,6 +2917,7 @@ export function ContactsMessagesScreen({
       }
       toastContactSendResult(result, "Nachricht gesendet.");
       if (result?.ok) {
+        setReplyToMessage(null);
         if (sendWhatsapp || (voiceNote && channels.includes("whatsapp"))) {
           applyWhatsappSendSuccess(optimisticWhatsapp, result);
         } else {
@@ -2767,6 +2930,8 @@ export function ContactsMessagesScreen({
 
     if (isWahaPseudoContactId(sendContactId)) {
       const whatsappClientSendId = crypto.randomUUID();
+      const replyToWahaMessageId = replyToMessage?.wahaMessageId;
+      const replyToBody = replyToMessage?.body;
       const optimisticWhatsapp = createOptimisticOutboundWhatsappMessage({
         restaurantId,
         contactId: sendContactId,
@@ -2775,6 +2940,10 @@ export function ContactsMessagesScreen({
         voiceNote,
         voicePreviewUrl: voiceNote ? URL.createObjectURL(voiceNote) : undefined,
         clientId: whatsappClientSendId,
+        replyToExternalSourceId: replyToWahaMessageId
+          ? `waha:${replyToWahaMessageId}`
+          : null,
+        replyToBody: replyToBody ?? null,
       });
       setMessages((prev) => appendOptimisticMessage(prev, optimisticWhatsapp));
 
@@ -2783,6 +2952,8 @@ export function ContactsMessagesScreen({
         wahaContactId: sendContactId,
         messageBody: body,
         clientSendId: whatsappClientSendId,
+        replyToWahaMessageId: replyToWahaMessageId ?? null,
+        replyToBody: replyToBody ?? null,
         files,
         voiceNote,
       });
@@ -2794,6 +2965,7 @@ export function ContactsMessagesScreen({
       }
       toastContactSendResult(result, "WhatsApp-Nachricht gesendet.");
       if (result?.ok) {
+        setReplyToMessage(null);
         applyWhatsappSendSuccess(optimisticWhatsapp, result);
         void loadConversations({ silent: true });
       }
@@ -3002,6 +3174,7 @@ export function ContactsMessagesScreen({
                 canCreateReservation={canCreateReservation}
                 canSendReviewLink={canCreateReviewInvite}
                 canAssignStaff={canAssignStaffFromThread}
+                canManageLabels={Boolean(restaurantId && threadId)}
                 assignStaffKind={
                   threadId! != null &&
                   isEmailPseudoContactId(threadId!)
@@ -3020,6 +3193,7 @@ export function ContactsMessagesScreen({
                 onReservation={openReservationFromChat}
                 onReviewInvite={openReviewInviteFromChat}
                 onAssignStaff={openAssignStaffFromChat}
+                onManageLabels={() => setLabelsSheetOpen(true)}
               />
             </div>
   );
@@ -3092,6 +3266,12 @@ showReplyComposer ? (
                   editWhatsappMessage={editingWahaMessage}
                   onEditWhatsapp={handleEditWhatsapp}
                   onCancelEditWhatsapp={() => setEditingWahaMessage(null)}
+                  replyToPreview={
+                    replyToMessage
+                      ? { body: replyToMessage.body }
+                      : null
+                  }
+                  onCancelReply={() => setReplyToMessage(null)}
                   onSend={handleSend}
                 />
               </div>
@@ -3550,6 +3730,20 @@ showReplyComposer ? (
                             className="pointer-events-none mt-1.5 mr-1.5"
                           />
                         ) : null}
+                        {(threadLabelsByKey.get(c.contact_id) ?? []).length >
+                        0 ? (
+                          <div className="pointer-events-none mt-1.5 flex flex-wrap gap-1">
+                            {(threadLabelsByKey.get(c.contact_id) ?? [])
+                              .slice(0, 3)
+                              .map((label) => (
+                                <ContactTagChip
+                                  key={label.id}
+                                  tag={label}
+                                  className="h-5 px-1.5 text-[10px]"
+                                />
+                              ))}
+                          </div>
+                        ) : null}
                         {c.has_reservation_link && c.last_reservation_id ? (
                           <Badge
                             variant="outline"
@@ -3625,6 +3819,31 @@ showReplyComposer ? (
         isPlatformAvailable={isInboxFilterAvailable}
         disabled={connectionsLoading}
       />
+      {inboxLabels.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <ContactTagChip
+            tag={{
+              id: "__all__",
+              name: "Alle Labels",
+              background_color: "#64748b",
+            }}
+            selected={labelFilterId == null}
+            onClick={() => setLabelFilterId(null)}
+          />
+          {inboxLabels.map((label) => (
+            <ContactTagChip
+              key={label.id}
+              tag={label}
+              selected={labelFilterId === label.id}
+              onClick={() =>
+                setLabelFilterId((prev) =>
+                  prev === label.id ? null : label.id,
+                )
+              }
+            />
+          ))}
+        </div>
+      ) : null}
         </div>
         {fullscreenAction === "enter" ? (
         <Tooltip>
@@ -3966,6 +4185,22 @@ showReplyComposer ? (
             : undefined
         }
       />
+
+      {restaurantId && overlayThreadId ? (
+        <InboxThreadLabelsSheet
+          open={labelsSheetOpen}
+          onOpenChange={setLabelsSheetOpen}
+          restaurantId={restaurantId}
+          threadKey={overlayThreadId}
+          labels={inboxLabels}
+          assignedIds={(
+            threadLabelsByKey.get(overlayThreadId) ?? []
+          ).map((l) => l.id)}
+          onLabelsChanged={() => {
+            void refreshInboxLabels();
+          }}
+        />
+      ) : null}
     </>
   );
 }

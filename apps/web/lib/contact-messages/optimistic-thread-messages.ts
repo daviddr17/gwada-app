@@ -96,6 +96,8 @@ export function createOptimisticOutboundWhatsappMessage(params: {
   voiceNote?: File;
   voicePreviewUrl?: string;
   clientId?: string;
+  replyToExternalSourceId?: string | null;
+  replyToBody?: string | null;
 }): ContactMessageRow {
   const clientId = params.clientId ?? crypto.randomUUID();
   const attachments = optimisticAttachmentsFromSend(params);
@@ -114,8 +116,28 @@ export function createOptimisticOutboundWhatsappMessage(params: {
     created_at: new Date().toISOString(),
     external_source_id: clientOutboundExternalSourceId(clientId),
     waha_ack: null,
+    reply_to_external_source_id: params.replyToExternalSourceId ?? null,
+    reply_to_body: params.replyToBody ?? null,
     attachments,
   };
+}
+
+/** Optimistic own reaction patch (Instant-Live, no thread reload). */
+export function patchMessageReactionsByWahaId(
+  messages: ContactMessageRow[],
+  wahaMessageId: string,
+  reactions: ContactMessageRow["reactions"],
+): ContactMessageRow[] {
+  const externalSourceId = `waha:${wahaMessageId}`;
+  return messages.map((m) => {
+    if (
+      m.waha_message_id === wahaMessageId ||
+      m.external_source_id === externalSourceId
+    ) {
+      return { ...m, reactions };
+    }
+    return m;
+  });
 }
 
 export function appendOptimisticMessage(

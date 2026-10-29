@@ -95,6 +95,8 @@ export async function insertPendingOutboundWhatsappMessage(
     sendBatchId?: string | null;
     deliveryStatus?: string;
     reservationId?: string | null;
+    replyToExternalSourceId?: string | null;
+    replyToBody?: string | null;
   },
 ): Promise<
   | { ok: true; messageId: string; clientSendId: string }
@@ -146,6 +148,12 @@ export async function insertPendingOutboundWhatsappMessage(
       external_source_id: externalSourceId,
       suppress_notifications: true,
       send_batch_id: params.sendBatchId ?? null,
+      ...(params.replyToExternalSourceId
+        ? { reply_to_external_source_id: params.replyToExternalSourceId }
+        : {}),
+      ...(params.replyToBody
+        ? { reply_to_body: params.replyToBody.slice(0, 2000) }
+        : {}),
     })
     .select("id")
     .single();

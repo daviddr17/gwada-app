@@ -35,6 +35,7 @@ import {
   type SocialTone,
 } from "@/lib/social/social-brand-kit";
 import { allSocialPublishPlatformOptions } from "@/lib/social/social-publish-platforms";
+import type { SocialAutopilotPreviewIdentityClient } from "@/lib/social/social-autopilot-sample-preview";
 import type { SocialAutopilotVoiceDraft } from "@/lib/social/social-autopilot-voice-draft";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
@@ -67,14 +68,12 @@ function applyVoiceDraft(
  */
 export function SocialBrandKitCard({
   restaurantId,
-  restaurantName,
   voiceDraft,
   voiceBusy,
   onLearnFromSocial,
   onClearVoiceDraft,
 }: {
   restaurantId: string | null;
-  restaurantName?: string;
   voiceDraft: SocialAutopilotVoiceDraft | null;
   voiceBusy: boolean;
   onLearnFromSocial: () => void | Promise<void>;
@@ -82,6 +81,8 @@ export function SocialBrandKitCard({
 }) {
   const [kit, setKit] = useState<SocialBrandKit | null>(null);
   const [saved, setSaved] = useState<SocialBrandKit | null>(null);
+  const [identity, setIdentity] =
+    useState<SocialAutopilotPreviewIdentityClient | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lookOpen, setLookOpen] = useState(false);
@@ -91,6 +92,7 @@ export function SocialBrandKitCard({
     if (!restaurantId) {
       setKit(null);
       setSaved(null);
+      setIdentity(null);
       return;
     }
     let cancelled = false;
@@ -101,17 +103,39 @@ export function SocialBrandKitCard({
       .then(async (kitRes) => {
         const data = (await kitRes.json().catch(() => ({}))) as {
           kit?: SocialBrandKit;
+          preview?: SocialAutopilotPreviewIdentityClient | null;
         };
         if (cancelled) return;
         const next = data.kit ?? defaultSocialBrandKit(restaurantId);
         setKit(next);
         setSaved(next);
+        const p = data.preview;
+        setIdentity(
+          p && typeof p.name === "string"
+            ? {
+                name: p.name.trim() || "Euer Restaurant",
+                logoUrl:
+                  typeof p.logoUrl === "string" && p.logoUrl.trim()
+                    ? p.logoUrl
+                    : null,
+                coverUrl:
+                  typeof p.coverUrl === "string" && p.coverUrl.trim()
+                    ? p.coverUrl
+                    : null,
+                accentHex:
+                  typeof p.accentHex === "string" && p.accentHex.trim()
+                    ? p.accentHex
+                    : "#c4a574",
+              }
+            : null,
+        );
       })
       .catch(() => {
         if (!cancelled) {
           const next = defaultSocialBrandKit(restaurantId);
           setKit(next);
           setSaved(next);
+          setIdentity(null);
         }
       })
       .finally(() => {
@@ -207,7 +231,7 @@ export function SocialBrandKitCard({
           <CardContent className="space-y-4 pt-5">
             <SocialAutopilotLivePreview
               kit={previewKit}
-              restaurantName={restaurantName}
+              identity={identity}
               badge={voiceDraft ? "Vorschlag" : dirty ? "Entwurf" : null}
             />
           </CardContent>

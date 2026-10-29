@@ -5,6 +5,7 @@ import {
   fetchSocialBrandKitFromDb,
   upsertSocialBrandKitInDb,
 } from "@/lib/social/social-brand-kit-db";
+import { fetchSocialAutopilotPreviewIdentity } from "@/lib/social/social-autopilot-preview-identity-server";
 import { authorizeSocialBrandKitRestaurant } from "@/lib/social/route-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -18,8 +19,11 @@ export async function GET(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const kit = await fetchSocialBrandKitFromDb(auth.sb, restaurantId);
-  return Response.json({ kit });
+  const [kit, preview] = await Promise.all([
+    fetchSocialBrandKitFromDb(auth.sb, restaurantId),
+    fetchSocialAutopilotPreviewIdentity(auth.sb, restaurantId),
+  ]);
+  return Response.json({ kit, preview });
 }
 
 export async function PUT(req: Request) {

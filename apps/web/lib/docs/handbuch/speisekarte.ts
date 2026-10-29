@@ -4,10 +4,10 @@ export const speisekarteGuide: UserGuidePage = {
   slug: "menu",
   title: "Speisekarte",
   description:
-    "Gerichte, Kategorien, Preise, Allergene, Tageskarten und Einbindung.",
+    "Gerichte, Kategorien, Preise, Tags, Zusatzstoffe/Allergene, Tageskarten und Einbindung.",
   intro: [
     "Im Modul Speisekarte pflegst du deine digitale Karte. Gäste sehen sie auf deinem öffentlichen Profil, in eingebetteten Widgets auf deiner Website oder über die JSON-API.",
-    "Die Speisekarte ist in Kategorien gegliedert. Jedes Gericht kann Preis, Beschreibung, Bild, Tags, Allergene und ein Rezept (Zutaten aus dem Bestand) haben. Tageskarten erlauben wechselnde Angebote pro Datum, ohne die Stammspeisekarte zu ändern.",
+    "Die Speisekarte ist in Kategorien gegliedert. Jedes Gericht kann Preis, Beschreibung, Bild, Tags, länderpflichtige Kennzeichnungen (Zusatzstoffe & Allergene) und ein Rezept (Zutaten aus dem Bestand) haben. Tageskarten erlauben wechselnde Angebote pro Datum, ohne die Stammspeisekarte zu ändern.",
   ],
   sections: [
     {
@@ -30,7 +30,7 @@ export const speisekarteGuide: UserGuidePage = {
         rows: [
           ["Gericht hinzufügen", "Neues Gericht anlegen (volle Breite über der Liste)"],
           ["Tags", "Stammdaten für Diät-/Eigenschafts-Tags verwalten (z. B. Vegan, Scharf)"],
-          ["Allergene", "Allergen-Stammdaten verwalten (z. B. Gluten, Nüsse)"],
+          ["Allergene", "Freiform-Allergen-Chips (Stammdaten) — ergänzend zu den Pflichtkennzeichnungen"],
           ["Kategorien", "Kategorien sortieren, umbenennen, aktivieren/deaktivieren"],
           ["+ (neben Kategorien)", "Neue Kategorie anlegen"],
           ["Hauptkategorien", "Obere Gruppierung (z. B. Speisen / Getränke) verwalten"],
@@ -66,10 +66,21 @@ export const speisekarteGuide: UserGuidePage = {
           ["Gericht aktiv", "Aus = Gericht wird nirgends angezeigt"],
           ["Anzeige von / bis", "Zeitlich begrenzte Sichtbarkeit (Saison, Aktion)"],
           ["Bild-URL", "Foto des Gerichts in Karten-Ansicht und Profil"],
-          ["Tags & Allergene", "Mehrfachauswahl aus Stammdaten"],
-          ["Rezept", "Zutat + Einheit + Menge — verknüpft Bestand für Food-Cost"],
+          ["Tags", "Mehrfachauswahl aus Tag-Stammdaten (Diät, Eigenschaften)"],
+          ["Zusatzstoffe & Allergene", "Länderpflichtige Kennzeichnungscodes — Aggregation aus Rezept-Zutaten plus manuell/KI am Artikel"],
+          ["Rezept", "Zutat + Einheit + Menge — verknüpft Bestand für Food-Cost und Kennzeichnungs-Aggregation"],
         ],
       },
+    },
+    {
+      heading: "Zusatzstoffe & Allergene (Kennzeichnungen)",
+      body: "Neben den freiform Allergen-Chips gibt es eine länderpflichtige Liste (DE/AT/CH/FR: Zusatzstoffe a–k und EU-Allergene 1–14). Codes pflegst du vor allem an Zutaten im Bestand; am Gericht siehst du die Aggregation aus dem Rezept und kannst zusätzlich manuell oder per KI ergänzen.",
+      steps: [
+        "Zutaten im Bestand mit „Zusatzstoffe & Allergene“ kennzeichnen (optional KI vorschlagen).",
+        "Gericht öffnen — Abschnitt „Zusatzstoffe & Allergene“ zeigt die Aggregation aus dem Rezept.",
+        "Optional weitere Codes am Artikel setzen oder per KI vorschlagen lassen (Restaurant-KI, Credits).",
+        "Speichern — Codes gehören zum Gericht und den Zutaten.",
+      ],
     },
     {
       heading: "Tageskarten",
@@ -83,12 +94,13 @@ export const speisekarteGuide: UserGuidePage = {
     },
     {
       heading: "Veröffentlichen und Einbinden",
-      body: "Damit Gäste deine Karte sehen, muss dein Restaurant unter Einstellungen → Übersicht veröffentlicht sein. Für die Website: Tab Einbinden liefert den iframe-Code. Für eigene Apps: JSON-API unter Einstellungen → API.",
+      body: "Damit Gäste deine Karte sehen, muss dein Restaurant unter Einstellungen → Übersicht veröffentlicht sein. Für die Website: Tab Einbinden liefert den iframe-Code. Für eigene Apps: JSON-API oder MCP unter Einstellungen → API.",
     },
   ],
   tips: [
     "Filter „Eigenschaften“ nutzt die Tag-Stammdaten — lege Tags zuerst über den Tags-Button an.",
-    "Das Rezept verknüpft Gerichte mit Bestand-Zutaten — Änderungen am Bestand wirken auf Food-Cost-Berechnungen.",
+    "Tags und „Zusatzstoffe & Allergene“ sind getrennte Abschnitte — keine doppelte Allergen-Pflege im Tag-Feld.",
+    "Das Rezept verknüpft Gerichte mit Bestand-Zutaten — Kennzeichnungen und Food-Cost kommen von dort.",
     "Hauptkategorien sind optional, helfen aber bei großen Karten (Speisen / Getränke / Weine).",
   ],
   related: [

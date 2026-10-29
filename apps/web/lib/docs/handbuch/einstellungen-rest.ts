@@ -6,8 +6,8 @@ export const einstellungenGuide: UserGuidePage = {
   description:
     "Restaurant, Team, Integrationen, Displays, API und Dashboard-Konfiguration.",
   intro: [
-    "Unter Einstellungen (Sidebar unten) konfigurierst du dein Restaurant — von Adresse und Branding bis zu Teamrechten, externen Diensten und Kiosk-Terminals.",
-    "Änderungen werden über eine Sticky-Speichern-Leiste unten bestätigt, sobald du etwas geändert hast.",
+    "Unter Einstellungen (Sidebar unten) konfigurierst du dein Restaurant — von Adresse und Branding bis zu Teamrechten, externen Diensten und Display-Terminals.",
+    "Änderungen an Formularen werden über eine Sticky-Speichern-Leiste unten bestätigt. Online-&-Kiosk-Einstellungen liegen unter POS → Online & Kiosk.",
   ],
   sections: [
     {
@@ -20,8 +20,8 @@ export const einstellungenGuide: UserGuidePage = {
           ["Team", "Rollen (Berechtigungen) und Mitglieder/Einladungen"],
           ["Öffnungszeiten", "Reguläre Zeiten, Feiertage, Sync, Einbinden"],
           ["Integrationen", "WhatsApp, E-Mail, Meta, Google, Lexware, …"],
-          ["Displays", "Kiosk-Terminals koppeln und Module freischalten"],
-          ["API", "API-Schlüssel für Headless-Einbindung"],
+          ["Displays", "Display-Terminals koppeln und Module freischalten"],
+          ["API", "API-Schlüssel und MCP-Endpunkt für Headless / KI-Agenten"],
           ["Abo", "Plan, Kündigung, Zahlungsmittel, Rechnungen/Belege (Recht „Abo & Abrechnung“)"],
         ],
       },
@@ -77,15 +77,26 @@ export const einstellungenGuide: UserGuidePage = {
       heading: "API",
       items: [
         "Neuer API-Schlüssel — mit Modul-Scopes (nur Speisekarte, oder alles)",
+        "REST-Basis: /api/v1 — MCP für KI-Agenten: POST /api/v1/mcp (gleiche Keys und Module)",
         "Schlüssel geheim halten — nur serverseitig nutzen",
         "Rate Limits — siehe /docs/api/rate-limits",
       ],
     },
     {
+      heading: "Online & Kiosk (unter POS)",
+      body: "Gast-Online-Bestellung und Counter-/Tisch-Kiosk konfigurierst du unter POS → Einstellungen → Online & Kiosk (nicht unter Restaurant-Einstellungen). Alte Links unter /dashboard/settings/online-ordering leiten dorthin um.",
+      items: [
+        "Mollie Connect, Mindestvorlauf, Kanäle (Online / Kiosk)",
+        "Counter-Kiosk: Terminal-ID (term_…) für Kartenzahlung",
+        "MDM-/Lock-Task für Geräte — siehe Betriebshandbuch Kiosk-MDM",
+      ],
+    },
+    {
       heading: "Abo",
-      body: "Unter Einstellungen → Abo verwaltet ihr den Gwada-Plan für genau diesen Betrieb. Nur Rollen mit der Berechtigung „Abo & Abrechnung“ (standardmäßig Inhaber und Manager) sehen den Tab.",
+      body: "Unter Einstellungen → Abo verwaltet ihr den Gwada-Plan für genau diesen Betrieb. Nur Rollen mit der Berechtigung „Abo & Abrechnung“ (standardmäßig Inhaber und Manager) sehen den Tab. Oben steht die Verwaltung (aktueller Plan, Kündigung, Zahlungsmittel); Planvergleich und Marketing stehen darunter.",
       items: [
         "Plan wählen oder wechseln — erstes Abo über Mollie-Checkout, danach Wechsel in der App (mit anteiliger Abrechnung). Free: 1 registrierter Nutzer, Basic: 3, Pro: unbegrenzt",
+        "Legacy- und Complimentary-Betriebe: Pro-Features bei 0 € — kein Katalogpreis (z. B. 99 €) in Anzeige oder MRR; Checkout für diese Quellen ist gesperrt",
         "Kündigung zum Periodenende — bis dahin bleibt der Plan aktiv, danach Free; Kündigung lässt sich zurücknehmen",
         "Fehlgeschlagene Erneuerung: 7 Tage Karenz mit vollem Plan, danach Paid-Module auf Free. Offene Rechnung im Portal zahlen oder Plan neu wählen. Erster Checkout ohne Zahlung bleibt Free. Einmal täglich gleicht Gwada Mollie mit dem Betrieb ab.",
         "Zahlungsmittel im Mollie-Kundenportal (Button „Zahlungsmittel & Kündigung“)",
@@ -97,6 +108,7 @@ export const einstellungenGuide: UserGuidePage = {
     { label: "Integrationen (Detail)", href: "/docs/handbook/integrations" },
     { label: "Display", href: "/docs/handbook/display" },
     { label: "API-Dokumentation", href: "/docs/api" },
+    { label: "MCP (KI-Agenten)", href: "/docs/api/mcp" },
   ],
 };
 
@@ -121,12 +133,25 @@ export const integrationenGuide: UserGuidePage = {
       ],
     },
     {
-      heading: "E-Mail (SMTP)",
-      body: "Ausgehende E-Mails: Reservierungsbestätigungen, Bewertungseinladungen, Transaktions-Mails.",
+      heading: "E-Mail (Restaurant / geteilt)",
+      body: "Geteiltes Restaurant-Postfach: ausgehende Kontakt- und Reservierungsmails sowie eingehende Threads im Multipostfach.",
       steps: [
-        "SMTP-Host, Port, Benutzer, Passwort eintragen.",
-        "Absender-Adresse und Name setzen.",
-        "Speichern — „… hinterlegt“ zeigt konfigurierten Zustand.",
+        "Gmail, Outlook oder SMTP verbinden (Recht „Integrationen → E-Mail“).",
+        "Zugriff: Alle Mitarbeiter oder Nur ausgewählte (Allowlist).",
+        "Absender und Sync prüfen — Status „… hinterlegt“ / Aktiv.",
+      ],
+      items: [
+        "Outbound Kontaktmail immer vom Restaurant-Postfach",
+        "Gelesen/Ungelesen pro Mitarbeiter — Kollegen sehen weiter ungelesen",
+      ],
+    },
+    {
+      heading: "E-Mail (Mein Postfach)",
+      body: "Persönliche Verbindung nur für dich — privat, nicht im Multipostfach der Gäste.",
+      steps: [
+        "Unter Integrationen die Karte „Mein Postfach“ öffnen.",
+        "Gmail/Outlook für dich verbinden.",
+        "Nur du siehst und synchronisierst diese Mails.",
       ],
     },
     {
@@ -377,7 +402,11 @@ export const profilGuide: UserGuidePage = {
     },
     {
       heading: "Benachrichtigungen",
-      body: "Steuere pro Ereignis, ob du Push und/oder E-Mail erhältst — z. B. neue Reservierung, ungelesene Nachricht, Schichtplan-Änderung oder Checklisten-Erinnerung. Weniger Lärm = nur die Kanäle aktivieren, die du wirklich brauchst.",
+      body: "Steuere pro Ereignis In-App (Glocke/Popup), WhatsApp und/oder E-Mail — z. B. neue Reservierung, ungelesene Nachricht, Schichtplan-Änderung, Checklisten oder persönliche Erinnerungen. Weniger Lärm = nur die Kanäle aktivieren, die du wirklich brauchst.",
+      items: [
+        "Persönliche Erinnerung — fällige Notizen als In-App-Popup und optional Push nur an dich",
+        "Mitarbeiternachrichten — Unread zählt unter Nachrichten (persönliches Postfach)",
+      ],
     },
   ],
   tips: [
@@ -386,6 +415,7 @@ export const profilGuide: UserGuidePage = {
   ],
   related: [
     { label: "Erste Schritte", href: "/docs/getting-started" },
+    { label: "Aufgaben (Erinnerungen)", href: "/docs/handbook/tasks" },
     { label: "Display", href: "/docs/handbook/display" },
     { label: "Mitarbeiter", href: "/docs/handbook/staff" },
   ],

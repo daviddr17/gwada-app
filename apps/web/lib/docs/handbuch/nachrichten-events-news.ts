@@ -4,10 +4,10 @@ export const nachrichtenGuide: UserGuidePage = {
   slug: "messages",
   title: "Nachrichten & Kontakte",
   description:
-    "Multi-Channel-Inbox, Kontaktverwaltung, Tags und Kanal-Einstellungen.",
+    "Multi-Channel-Inbox, persönlicher Teamchat, Kontaktverwaltung und Kanal-Einstellungen.",
   intro: [
-    "Nachrichten ist dein zentraler Posteingang: WhatsApp, E-Mail, Facebook, Instagram und der Gwada-eigene Chat — alles in einer Inbox. Dazu gehört eine Kontaktliste mit allen Gästen, Lieferanten und Anfragen.",
-    "Jede Konversation ist einem Kontakt zugeordnet (oder wird beim Antworten verknüpft). Ungelesene Nachrichten erscheinen im Dashboard unter Heute → Post und Aufmerk.",
+    "Nachrichten ist dein zentraler Posteingang: WhatsApp, E-Mail, Facebook, Instagram und der Gwada-eigene Chat — im Multipostfach. Persönliche Mitarbeiternachrichten (1:1-Teamchat) liegen im persönlichen Postfach und erscheinen nicht im Multipostfach.",
+    "Jede Gäste-Konversation ist einem Kontakt zugeordnet (oder wird beim Antworten verknüpft). Ungelesene Nachrichten erscheinen im Dashboard unter Heute → Post und Aufmerk.",
   ],
   sections: [
     {
@@ -15,7 +15,7 @@ export const nachrichtenGuide: UserGuidePage = {
       table: {
         headers: ["Tab", "Zweck"],
         rows: [
-          ["Nachrichten", "Inbox — alle Konversationen"],
+          ["Nachrichten", "Inbox — Multipostfach und persönliches Postfach"],
           ["Kontakte", "Adressbuch mit Stammdaten, Tags, Timeline"],
           ["Statistiken", "Antwortzeiten, Volumen pro Kanal"],
           ["Export", "Kontakte als Datei exportieren"],
@@ -24,14 +24,31 @@ export const nachrichtenGuide: UserGuidePage = {
       },
     },
     {
-      heading: "Plattform-Chips (Nachrichten)",
-      body: "Horizontale Chips filtern die Inbox nach Kanal — kein Bottom Sheet:",
+      heading: "Postfach-Chips",
+      body: "Oben im Nachrichten-Bereich wählst du das Postfach:",
+      table: {
+        headers: ["Chip", "Bedeutung"],
+        rows: [
+          [
+            "Multipostfach",
+            "Geteilte Gäste-Threads (WhatsApp, E-Mail, Meta, Gwada) — kein privater Teamchat",
+          ],
+          [
+            "Persönlich",
+            "1:1-Mitarbeiternachrichten nur für dich und den Kollegen (Label „Mitarbeiternachricht“)",
+          ],
+        ],
+      },
+    },
+    {
+      heading: "Plattform-Chips (Multipostfach)",
+      body: "Horizontale Chips filtern das Multipostfach nach Kanal — kein Bottom Sheet:",
       table: {
         headers: ["Chip", "Bedeutung"],
         rows: [
           ["Alle", "Konversationen über alle Kanäle"],
           ["WhatsApp", "Nur WhatsApp-Chats (WAHA-Integration nötig)"],
-          ["E-Mail", "Nur E-Mail-Konversationen"],
+          ["E-Mail", "Nur E-Mail-Konversationen (geteiltes Restaurant-Postfach)"],
           ["Facebook", "Facebook-Messenger"],
           ["Instagram", "Instagram-Direct"],
         ],
@@ -47,6 +64,15 @@ export const nachrichtenGuide: UserGuidePage = {
           ["Gelesen", "Bereits bearbeitete Chats"],
         ],
       },
+    },
+    {
+      heading: "Geteiltes vs. persönliches E-Mail-Postfach",
+      body: "Unter Einstellungen → Integrationen → E-Mail gibt es zwei Welten:",
+      items: [
+        "Restaurant-Postfach (geteilt) — ausgehende Kontakt-/Reservierungs-Mails; eingehend für alle Mitarbeiter oder nur eine Auswahlliste",
+        "Mein Postfach (persönlich) — private Gmail/Outlook-Verbindung nur für dich; erscheint nicht als geteilter Kontakt-Kanal",
+        "Gelesen/Ungelesen bei geteilter E-Mail ist pro Mitarbeiter — wenn Kollege A liest, bleibt es bei B ungelesen",
+      ],
     },
     {
       heading: "Kontakte — Plattform-Chips",
@@ -69,6 +95,7 @@ export const nachrichtenGuide: UserGuidePage = {
           ["Kontakt aus Chat anlegen", "In WhatsApp/E-Mail-Thread: Gast als Kontakt speichern"],
           ["Nachricht senden", "Im Kontakt-Drawer: neuen Chat starten"],
           ["Reservierung anlegen", "Im Kontakt-Drawer: direkt Reservierung für diesen Gast"],
+          ["Neue Mitarbeiternachricht", "Im persönlichen Postfach: 1:1-Chat mit einem Kollegen starten"],
         ],
       },
     },
@@ -94,21 +121,31 @@ export const nachrichtenGuide: UserGuidePage = {
     {
       heading: "Nachricht beantworten",
       steps: [
-        "Nachrichten → Tab Nachrichten.",
+        "Nachrichten → Tab Nachrichten → Multipostfach.",
         "Plattform-Chip und ggf. Ungelesen wählen.",
         "Konversation öffnen — Chat-Verlauf erscheint.",
-        "Antwort tippen und senden — Gelesen-Status synchronisiert sich.",
+        "Antwort tippen und senden — Gelesen-Status synchronisiert sich (bei E-Mail nur für dich).",
+      ],
+    },
+    {
+      heading: "Mitarbeiternachricht (persönlich)",
+      steps: [
+        "Nachrichten → Persönlich.",
+        "Neue Mitarbeiternachricht — Kollegen wählen und Text senden.",
+        "Oder bestehenden Chat öffnen — Zeilen sind mit „Mitarbeiternachricht“ gekennzeichnet.",
       ],
     },
   ],
   tips: [
     "Chats ohne Gwada-Kontakt können nachträglich verknüpft werden — nutze „Kontakt aus Chat anlegen“.",
+    "Alte Links zu Aufgaben → Nachrichten öffnen das persönliche Postfach.",
     "Unter Einstellungen steuerst du, ob Reservierungen und Bewertungen automatisch Kontakte anlegen.",
-    "WhatsApp und E-Mail müssen unter Integrationen verbunden sein, sonst bleiben die Chips leer.",
+    "WhatsApp und das Restaurant-E-Mail müssen unter Integrationen verbunden sein, sonst bleiben die Chips leer.",
   ],
   related: [
     { label: "Integrationen", href: "/docs/handbook/integrations" },
     { label: "Reservierungen", href: "/docs/handbook/reservations" },
+    { label: "Aufgaben (Erinnerungen)", href: "/docs/handbook/tasks" },
   ],
 };
 

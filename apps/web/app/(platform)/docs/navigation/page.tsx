@@ -89,8 +89,13 @@ export default function DocsNavigationPage() {
           „Zurücksetzen“ setzt Standardwerte, „Fertig“ wendet an und schließt.
         </li>
         <li>
-          <strong>Plattform-Chips</strong> — bei Nachrichten, Bewertungen, Insights:
-          horizontale Chips statt Filter-Sheet (Kanal/Plattform direkt wählen)
+          <strong>Postfach-Chips</strong> — in Nachrichten: Multipostfach vs.
+          Persönlich (Teamchat / Mitarbeiternachricht)
+        </li>
+        <li>
+          <strong>Plattform-Chips</strong> — bei Nachrichten (Multipostfach),
+          Bewertungen, Insights: horizontale Chips statt Filter-Sheet
+          (Kanal/Plattform direkt wählen)
         </li>
         <li>
           <strong>Neu anlegen</strong> — breiter Button über der Liste (volle Breite,

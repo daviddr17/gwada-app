@@ -4,10 +4,10 @@ export const checklistenGuide: UserGuidePage = {
   slug: "tasks",
   title: "Aufgaben",
   description:
-    "Persönliche Notizen, Team-ToDos, Team-Chat, HACCP und Protokoll.",
+    "Persönliche Notizen, Team-ToDos, HACCP und Protokoll.",
   intro: [
-    "Aufgaben vereint persönliche Erinnerungen, Team-ToDos (Opening, Closing), internen Team-Chat und HACCP-Erfassungen. Was du siehst, hängt von deinen Berechtigungen ab.",
-    "Erfassungen können am Display-Terminal in der Küche erfolgen — das Dashboard dient der Übersicht, dem Chat und dem Abhaken durch Teamleiter.",
+    "Aufgaben vereint persönliche Erinnerungen, Team-ToDos (Opening, Closing) und HACCP-Erfassungen. Der 1:1-Teamchat liegt unter Nachrichten → Persönlich. Was du siehst, hängt von deinen Berechtigungen ab.",
+    "Erfassungen können am Display-Terminal in der Küche erfolgen — das Dashboard dient der Übersicht und dem Abhaken durch Teamleiter.",
   ],
   sections: [
     {
@@ -17,13 +17,22 @@ export const checklistenGuide: UserGuidePage = {
         rows: [
           ["Meine", "Private Notizen und Erinnerungen (nur du)"],
           ["Team", "Offene Team-ToDos, KPI-Übersicht und operative Aufgaben"],
-          ["Nachrichten", "1:1-Chat unter Kollegen"],
           ["Protokoll", "Abgeschlossene Einträge und Änderungshistorie"],
           ["Einstellungen", "Erinnerungen, Korrekturmaßnahmen, Compliance-Optionen"],
         ],
       },
     },
-
+    {
+      heading: "Persönliche Erinnerungen (Popup)",
+      body: "Unter Meine legst du Notizen mit optionalem Erinnerungszeitpunkt an. Zur Fälligkeit öffnet gwada ein In-App-Popup in der App-Zone — zusätzlich können WhatsApp/E-Mail an dich gehen (Profil → Benachrichtigungen → Persönliche Erinnerung). Das Popup gilt nur für dich; der In-App-Kanal „Persönliche Erinnerung“ steuert Popup und Glocke.",
+      table: {
+        headers: ["Aktion", "Wirkung"],
+        rows: [
+          ["OK", "Popup schließen — Erinnerung als zugestellt markiert"],
+          ["Erledigt", "Notiz abhaken und Popup schließen"],
+        ],
+      },
+    },
     {
       heading: "KPI-Pills (Übersicht)",
       table: {
@@ -88,13 +97,14 @@ export const checklistenGuide: UserGuidePage = {
         ],
       },
     },
-
   ],
   tips: [
     "Temperatur-ToDos entstehen automatisch bei Grenzwert-Überschreitung.",
     "Compliance-Erfassungen am Display zählen in „Heute erfasst“.",
+    "Teamchat findest du unter Nachrichten → Persönlich, nicht mehr unter Aufgaben.",
   ],
   related: [
+    { label: "Nachrichten → Persönlich", href: "/docs/handbook/messages" },
     { label: "Display → Checklisten", href: "/docs/handbook/display" },
     { label: "Mitarbeiter", href: "/docs/handbook/staff" },
   ],

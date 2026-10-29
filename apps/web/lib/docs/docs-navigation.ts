@@ -48,6 +48,7 @@ export const DOCS_NAV: DocsNavItem[] = [
     items: [
       { title: "Einstieg", href: "/docs/api" },
       { title: "Authentifizierung", href: "/docs/api/authentication" },
+      { title: "MCP (KI-Agenten)", href: "/docs/api/mcp" },
       { title: "Rate Limits", href: "/docs/api/rate-limits" },
       { title: "Speisekarte", href: "/docs/api/menu" },
       { title: "Reservierung", href: "/docs/api/reservation" },

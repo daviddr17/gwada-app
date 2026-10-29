@@ -70,8 +70,10 @@ export default function DocsPage() {
       <h2>API (Entwickler)</h2>
       <p>
         Für Headless-Einbindungen und eigene Frontends: JSON-Endpunkte mit
-        API-Schlüssel pro Restaurant. Starte mit Authentifizierung und Rate Limits,
-        danach Modul-Endpunkte.
+        API-Schlüssel pro Restaurant. Zusätzlich{" "}
+        <Link href="/docs/api/mcp">Restaurant MCP</Link> unter{" "}
+        <code>/api/v1/mcp</code> für KI-Agenten (gleiche Keys und Module). Starte
+        mit Authentifizierung und Rate Limits, danach Modul-Endpunkte.
       </p>
       <ul>
         <li>
@@ -79,6 +81,9 @@ export default function DocsPage() {
         </li>
         <li>
           <Link href="/docs/api/authentication">Authentifizierung</Link>
+        </li>
+        <li>
+          <Link href="/docs/api/mcp">MCP (KI-Agenten)</Link>
         </li>
         <li>
           <Link href="/docs/api/reservation">Reservierung (ausführlich)</Link>

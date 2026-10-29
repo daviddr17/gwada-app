@@ -4,6 +4,9 @@ import {
   type BillingInterval,
   type BillingPlanId,
 } from "@/lib/billing/plan-catalog";
+import { isGratisBillingSource } from "@/lib/billing/gratis-billing";
+
+export { isGratisBillingSource } from "@/lib/billing/gratis-billing";
 
 export function billingPlanLabel(planId: string | null | undefined): string {
   if (planId && planId in BILLING_PLANS) {
@@ -102,7 +105,7 @@ export function formatEurFromCents(cents: number, currency = "eur"): string {
   }).format(cents / 100);
 }
 
-/** Katalog-MRR für ein Abo (ohne Stripe-Proration). */
+/** Katalog-MRR für ein zahlendes Abo (ohne Proration). */
 export function catalogMonthlyEur(
   planId: BillingPlanId,
   interval: BillingInterval,
@@ -119,4 +122,19 @@ export function catalogMonthlyEur(
       pi === "year" ? pos.price.yearlyPerMonthEur : pos.price.monthlyEur;
   }
   return total;
+}
+
+/** MRR/Anzeige-Betrag: Legacy & Complimentary immer 0 €. */
+export function billableCatalogMonthlyEur(
+  planId: BillingPlanId,
+  interval: BillingInterval,
+  hasPos: boolean,
+  opts: {
+    source?: string | null;
+    status?: string | null;
+    posInterval?: BillingInterval | null;
+  } = {},
+): number {
+  if (isGratisBillingSource(opts.source, opts.status)) return 0;
+  return catalogMonthlyEur(planId, interval, hasPos, opts.posInterval);
 }

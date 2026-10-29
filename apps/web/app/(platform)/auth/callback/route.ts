@@ -7,6 +7,11 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { getSupabaseAnonKey } from "@/lib/public-env";
 import { resolveRequestOriginFromRequest } from "@/lib/navigation/request-origin";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
+import {
+  STAY_SIGNED_IN_COOKIE,
+  mapAuthCookiesForStaySignedIn,
+  resolveStaySignedInPreference,
+} from "@/lib/auth/stay-signed-in";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 import { appendAuthEntryCookieCleanup } from "@/lib/cookies/bloated-request-cookies";
@@ -128,6 +133,9 @@ export async function GET(request: NextRequest) {
   }
 
   const cookieStore = await cookies();
+  const staySignedIn = resolveStaySignedInPreference(
+    cookieStore.get(STAY_SIGNED_IN_COOKIE)?.value,
+  );
   const supabase = createServerClient(resolveSupabaseUrl(origin), anonKey, {
     cookieOptions: gwadaSupabaseCookieOptions,
     cookies: {
@@ -135,9 +143,12 @@ export async function GET(request: NextRequest) {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
+        for (const { name, value, options } of mapAuthCookiesForStaySignedIn(
+          cookiesToSet,
+          staySignedIn,
+        )) {
           cookieStore.set(name, value, options);
-        });
+        }
       },
     },
   });

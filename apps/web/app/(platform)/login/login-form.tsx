@@ -17,8 +17,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import {
+  STAY_SIGNED_IN_DEFAULT,
+  readStaySignedInPreference,
+  writeStaySignedInPreference,
+} from "@/lib/auth/stay-signed-in";
 import { useDocumentTitleOverride } from "@/lib/contexts/document-title-override-context";
 import { useWorkspaceDatabaseGate } from "@/components/providers/supabase-database-gate";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
@@ -93,9 +99,14 @@ export function LoginForm() {
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotBusy, setForgotBusy] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [staySignedIn, setStaySignedIn] = useState(STAY_SIGNED_IN_DEFAULT);
   const { showGoogle, showApple, showOAuthSection } = usePublicOAuthAvailability();
   const { showPasskey } = usePasskeyLoginAvailability();
   const showAlternativeSignIn = showPasskey || showOAuthSection;
+
+  useEffect(() => {
+    setStaySignedIn(readStaySignedInPreference());
+  }, []);
 
   useLayoutEffect(() => {
     setDocumentTitleOverride(screen === "register" ? "Registrieren" : "Login");
@@ -185,6 +196,7 @@ export function LoginForm() {
   }, [screen, regEmail]);
 
   const handleOAuth = async (provider: GwadaOAuthProvider) => {
+    writeStaySignedInPreference(staySignedIn);
     setBusy(true);
     try {
       const sb = createSupabaseBrowserClient();
@@ -208,6 +220,7 @@ export function LoginForm() {
   };
 
   const handlePasskeySignIn = async () => {
+    writeStaySignedInPreference(staySignedIn);
     setPasskeyBusy(true);
     try {
       const { error, cancelled } = await signInWithPasskeyClient();
@@ -230,6 +243,7 @@ export function LoginForm() {
   };
 
   const handleLogin = async () => {
+    writeStaySignedInPreference(staySignedIn);
     setBusy(true);
     try {
       if (isSupabaseOnlyMode()) {
@@ -349,6 +363,7 @@ export function LoginForm() {
       return;
     }
 
+    writeStaySignedInPreference(staySignedIn);
     setMagicLinkBusy(true);
     try {
       const res = await fetch("/api/auth/magic-link", {
@@ -546,6 +561,26 @@ export function LoginForm() {
                       if (e.key === "Enter") void handleLogin();
                     }}
                     className="h-11 rounded-xl"
+                  />
+                </div>
+              ) : null}
+              {!forgotMode ? (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/20 px-3 py-2.5">
+                  <Label
+                    htmlFor="login-stay-signed-in"
+                    className="cursor-pointer text-sm font-medium leading-snug"
+                  >
+                    Angemeldet bleiben
+                  </Label>
+                  <Switch
+                    id="login-stay-signed-in"
+                    checked={staySignedIn}
+                    disabled={busy || magicLinkBusy || passkeyBusy || isEntering}
+                    onCheckedChange={(v) => {
+                      const next = v === true;
+                      setStaySignedIn(next);
+                      writeStaySignedInPreference(next);
+                    }}
                   />
                 </div>
               ) : null}

@@ -7,6 +7,7 @@ import { keepAliveOwnsPathname } from "@/lib/navigation/module-home-keep-alive";
 import {
   Download,
   FileText,
+  Filter,
   Pencil,
   Plus,
   ScrollText,
@@ -21,6 +22,14 @@ import { CategoriesManageDrawer } from "@/components/menu/categories-manage-draw
 import { MenuTaxonomyDrawer } from "@/components/menu/menu-taxonomy-drawer";
 import { DocumentFormDrawer } from "@/components/documents/document-form-drawer";
 import {
+  countDocumentsActiveFilters,
+  DOCUMENTS_STAFF_FILTER_ALL,
+  DOCUMENTS_STAFF_FILTER_NONE,
+  DOCUMENTS_TAG_FILTER_ALL,
+  DOCUMENTS_TAG_FILTER_UNTAGGED,
+  DocumentsFilterDrawer,
+} from "@/components/documents/documents-filter-drawer";
+import {
   DocumentsOverviewStorageSkeleton,
   DocumentsOverviewTableSkeleton,
 } from "@/components/documents/documents-overview-skeleton";
@@ -31,9 +40,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
-import { SearchableSelect } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { DocumentsOverviewMobileList } from "@/components/documents/documents-overview-mobile-list";
+import {
+  moduleSearchFieldWrapClassName,
+  moduleSearchFilterActiveBadgeClassName,
+  moduleSearchFilterButtonClassName,
+  moduleSearchFilterButtonWrapClassName,
+  moduleSearchFilterRowClassName,
+  moduleSearchInputClassName,
+} from "@/lib/ui/module-search-filter-toolbar";
 import {
   deleteRestaurantDocumentClient,
   restaurantDocumentDownloadUrl,
@@ -115,8 +131,14 @@ type SortKey =
   | "created_at";
 type SortDir = "asc" | "desc";
 
-const ALL_TAGS_FILTER = "__all__";
-const UNTAGGED_FILTER = "__untagged__";
+function documentCreatedYmd(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString("de-DE", {
@@ -297,7 +319,11 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
   const showSkeleton = useDeferredSkeleton(loading && rows.length === 0);
 
   const [search, setSearch] = useState("");
-  const [tagFilter, setTagFilter] = useState(ALL_TAGS_FILTER);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [tagFilter, setTagFilter] = useState(DOCUMENTS_TAG_FILTER_ALL);
+  const [staffFilter, setStaffFilter] = useState(DOCUMENTS_STAFF_FILTER_ALL);
+  const [dateFrom, setDateFrom] = useState<string | null>(null);
+  const [dateTo, setDateTo] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
@@ -357,8 +383,8 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
 
   const tagFilterOptions = useMemo(
     () => [
-      { value: ALL_TAGS_FILTER, label: "Alle Tags" },
-      { value: UNTAGGED_FILTER, label: "Ohne Tag" },
+      { value: DOCUMENTS_TAG_FILTER_ALL, label: "Alle Tags" },
+      { value: DOCUMENTS_TAG_FILTER_UNTAGGED, label: "Ohne Tag" },
       ...activeTags.map((t) => ({
         value: t.id,
         label: t.name,
@@ -367,6 +393,13 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
     ],
     [activeTags],
   );
+
+  const activeFilterCount = countDocumentsActiveFilters({
+    filterStaffId: staffFilter,
+    filterTag: tagFilter,
+    filterDateFrom: dateFrom,
+    filterDateTo: dateTo,
+  });
 
   const tagDefinitionsForChips = useMemo(
   () =>
@@ -464,10 +497,23 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
           (r.tag?.name.toLowerCase().includes(q) ?? false),
       );
     }
-    if (tagFilter === UNTAGGED_FILTER) {
+    if (tagFilter === DOCUMENTS_TAG_FILTER_UNTAGGED) {
       list = list.filter((r) => !r.tag_id);
-    } else if (tagFilter !== ALL_TAGS_FILTER) {
+    } else if (tagFilter !== DOCUMENTS_TAG_FILTER_ALL) {
       list = list.filter((r) => r.tag_id === tagFilter);
+    }
+    if (staffFilter === DOCUMENTS_STAFF_FILTER_NONE) {
+      list = list.filter((r) => !r.staff_id);
+    } else if (staffFilter !== DOCUMENTS_STAFF_FILTER_ALL) {
+      list = list.filter((r) => r.staff_id === staffFilter);
+    }
+    if (dateFrom || dateTo) {
+      list = list.filter((r) => {
+        const ymd = documentCreatedYmd(r.created_at);
+        if (dateFrom && ymd < dateFrom) return false;
+        if (dateTo && ymd > dateTo) return false;
+        return true;
+      });
     }
 
     const key = sortKey ?? "created_at";
@@ -500,7 +546,17 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
       }
       return cmp * mul;
     });
-  }, [rows, search, tagFilter, sortKey, sortDir, uploaderNames]);
+  }, [
+    rows,
+    search,
+    tagFilter,
+    staffFilter,
+    dateFrom,
+    dateTo,
+    sortKey,
+    sortDir,
+    uploaderNames,
+  ]);
 
   const totalCount = filteredSorted.length;
   const totalPages = totalPagesFromCount(totalCount, LIST_PAGE_SIZE_DEFAULT);
@@ -513,7 +569,7 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
 
   useEffect(() => {
     setPage(1);
-  }, [search, tagFilter]);
+  }, [search, tagFilter, staffFilter, dateFrom, dateTo]);
 
   const tableExport = useMemo(
     () => ({
@@ -749,28 +805,52 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
       </Card>
       )}
 
-      <div className="-mx-4 mb-4 space-y-3 px-4 sm:-mx-6 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Titel, Dateiname oder Tag …"
-              className="h-11 rounded-2xl border-border/50 bg-card pl-10 shadow-none dark:shadow-sm"
-            />
-          </div>
-          <SearchableSelect
-            options={tagFilterOptions}
-            value={tagFilter}
-            onValueChange={setTagFilter}
-            placeholder="Tag filtern"
-            searchPlaceholder="Tag suchen …"
-            aria-label="Nach Tag filtern"
-            className="w-full sm:w-[200px]"
+      <div className={cn("-mx-4 mb-4 px-4 sm:-mx-6 sm:px-6", moduleSearchFilterRowClassName)}>
+        <div className={moduleSearchFieldWrapClassName}>
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Titel, Dateiname oder Tag …"
+            className={moduleSearchInputClassName}
           />
         </div>
+        <div className={moduleSearchFilterButtonWrapClassName}>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            className={moduleSearchFilterButtonClassName}
+            onClick={() => setFilterOpen(true)}
+            aria-label="Filter"
+          >
+            <Filter className="size-4" />
+          </Button>
+          {activeFilterCount > 0 ? (
+            <Badge
+              variant="secondary"
+              className={moduleSearchFilterActiveBadgeClassName}
+            >
+              {activeFilterCount}
+            </Badge>
+          ) : null}
+        </div>
       </div>
+
+      <DocumentsFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        filterStaffId={staffFilter}
+        onFilterStaffIdChange={setStaffFilter}
+        staffMembers={staffMembers}
+        filterTag={tagFilter}
+        onFilterTagChange={setTagFilter}
+        tagOptions={tagFilterOptions}
+        filterDateFrom={dateFrom}
+        onFilterDateFromChange={setDateFrom}
+        filterDateTo={dateTo}
+        onFilterDateToChange={setDateTo}
+      />
 
       <div className="-mx-4 mb-6 px-4 sm:-mx-6 sm:px-6">
         <Button

@@ -228,9 +228,14 @@ export function RestaurantApiKeysPanel() {
           Schlüssel.
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Basis-URL: <code className="text-foreground">{apiBase}</code> ·{" "}
+          Basis-URL: <code className="text-foreground">{apiBase}</code> · MCP:{" "}
+          <code className="text-foreground">{apiBase}/mcp</code> ·{" "}
           <Link href="/docs/api" className="text-accent underline-offset-2 hover:underline">
             Dokumentation
+          </Link>
+          {" · "}
+          <Link href="/docs/api/mcp" className="text-accent underline-offset-2 hover:underline">
+            MCP
           </Link>
         </p>
       </section>

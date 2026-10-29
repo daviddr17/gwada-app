@@ -10,6 +10,7 @@ import {
 } from "@/components/integrations/smtp-connection-fields";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SearchableMultiSelect } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -28,12 +29,15 @@ import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context"
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
+import { staffDisplayName } from "@/lib/types/staff";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import type { EmailIntegrationResponse } from "@/lib/types/restaurant-integration";
 import { cn } from "@/lib/utils";
 
 type MailboxMode = "smtp" | "gmail" | "outlook";
+type SharedInboxAccessMode = "all_staff" | "restricted";
 
 function mailboxModeFromStatus(
   status: EmailIntegrationResponse["status"],
@@ -51,6 +55,8 @@ function fieldsSnapshot(
   useCustom: boolean,
   mailboxMode: MailboxMode,
   fields: SmtpConnectionFieldValues,
+  sharedInboxAccess: SharedInboxAccessMode,
+  sharedInboxUserIds: string[],
 ): string {
   return JSON.stringify({
     useCustom,
@@ -61,6 +67,8 @@ function fieldsSnapshot(
     imapHost: fields.imapHost.trim(),
     imapPort: fields.imapPort.trim(),
     fromName: fields.fromName.trim(),
+    sharedInboxAccess,
+    sharedInboxUserIds: [...sharedInboxUserIds].sort(),
   });
 }
 
@@ -87,6 +95,12 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
     imapPort: "",
     fromName: "",
   });
+  const [sharedInboxAccess, setSharedInboxAccess] =
+    useState<SharedInboxAccessMode>("all_staff");
+  const [sharedInboxUserIds, setSharedInboxUserIds] = useState<string[]>([]);
+  const [staffOptions, setStaffOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
   const savedSnapshotRef = useRef("");
   const oauthToastHandled = useRef(false);
 
@@ -106,7 +120,17 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
       fromName: data.fromName ?? "",
     };
     setFields(nextFields);
-    savedSnapshotRef.current = fieldsSnapshot(custom, mode, nextFields);
+    const access = data.sharedInboxAccess ?? "all_staff";
+    const userIds = data.sharedInboxUserIds ?? [];
+    setSharedInboxAccess(access);
+    setSharedInboxUserIds(userIds);
+    savedSnapshotRef.current = fieldsSnapshot(
+      custom,
+      mode,
+      nextFields,
+      access,
+      userIds,
+    );
   };
 
   const load = useCallback(async () => {
@@ -142,13 +166,42 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
   }, [load]);
 
   useEffect(() => {
+    if (!restaurantId || !canManage) {
+      setStaffOptions([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchStaffForRestaurant(restaurantId).then(({ data }) => {
+      if (cancelled) return;
+      setStaffOptions(
+        data
+          .filter((row) => row.is_active && row.profile_id)
+          .map((row) => ({
+            value: row.profile_id as string,
+            label: staffDisplayName(row),
+          })),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurantId, canManage]);
+
+  useEffect(() => {
     if (oauthToastHandled.current) return;
     const result = searchParams.get("email");
     if (!result) return;
     oauthToastHandled.current = true;
     if (result === "connected") {
-      toast.success("E-Mail-Konto verbunden.");
-      if (restaurantId) invalidateInboxAfterChannelConnect(restaurantId);
+      const personal = searchParams.get("message") === "personal";
+      toast.success(
+        personal
+          ? "Persönliches Postfach verbunden."
+          : "E-Mail-Konto verbunden.",
+      );
+      if (restaurantId && !personal) {
+        invalidateInboxAfterChannelConnect(restaurantId);
+      }
       void load();
     } else if (result === "error") {
       toast.error(
@@ -158,9 +211,15 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
   }, [searchParams, restaurantId, load]);
 
   const dirty = useMemo(() => {
-    const current = fieldsSnapshot(useCustom, mailboxMode, fields);
+    const current = fieldsSnapshot(
+      useCustom,
+      mailboxMode,
+      fields,
+      sharedInboxAccess,
+      sharedInboxUserIds,
+    );
     return current !== savedSnapshotRef.current || fields.password.length > 0;
-  }, [useCustom, mailboxMode, fields]);
+  }, [useCustom, mailboxMode, fields, sharedInboxAccess, sharedInboxUserIds]);
 
   const save = useCallback(async () => {
     if (!restaurantId) return;
@@ -179,6 +238,8 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
         imapHost: fields.imapHost,
         imapPort: fields.imapPort,
         fromName: fields.fromName,
+        sharedInboxAccess,
+        sharedInboxUserIds,
       }),
     });
     const data = (await res.json()) as { error?: string };
@@ -197,6 +258,8 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
     useCustom,
     mailboxMode,
     fields,
+    sharedInboxAccess,
+    sharedInboxUserIds,
     load,
     onSaved,
     state?.status,
@@ -488,6 +551,52 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
           </span>
         </p>
       )}
+
+      <div className="space-y-3 rounded-xl border border-border/50 bg-muted/10 px-3 py-3">
+        <div>
+          <p className="text-sm font-medium">Geteiltes Postfach — Zugriff</p>
+          <p className="text-xs text-muted-foreground">
+            Ausgehende Kontakt-Mails gehen immer über das Restaurant-Postfach.
+            Eingang sehen entweder alle Mitarbeiter oder nur Ausgewählte.
+            Gelesen/Ungelesen ist pro Person.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ["all_staff", "Alle Mitarbeiter"],
+              ["restricted", "Nur ausgewählte"],
+            ] as const
+          ).map(([mode, label]) => (
+            <Button
+              key={mode}
+              type="button"
+              variant={sharedInboxAccess === mode ? "secondary" : "outline"}
+              className="h-9 rounded-xl px-2 text-xs sm:text-sm"
+              onClick={() => setSharedInboxAccess(mode)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+        {sharedInboxAccess === "restricted" ? (
+          <div className="space-y-1.5">
+            <Label>Mitarbeiter mit Posteingang</Label>
+            <SearchableMultiSelect
+              value={sharedInboxUserIds}
+              onChange={setSharedInboxUserIds}
+              options={staffOptions}
+              placeholder="Mitarbeiter wählen"
+              searchPlaceholder="Suchen…"
+              emptyMessage="Keine verknüpften Mitarbeiter"
+            />
+            <p className="text-xs text-muted-foreground">
+              Nur Mitarbeiter mit Gwada-Login. Manager mit E-Mail-Recht sehen den
+              Eingang immer.
+            </p>
+          </div>
+        ) : null}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <Button

@@ -14,6 +14,8 @@ export type RestaurantEmailIntegrationConfig = {
   from_name?: string;
   auth_mode?: "gmail_oauth" | "outlook_oauth";
   granted_scopes?: string[];
+  shared_inbox_access?: "all_staff" | "restricted";
+  shared_inbox_user_ids?: string[];
 } & SmtpIntegrationConfigPublic;
 
 export type RestaurantEmailIntegrationRow = {
@@ -43,9 +45,28 @@ export type EmailIntegrationResponse = {
   imapPort: string | null;
   passwordConfigured: boolean;
   grantedScopes: string[];
+  /** Shared Kontakt inbound: alle Staff oder Allowlist. */
+  sharedInboxAccess: "all_staff" | "restricted";
+  sharedInboxUserIds: string[];
   defaultFromEmail: string;
   defaultFromName: string;
   message?: string;
+};
+
+export type PersonalEmailIntegrationResponse = {
+  configured: boolean;
+  platformEmailEnabled: boolean;
+  gmailOAuthConfigured: boolean;
+  outlookOAuthConfigured: boolean;
+  status: "disconnected" | "custom" | "gmail" | "outlook";
+  fromEmail: string | null;
+  fromName: string | null;
+  smtpHost: string | null;
+  smtpPort: string | null;
+  imapHost: string | null;
+  imapPort: string | null;
+  passwordConfigured: boolean;
+  grantedScopes: string[];
 };
 
 export type RestaurantWhatsappStatus =

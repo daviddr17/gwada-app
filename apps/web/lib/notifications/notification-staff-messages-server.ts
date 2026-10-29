@@ -96,7 +96,11 @@ export async function loadStaffMessagesNotificationItems(
         id: c.id,
         title: nameByProfile.get(peer) ?? "Kollege",
         subtitle: c.last_message_preview || "Neue Nachricht",
-        href: `${NOTIFICATION_MODULES.staff_messages.href}?c=${encodeURIComponent(c.id)}`,
+        href: (() => {
+          const base = NOTIFICATION_MODULES.staff_messages.href;
+          const sep = base.includes("?") ? "&" : "?";
+          return `${base}${sep}c=${encodeURIComponent(c.id)}`;
+        })(),
         at: c.last_message_at!,
       };
     }),

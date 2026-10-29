@@ -30,7 +30,8 @@ const MESSAGE_SELECT = `
   send_batch_id,
   external_source_id,
   external_seen,
-  suppress_notifications
+  suppress_notifications,
+  mailbox_owner_user_id
 `;
 
 /** Server: Konversationsliste einer Plattform aus contact_messages (DB-only). */
@@ -39,6 +40,10 @@ export async function fetchContactConversationsAdmin(
   params: {
     restaurantId: string;
     platform: ContactMessagePlatform;
+    /** Auth user — filter personal vs shared email rows. */
+    viewerUserId?: string;
+    /** When false, shared Kontakt email rows are omitted. */
+    includeSharedEmail?: boolean;
     /** Glocken-/Dashboard-Pfad: ohne Attachment-Join. */
     light?: boolean;
     /** Optional: Zeilenlimit überschreiben (z. B. volle Inbox ohne Attachments). */
@@ -53,7 +58,7 @@ export async function fetchContactConversationsAdmin(
       ? DASHBOARD_CONVERSATION_LIST_MESSAGE_ROW_LIMIT
       : CONVERSATION_LIST_MESSAGE_ROW_LIMIT);
 
-  const { data: messages, error } = await admin
+  let query = admin
     .from("contact_messages")
     .select(
       `
@@ -65,6 +70,21 @@ export async function fetchContactConversationsAdmin(
     .eq("platform", params.platform)
     .order("created_at", { ascending: false })
     .limit(rowLimit);
+
+  if (params.platform === "email" && params.viewerUserId) {
+    const includeShared = params.includeSharedEmail !== false;
+    if (includeShared) {
+      query = query.or(
+        `mailbox_owner_user_id.is.null,mailbox_owner_user_id.eq.${params.viewerUserId}`,
+      );
+    } else {
+      query = query.eq("mailbox_owner_user_id", params.viewerUserId);
+    }
+  } else if (params.platform === "email") {
+    query = query.is("mailbox_owner_user_id", null);
+  }
+
+  const { data: messages, error } = await query;
 
   if (error) {
     console.warn("[contact-inbox] conversations admin", error.message);

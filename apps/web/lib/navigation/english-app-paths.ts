@@ -130,8 +130,9 @@ const EXACT_APP_PATHS: Record<string, string> = {
   "/dashboard/settings/branding": "/dashboard/settings/restaurant",
   "/dashboard/settings/rollen": "/dashboard/settings/team",
   "/dashboard/settings/kasse": "/dashboard/pos/settings/fiscal-payment",
-  "/dashboard/pos/settings/online-ordering":
-    "/dashboard/settings/online-ordering",
+  "/dashboard/settings/online-ordering":
+    "/dashboard/pos/settings/online-ordering",
+  "/settings/online-ordering": "/dashboard/pos/settings/online-ordering",
   "/dashboard/settings/eigenkontrolle": "/dashboard/tasks",
   "/dashboard/settings/eigenkontrolle/einstellungen": "/dashboard/tasks/settings",
   "/dashboard/settings/eigenkontrolle/eintraege": "/dashboard/tasks/log",

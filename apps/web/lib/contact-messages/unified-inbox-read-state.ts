@@ -103,14 +103,9 @@ function enrichOneConversation(
       conversation: {
         last_at: c.last_at,
         last_direction: c.last_direction,
-        external_unread_count:
-          c.email_unread_count !== undefined ? c.email_unread_count : null,
+        inbound_count: c.inbound_since_preview,
       },
-      communal_read_at: communalReadAtForConversation(
-        communalReads,
-        c.contact_id,
-        "email",
-      ),
+      personalReadOnly: true,
     });
     const unread_count = Math.max(
       unreadGwada.unread_count,
@@ -133,8 +128,9 @@ function enrichOneConversation(
     };
   }
 
+  const personalReadOnly = readPlatform === "email";
   const conversation: ConversationUnreadInput =
-    readPlatform === "gwada"
+    readPlatform === "gwada" || personalReadOnly
       ? gwadaChannelConversationInput(c)
       : {
           last_at: c.last_at,
@@ -149,11 +145,14 @@ function enrichOneConversation(
   const { unread_count, is_unread, unread_hint } = computeConversationUnread({
     read,
     conversation,
-    communal_read_at: communalReadAtForConversation(
-      communalReads,
-      c.contact_id,
-      readPlatform,
-    ),
+    communal_read_at: personalReadOnly
+      ? null
+      : communalReadAtForConversation(
+          communalReads,
+          c.contact_id,
+          readPlatform,
+        ),
+    personalReadOnly,
   });
   return { ...c, unread_count, is_unread, unread_hint };
 }

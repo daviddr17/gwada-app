@@ -3,6 +3,7 @@ import Link from "next/link";
 import { DocsCallout } from "@/components/docs/docs-callout";
 import { DocsProse } from "@/components/docs/docs-prose";
 import { RESTAURANT_API_MODULES } from "@/lib/api/restaurant-api-modules";
+import { RESTAURANT_MCP_TOOLS } from "@/lib/api/restaurant-mcp-tools";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export const metadata: Metadata = {
@@ -10,44 +11,6 @@ export const metadata: Metadata = {
   description:
     "Restaurant MCP für externe KI-Agenten — Tool-Discovery über /api/v1/mcp.",
 };
-
-/** Tools mirror Public API modules — same scopes as REST `enabled_modules`. */
-const MCP_TOOLS: ReadonlyArray<{
-  name: string;
-  moduleId: string;
-  rest: string;
-}> = [
-  { name: "get_menu", moduleId: "menu", rest: "GET /api/v1/menu" },
-  {
-    name: "get_reservation_config",
-    moduleId: "reservation",
-    rest: "GET /api/v1/reservation",
-  },
-  {
-    name: "create_reservation",
-    moduleId: "reservation",
-    rest: "POST /api/v1/reservation",
-  },
-  {
-    name: "manage_reservation",
-    moduleId: "reservation",
-    rest: "POST /api/v1/reservation/manage",
-  },
-  { name: "get_reviews", moduleId: "reviews", rest: "GET /api/v1/reviews" },
-  { name: "get_news", moduleId: "news", rest: "GET /api/v1/news" },
-  { name: "get_events", moduleId: "events", rest: "GET /api/v1/events" },
-  { name: "get_gallery", moduleId: "gallery", rest: "GET /api/v1/gallery" },
-  {
-    name: "get_opening_hours",
-    moduleId: "opening_hours",
-    rest: "GET /api/v1/opening-hours",
-  },
-  {
-    name: "get_purchase_orders",
-    moduleId: "purchase_orders",
-    rest: "GET /api/v1/purchase-orders",
-  },
-];
 
 export default function DocsApiMcpPage() {
   return (
@@ -140,7 +103,7 @@ export default function DocsApiMcpPage() {
             </tr>
           </thead>
           <tbody>
-            {MCP_TOOLS.map((tool) => {
+            {RESTAURANT_MCP_TOOLS.map((tool) => {
               const mod = RESTAURANT_API_MODULES.find(
                 (m) => m.id === tool.moduleId,
               );
@@ -160,7 +123,11 @@ export default function DocsApiMcpPage() {
                     )}
                   </td>
                   <td className="px-3 py-2 align-top font-mono text-xs text-muted-foreground">
-                    {tool.rest}
+                    {tool.name === "create_reservation"
+                      ? "POST /api/v1/reservation"
+                      : tool.name === "manage_reservation"
+                        ? "POST /api/v1/reservation/manage"
+                        : `GET /api/v1/${mod?.path ?? tool.moduleId}`}
                   </td>
                 </tr>
               );

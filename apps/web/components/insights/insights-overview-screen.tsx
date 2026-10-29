@@ -35,7 +35,7 @@ import {
   GoogleInsightsPanels,
   InstagramInsightsPanels,
 } from "@/components/insights/insights-platform-panels";
-import { InsightsOverviewSkeleton } from "@/components/insights/insights-overview-skeleton";
+import { InsightsOverviewBodySkeleton } from "@/components/insights/insights-overview-skeleton";
 import {
   Card,
   CardContent,
@@ -194,6 +194,7 @@ function DayLineChart({
               stroke={stroke}
               strokeWidth={2}
               dot={false}
+              isAnimationActive={false}
             />
           </LineChart>
         </ChartContainer>
@@ -220,27 +221,62 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
   );
   const [data, setData] = useState<InsightsStatisticsResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading && !data);
+  /** Soft refresh for Zeitraum — keep previous layout, dim instead of skeleton. */
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const dataRef = useRef<InsightsStatisticsResult | null>(null);
+  dataRef.current = data;
+  const loadGenRef = useRef(0);
+  const showInitialSkeleton = useDeferredSkeleton(loading && data == null);
 
   useLayoutEffect(() => {
     if (!restaurantId) return;
     const cached = peekInsightsOverviewCache(restaurantId, period);
-    if (!cached) return;
+    if (!cached || cached.data.platforms.google.error) return;
     setData(cached.data);
     setLoading(false);
+    setIsRefreshing(false);
   }, [restaurantId, period]);
+
+  const selectPeriod = useCallback(
+    (next: PeriodSelection) => {
+      if (samePeriod(next, period)) return;
+      const cached =
+        restaurantId != null
+          ? peekInsightsOverviewCache(restaurantId, next)
+          : null;
+      const cacheOk = Boolean(cached && !cached.data.platforms.google.error);
+      if (!cacheOk && dataRef.current) {
+        setIsRefreshing(true);
+      } else {
+        setIsRefreshing(false);
+      }
+      setPeriod(next);
+    },
+    [period, restaurantId],
+  );
 
   const setPlatform = useCallback(
     (next: InsightsPlatform) => {
       setPlatformState(next);
-      setPeriod(defaultPeriodForPlatform(next));
+      const nextPeriod = defaultPeriodForPlatform(next);
+      const cached =
+        restaurantId != null
+          ? peekInsightsOverviewCache(restaurantId, nextPeriod)
+          : null;
+      const cacheOk = Boolean(cached && !cached.data.platforms.google.error);
+      if (!cacheOk && dataRef.current) {
+        setIsRefreshing(true);
+      } else {
+        setIsRefreshing(false);
+      }
+      setPeriod(nextPeriod);
       const params = new URLSearchParams(searchParams.toString());
       if (next === INSIGHTS_PLATFORM_DEFAULT) params.delete("platform");
       else params.set("platform", next);
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
-    [pathname, router, searchParams],
+    [pathname, restaurantId, router, searchParams],
   );
 
   useEffect(() => {
@@ -252,13 +288,19 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
     if (!restaurantId) {
       setData(null);
       setLoading(false);
+      setIsRefreshing(false);
       return;
     }
+    const gen = ++loadGenRef.current;
     const cached = peekInsightsOverviewCache(restaurantId, period);
     const cacheHasGoogleError = Boolean(cached?.data.platforms.google.error);
-    if (cached && !cacheHasGoogleError) {
+    const quietRevalidate = Boolean(cached && !cacheHasGoogleError);
+    if (quietRevalidate && cached) {
       setData(cached.data);
       setLoading(false);
+      setIsRefreshing(false);
+    } else if (dataRef.current) {
+      setIsRefreshing(true);
     } else {
       setLoading(true);
     }
@@ -270,6 +312,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         params.set("monthsBack", String(period.value));
       }
       const res = await fetch(`/api/insights/statistics?${params}`);
+      if (gen !== loadGenRef.current) return;
       const body = (await res.json()) as InsightsStatisticsResult & {
         error?: string;
       };
@@ -278,6 +321,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
           toast.error(body.error ?? "Insights konnten nicht geladen werden.");
         }
         setLoading(false);
+        setIsRefreshing(false);
         return;
       }
       setData(body);
@@ -285,11 +329,14 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         writeInsightsOverviewCache(restaurantId, period, body);
       }
     } catch {
+      if (gen !== loadGenRef.current) return;
       if (activeRef.current) {
         toast.error("Netzwerkfehler beim Laden der Insights.");
       }
     }
+    if (gen !== loadGenRef.current) return;
     setLoading(false);
+    setIsRefreshing(false);
   }, [restaurantId, period]);
 
   useEffect(() => {
@@ -359,10 +406,6 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
     return <WorkspaceRestaurantMissingMessage />;
   }
 
-  if (showSkeleton) {
-    return <InsightsOverviewSkeleton />;
-  }
-
   const google = data?.platforms.google;
   const facebook = data?.platforms.facebook;
   const instagram = data?.platforms.instagram;
@@ -374,7 +417,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
           value={platform}
           onChange={setPlatform}
           availablePlatforms={availablePlatforms}
-          disabled={loading}
+          disabled={loading && data == null}
         />
         <div className="flex flex-wrap items-center justify-end gap-2">
           <div
@@ -383,18 +426,19 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
             aria-label="Zeitraum"
           >
             {periodOptions.map((opt) => {
-              const active = samePeriod(opt.selection, period);
+              const optionActive = samePeriod(opt.selection, period);
               return (
                 <Button
                   key={`${opt.selection.mode}-${opt.selection.value}`}
                   type="button"
                   size="sm"
-                  variant={active ? "default" : "ghost"}
+                  variant={optionActive ? "default" : "ghost"}
                   className={cn(
-                    "h-8 rounded-lg px-3 text-xs",
-                    active && "shadow-sm",
+                    "h-8 rounded-lg px-3 text-xs transition-[background-color,box-shadow,color] duration-200",
+                    optionActive && "shadow-sm",
                   )}
-                  onClick={() => setPeriod(opt.selection)}
+                  aria-pressed={optionActive}
+                  onClick={() => selectPeriod(opt.selection)}
                 >
                   {opt.label}
                 </Button>
@@ -404,7 +448,19 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         </div>
       </div>
 
-      {!data ? (
+      <div
+        key={showInitialSkeleton ? "skeleton" : "content"}
+        className={cn(
+          "min-h-[28rem] space-y-6 transition-opacity duration-300 ease-out",
+          isRefreshing && "pointer-events-none opacity-55",
+          !showInitialSkeleton &&
+            "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300",
+        )}
+        aria-busy={isRefreshing || showInitialSkeleton}
+      >
+      {showInitialSkeleton ? <InsightsOverviewBodySkeleton /> : null}
+
+      {!showInitialSkeleton && !data ? (
         <Card className="border-border/50 shadow-card">
           <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
             <MessageSquare className="size-5 shrink-0" aria-hidden />
@@ -413,7 +469,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         </Card>
       ) : null}
 
-      {data && platform === "gwada" ? (
+      {!showInitialSkeleton && data && platform === "gwada" ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
@@ -491,6 +547,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
                         stroke="var(--accent)"
                         strokeWidth={2}
                         dot={false}
+                        isAnimationActive={false}
                       />
                     </LineChart>
                   </ChartContainer>
@@ -534,7 +591,12 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
                         allowDecimals={false}
                       />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="count" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                      <Bar
+                        dataKey="count"
+                        fill="var(--accent)"
+                        radius={[4, 4, 0, 0]}
+                        isAnimationActive={false}
+                      />
                     </BarChart>
                   </ChartContainer>
                 )}
@@ -583,6 +645,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
                         stroke="var(--chart-1)"
                         strokeWidth={2}
                         dot={false}
+                        isAnimationActive={false}
                       />
                     </LineChart>
                   </ChartContainer>
@@ -628,7 +691,12 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
                         allowDecimals={false}
                       />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="count" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
+                      <Bar
+                        dataKey="count"
+                        fill="var(--chart-2)"
+                        radius={[4, 4, 0, 0]}
+                        isAnimationActive={false}
+                      />
                     </BarChart>
                   </ChartContainer>
                 )}
@@ -638,7 +706,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         </>
       ) : null}
 
-      {data && platform === "google_business" && google ? (
+      {!showInitialSkeleton && data && platform === "google_business" && google ? (
         <>
           <GoogleInsightsPanels google={google} />
           <div className="grid gap-6 lg:grid-cols-2">
@@ -664,7 +732,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         </>
       ) : null}
 
-      {data && platform === "facebook" && facebook ? (
+      {!showInitialSkeleton && data && platform === "facebook" && facebook ? (
         <>
           <FacebookInsightsPanels facebook={facebook} />
           <div className="grid gap-6 lg:grid-cols-2">
@@ -691,7 +759,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         </>
       ) : null}
 
-      {data && platform === "instagram" && instagram ? (
+      {!showInitialSkeleton && data && platform === "instagram" && instagram ? (
         <>
           <InstagramInsightsPanels instagram={instagram} />
           <div className="grid gap-6 lg:grid-cols-2">
@@ -715,7 +783,7 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         </>
       ) : null}
 
-      {data && platform === "tripadvisor" ? (
+      {!showInitialSkeleton && data && platform === "tripadvisor" ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             icon={Star}
@@ -732,9 +800,10 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         </div>
       ) : null}
 
-      {data && platform === "lexoffice" ? (
+      {!showInitialSkeleton && data && platform === "lexoffice" ? (
         <LexofficeInsightsPanels lexoffice={data.lexoffice} />
       ) : null}
+      </div>
     </div>
   );
 }

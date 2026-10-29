@@ -99,3 +99,28 @@ test("voller Zugriff sieht auch fremde persönliche Zeilen", () => {
     true,
   );
 });
+
+test("persönliche Erinnerung bleibt privat auch bei vollem Zugriff", () => {
+  assert.equal(
+    liveActivityPayloadVisibleToViewer({
+      module: "personal_reminder",
+      payload: { targetProfileId: "user-2", title: "Privat" },
+      userId: "user-1",
+      viewerStaffId: null,
+      shiftScope: "own",
+      unrestricted: true,
+    }),
+    false,
+  );
+  assert.equal(
+    liveActivityPayloadVisibleToViewer({
+      module: "personal_reminder",
+      payload: { targetProfileId: "user-1", title: "Meine" },
+      userId: "user-1",
+      viewerStaffId: null,
+      shiftScope: "own",
+      unrestricted: false,
+    }),
+    true,
+  );
+});

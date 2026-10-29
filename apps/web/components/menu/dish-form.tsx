@@ -491,13 +491,13 @@ export function DishForm({
           </div>
         </DishFormSection>
 
-        <DishFormSection title="Tags & Allergene">
+        <DishFormSection title="Tags">
           <TagMultiCombobox
             id="dish-tags-combo"
             definitions={tagDefinitions}
             value={form.tags}
             onChange={(tags) => setForm((p) => ({ ...p, tags }))}
-            aria-label="Tags und Allergene"
+            aria-label="Tags"
           />
         </DishFormSection>
 

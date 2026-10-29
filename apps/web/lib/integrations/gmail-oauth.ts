@@ -192,6 +192,6 @@ export function buildGmailMailboxConfig(params: {
 }
 
 export {
-  encodeOAuthState as encodeGmailOAuthState,
-  decodeOAuthState as decodeGmailOAuthState,
-} from "@/lib/integrations/meta-oauth-shared";
+  encodeEmailOAuthState as encodeGmailOAuthState,
+  decodeEmailOAuthState as decodeGmailOAuthState,
+} from "@/lib/integrations/email-oauth-state";

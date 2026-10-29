@@ -217,13 +217,8 @@ const EXTRA_ROUTE_ENTRIES = [
   },
   {
     route: "/dashboard/tasks/messages",
-    pageBehavior: "render",
-    imports: [
-      {
-        component: "AufgabenNachrichtenScreen",
-        from: "@/components/checklisten/aufgaben-nachrichten-screen",
-      },
-    ],
+    pageBehavior: "redirect",
+    redirectTarget: "/dashboard/contacts/messages?mailbox=personal",
   },
   {
     route: "/dashboard/tasks/guides",
@@ -241,8 +236,7 @@ const EXTRA_ROUTE_ENTRIES = [
     redirectTarget: "/dashboard/tasks",
   },
   {
-    // Online & Kiosk under Restaurant-Einstellungen — not POS Coming-soon.
-    route: "/dashboard/settings/online-ordering",
+    route: "/dashboard/pos/settings/online-ordering",
     pageBehavior: "render",
     imports: [
       {
@@ -252,9 +246,10 @@ const EXTRA_ROUTE_ENTRIES = [
     ],
   },
   {
-    route: "/dashboard/pos/settings/online-ordering",
+    // Legacy Restaurant-Einstellungen path → POS canonical.
+    route: "/dashboard/settings/online-ordering",
     pageBehavior: "redirect",
-    redirectTarget: "/dashboard/settings/online-ordering",
+    redirectTarget: "/dashboard/pos/settings/online-ordering",
   },
 ];
 

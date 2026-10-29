@@ -4021,7 +4021,7 @@ showReplyComposer ? (
         ) : null}
       </AppFullscreenOverlay>
 
-      {overlayThreadId && !inboxSplitLayout ? (
+      {overlayThreadId && !inboxSplitLayout && !isPersonalMailbox ? (
         <ContactInboxThreadOverlay
           open={threadOverlayOpen}
           onClose={backToList}

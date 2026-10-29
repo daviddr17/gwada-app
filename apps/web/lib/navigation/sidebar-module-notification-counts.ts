@@ -16,7 +16,7 @@ const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
 > = {
   reservierungen: ["reservations_pending"],
   events: ["events_inquiry"],
-  kontakte: ["messages"],
+  kontakte: ["messages", "staff_messages"],
   bewertungen: ["reviews"],
   buchfuehrung: [
     "accounting_quotation",
@@ -27,7 +27,6 @@ const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
     "staff_todo_completed",
     "staff_todo_deferred",
     "personal_reminder",
-    "staff_messages",
   ],
   mitarbeiter: [
     "staff_display_time_request",

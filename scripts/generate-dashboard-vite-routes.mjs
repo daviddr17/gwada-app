@@ -217,13 +217,8 @@ const EXTRA_ROUTE_ENTRIES = [
   },
   {
     route: "/dashboard/tasks/messages",
-    pageBehavior: "render",
-    imports: [
-      {
-        component: "AufgabenNachrichtenScreen",
-        from: "@/components/checklisten/aufgaben-nachrichten-screen",
-      },
-    ],
+    pageBehavior: "redirect",
+    redirectTarget: "/dashboard/contacts/messages?mailbox=personal",
   },
   {
     route: "/dashboard/tasks/guides",

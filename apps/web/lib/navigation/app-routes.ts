@@ -75,7 +75,8 @@ export const APP_ROUTES = {
   checklisten: {
     root: "/dashboard/tasks",
     meine: "/dashboard/tasks/mine",
-    nachrichten: "/dashboard/tasks/messages",
+    /** Legacy — redirects to Nachrichten persönliches Postfach. */
+    nachrichten: "/dashboard/contacts/messages?mailbox=personal",
     todos: "/dashboard/tasks",
     vorlagen: "/dashboard/tasks/templates",
     geraete: "/dashboard/tasks/devices",

@@ -25,7 +25,16 @@ function wahaSessionName(restaurantId) {
 function sessionConfig(restaurantId) {
   return {
     webhooks: [
-      { url: WEBHOOK_URL, events: ["message", "message.any", "message.ack"] },
+      {
+        url: WEBHOOK_URL,
+        events: [
+          "message",
+          "message.any",
+          "message.ack",
+          "message.reaction",
+          "session.status",
+        ],
+      },
     ],
     metadata: { "gwada.restaurant_id": restaurantId },
     webjs: { tagsEventsOn: true },

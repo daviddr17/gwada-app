@@ -7,6 +7,7 @@ import { AppDiningLive } from "@/components/providers/app-dining-live";
 import { AppInventoryLive } from "@/components/providers/app-inventory-live";
 import { AppMenuLive } from "@/components/providers/app-menu-live";
 import { AppNotificationBellLive } from "@/components/providers/app-notification-bell-live";
+import { AppPersonalReminderPopup } from "@/components/providers/app-personal-reminder-popup";
 import { AppReservationsLive } from "@/components/providers/app-reservations-live";
 import { AppStaffLive } from "@/components/providers/app-staff-live";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -37,6 +38,7 @@ export function AppModuleLiveProviders() {
   return (
     <>
       <AppNotificationBellLive />
+      <AppPersonalReminderPopup />
       <AppReservationsLive />
       <AppStaffLive />
       <AppInventoryLive />

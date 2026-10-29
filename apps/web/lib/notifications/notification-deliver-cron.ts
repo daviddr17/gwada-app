@@ -22,6 +22,7 @@ import { filterStaffDocumentAssignedPushTargets } from "@/lib/notifications/noti
 import { filterStaffInviteResponsePushTargets } from "@/lib/notifications/notification-staff-invite-server";
 import { filterStaffPermissionsGrantedPushTargets } from "@/lib/notifications/notification-staff-permissions-server";
 import { filterStaffShiftPushTargets } from "@/lib/notifications/notification-staff-shift-server";
+import { filterPersonalReminderPushTargets } from "@/lib/notifications/notification-personal-reminder-targets";
 import {
   defaultNotificationPreferences,
   isPushModuleEnabled,
@@ -217,6 +218,9 @@ async function fanOutEvent(
   }
   if (moduleId === "staff_shift_start" || moduleId === "staff_shift_end") {
     targets = await filterStaffShiftPushTargets(admin, event, targets);
+  }
+  if (moduleId === "personal_reminder") {
+    targets = filterPersonalReminderPushTargets(event, targets);
   }
   if (targets.length === 0) return { created: 0, error: null };
 

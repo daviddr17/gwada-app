@@ -318,7 +318,8 @@ export const NOTIFICATION_MODULES: Record<
     labelPlural: "Erinnerungen",
     href: "/dashboard/tasks/mine",
     icon: StickyNote,
-    settingsInAppLabel: "Fällige persönliche Erinnerungen in der Glocke",
+    settingsInAppLabel:
+      "Fällige persönliche Erinnerungen als Popup und in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei persönlichen Erinnerungen",
     settingsPushEmailLabel: "E-Mail bei persönlichen Erinnerungen",
   },

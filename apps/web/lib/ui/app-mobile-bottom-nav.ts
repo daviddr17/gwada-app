@@ -34,12 +34,15 @@ export const appMobileBottomSafePbLgClassName =
 export const appMobileFabBottomClassName =
   "bottom-[var(--app-mobile-fab-bottom)] md:bottom-[max(1.25rem,var(--app-mobile-bottom-safe))] group-data-[chrome-compact]/inset:md:bottom-[var(--app-mobile-fab-bottom)]";
 
+/** Primary FAB (Plus / Voice): rechte Außenkante. */
+export const appMobilePrimaryFabEndClassName = "end-4 sm:end-6";
+
 /**
- * Assistent-FAB: gleiche Unterkante wie Plus/Voice, aber links daneben —
- * sonst deckt der Dashboard-Plus-FAB den Assistenten komplett ab.
+ * Assistent-FAB: standardmäßig dieselbe End-Kante wie Plus/Voice.
+ * Steht ein Primary-FAB (`data-dashboard-fab` / Voice), schiebt
+ * `app-mobile-chrome.css` (`body:has(…)`) nach links neben den Slot.
  */
-export const appMobileAssistantFabEndClassName =
-  "end-[calc(1rem+var(--app-mobile-fab-size)+0.75rem)] sm:end-[calc(1.5rem+var(--app-mobile-fab-size,3.5rem)+0.75rem)]";
+export const appMobileAssistantFabEndClassName = appMobilePrimaryFabEndClassName;
 
 /** Schwebende Sprach-Caption über dem FAB (nicht dieselbe `bottom`-Zeile). */
 export const appMobileFabCaptionBottomClassName =

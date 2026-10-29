@@ -315,7 +315,8 @@ function ProfileAnmeldungContent() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 shrink-0 rounded-xl border-border/80 sm:ms-auto"
+                    size="sm"
+                    className="h-9 shrink-0 rounded-xl border-border/80 sm:ms-auto"
                     disabled={oauthBusy || identityCount <= 1}
                     onClick={() => void handleOAuthUnlink("google")}
                   >
@@ -325,7 +326,8 @@ function ProfileAnmeldungContent() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
+                    size="sm"
+                    className="h-9 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
                     disabled={oauthBusy}
                     onClick={() => void handleOAuthLink("google")}
                   >
@@ -354,7 +356,8 @@ function ProfileAnmeldungContent() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 shrink-0 rounded-xl border-border/80 sm:ms-auto"
+                    size="sm"
+                    className="h-9 shrink-0 rounded-xl border-border/80 sm:ms-auto"
                     disabled={oauthBusy || identityCount <= 1}
                     onClick={() => void handleOAuthUnlink("apple")}
                   >
@@ -364,7 +367,8 @@ function ProfileAnmeldungContent() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
+                    size="sm"
+                    className="h-9 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
                     disabled={oauthBusy}
                     onClick={() => void handleOAuthLink("apple")}
                   >

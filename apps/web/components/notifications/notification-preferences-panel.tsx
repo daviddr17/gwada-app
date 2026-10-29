@@ -295,25 +295,12 @@ export function NotificationPreferencesPanel() {
               …) oder deutsche Nummer (z. B. 0151 …).
             </p>
           </div>
-          {contact.effectiveEmail ? (
-            <p className="text-xs text-muted-foreground">
-              Aktive E-Mail-Zustellung:{" "}
-              <span className="font-medium text-foreground">
-                {contact.effectiveEmail}
-              </span>
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">
           <CardTitle className="text-xl">Benachrichtigungen</CardTitle>
-          <CardDescription className="text-base leading-relaxed">
-            {whatsappChannelVisible
-              ? "Pro Hinweis Glocke, E-Mail und WhatsApp einzeln oder kombiniert — kompakt in einer Liste. Sichtbare Module hängen von deinen Berechtigungen ab (z. B. Reservierungen nur mit Zugriff auf Reservierungen)."
-              : "Pro Hinweis Glocke und E-Mail einzeln oder kombiniert — kompakt in einer Liste. Sichtbare Module hängen von deinen Berechtigungen ab (z. B. Reservierungen nur mit Zugriff auf Reservierungen)."}
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
           {!emailPushAvailable ||

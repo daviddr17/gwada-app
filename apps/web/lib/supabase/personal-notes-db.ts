@@ -106,3 +106,37 @@ export async function archivePersonalNote(params: {
     .eq("id", params.noteId);
   return { error: error?.message ?? null };
 }
+
+/** Aktive Notizen mit geplanter Erinnerung (für In-App-Popup-Watcher). */
+export async function fetchPersonalNotesWithReminders(
+  restaurantId: string,
+): Promise<{ data: RestaurantPersonalNoteRow[]; error: string | null }> {
+  if (!isUuidRestaurantId(restaurantId)) {
+    return { data: [], error: null };
+  }
+  const sb = createSupabaseBrowserClient();
+  const { data, error } = await sb
+    .from("restaurant_personal_notes")
+    .select(SELECT)
+    .eq("restaurant_id", restaurantId)
+    .is("archived_at", null)
+    .is("completed_at", null)
+    .is("reminded_at", null)
+    .not("remind_at", "is", null)
+    .order("remind_at", { ascending: true })
+    .limit(50);
+
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as RestaurantPersonalNoteRow[], error: null };
+}
+
+export async function markPersonalNoteRemindedClient(params: {
+  noteId: string;
+}): Promise<{ error: string | null }> {
+  const sb = createSupabaseBrowserClient();
+  const { error } = await sb
+    .from("restaurant_personal_notes")
+    .update({ reminded_at: new Date().toISOString() })
+    .eq("id", params.noteId);
+  return { error: error?.message ?? null };
+}

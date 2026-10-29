@@ -663,7 +663,7 @@ export function buildNotificationPushText(
         prefix,
         headline: c.teamMessage,
         subject: `${prefix}${c.message} ${peer}`,
-        href: "/dashboard/tasks/messages",
+        href: "/dashboard/contacts/messages?mailbox=personal",
         details: detailLines([`${peer}: ${preview}`]),
       });
     }

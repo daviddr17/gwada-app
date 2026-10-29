@@ -728,8 +728,7 @@ export function RestaurantSettingsPanel({
             <CardTitle className="text-xl">Gäste-Sprache</CardTitle>
             <CardDescription>
               Standardsprache für Embeds und Profil. Inhalte werden im Browser
-              in die gewählte Gästesprache übersetzt — nicht in der Datenbank
-              gespeichert.
+              in die gewählte Gästesprache übersetzt.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -988,15 +987,194 @@ export function RestaurantSettingsPanel({
             void handleSaveHours();
           }}
         >
+        <div className="flex flex-col gap-6">
         <Card className="border-border/50 shadow-card">
-          <CardHeader>
-            <CardTitle className="text-xl">Restaurant-Öffnungszeiten</CardTitle>
+          <CardHeader className="gap-2">
+            <CardTitle className="text-xl">Reguläre Öffnungszeiten</CardTitle>
             <CardDescription>
-              Regulärer Wochenplan und Tagesausnahmen (Feiertage, Events) – alles
-              an einem Ort.
+              Standard pro Wochentag. „Geschlossen“ überschreibt Von–Bis. Bei
+              Saisonpause den Wochenplan behalten und unter Sonderzeiten den
+              Schließungsstatus setzen.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-8">
+          <CardContent className="space-y-6">
+            <WeekdayHoursGrid hours={draft.weeklyHours} onDayChange={updateDay} />
+            <OpeningHoursPlatformSyncStatusRow
+              badges={
+                <>
+                  <OpeningHoursPlatformSyncStatusBadge
+                    platformLabel="Google"
+                    check={platformHoursStatus?.google.regular}
+                    loading={platformHoursStatusLoading}
+                    connected={googleConnected}
+                    hoursDirty={hoursDirty}
+                  />
+                  <OpeningHoursPlatformSyncStatusBadge
+                    platformLabel="Facebook"
+                    check={platformHoursStatus?.facebook.regular}
+                    loading={platformHoursStatusLoading}
+                    connected={facebookConnected}
+                    hoursDirty={hoursDirty}
+                  />
+                </>
+              }
+            >
+              <IntegrationPlatformSyncButton
+                target="opening_hours_google"
+                restaurantId={workspaceRestaurantId}
+                connected={googleConnected}
+                connectionsLoading={platformConnectionsLoading}
+                blockedReason={
+                  hoursDirty ? "Zuerst Öffnungszeiten speichern" : null
+                }
+                onSynced={bumpPlatformStatus}
+                className="w-full sm:w-auto"
+              />
+              <IntegrationPlatformSyncButton
+                target="opening_hours_facebook"
+                restaurantId={workspaceRestaurantId}
+                connected={facebookConnected}
+                connectionsLoading={platformConnectionsLoading}
+                blockedReason={
+                  hoursDirty ? "Zuerst Öffnungszeiten speichern" : null
+                }
+                onSynced={bumpPlatformStatus}
+                className="w-full sm:w-auto"
+              />
+            </OpeningHoursPlatformSyncStatusRow>
+
+            <Separator />
+
+            <div className="max-w-2xl space-y-1.5">
+              <Label
+                htmlFor="opening-hours-embed-footer"
+                className="text-xs text-muted-foreground"
+              >
+                Hinweistext unter den Öffnungszeiten
+              </Label>
+              <Textarea
+                id="opening-hours-embed-footer"
+                value={openingHoursSettings.embedFooterText}
+                onChange={(e) =>
+                  setOpeningHoursSettings((prev) => ({
+                    ...prev,
+                    embedFooterText: e.target.value,
+                  }))
+                }
+                placeholder="z. B. Parkplätze, Feiertags-Hinweise, Dresscode …"
+                maxLength={OPENING_HOURS_EMBED_FOOTER_MAX}
+                rows={4}
+                className="min-h-[6rem] resize-y rounded-xl border border-input bg-transparent px-3 py-2.5 text-sm leading-relaxed"
+              />
+              <p className="text-xs text-muted-foreground">
+                {publicSurfaceScopeHint("embed")} Optional, max.{" "}
+                {OPENING_HOURS_EMBED_FOOTER_MAX} Zeichen. Küche- und
+                Sondertermine-Optionen unter Einbinden (
+                {publicSurfaceEmbedOnlyDescription})
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 shadow-card">
+          <CardHeader className="gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle className="text-xl">Küchenzeiten</CardTitle>
+                <CardDescription>
+                  Wann die Küche Gerichte zubereitet (kann kürzer sein als die
+                  Restaurant-Öffnungszeiten). Übertragung nur an Google —
+                  Facebook unterstützt keine separaten Küchenzeiten.
+                </CardDescription>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 rounded-full border border-border/50 bg-muted/30 px-3 py-1.5">
+                <Label
+                  htmlFor="kitchen-hours-enabled"
+                  className="cursor-pointer text-xs text-muted-foreground"
+                >
+                  Eigene Küchenzeiten
+                </Label>
+                <Switch
+                  id="kitchen-hours-enabled"
+                  checked={draft.kitchenHoursEnabled}
+                  onCheckedChange={(v) => {
+                    const enabled = v === true;
+                    setDraft((prev) => {
+                      if (!prev) return prev;
+                      if (!enabled) {
+                        return { ...prev, kitchenHoursEnabled: false };
+                      }
+                      const kitchenWeeklyHours = { ...prev.kitchenWeeklyHours };
+                      for (const d of WEEKDAY_ORDER) {
+                        kitchenWeeklyHours[d] = {
+                          ...prev.weeklyHours[d],
+                        };
+                      }
+                      return {
+                        ...prev,
+                        kitchenHoursEnabled: true,
+                        kitchenWeeklyHours,
+                      };
+                    });
+                  }}
+                  size="sm"
+                />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {draft.kitchenHoursEnabled ? (
+              <>
+                <WeekdayHoursGrid
+                  hours={draft.kitchenWeeklyHours}
+                  onDayChange={updateKitchenDay}
+                />
+                <OpeningHoursPlatformSyncStatusRow
+                  badges={
+                    <OpeningHoursPlatformSyncStatusBadge
+                      platformLabel="Google Küche"
+                      check={platformHoursStatus?.google.kitchen}
+                      loading={platformHoursStatusLoading}
+                      connected={googleConnected}
+                      hoursDirty={hoursDirty}
+                    />
+                  }
+                >
+                  <IntegrationPlatformSyncButton
+                    target="kitchen_hours_google"
+                    restaurantId={workspaceRestaurantId}
+                    connected={googleConnected}
+                    connectionsLoading={platformConnectionsLoading}
+                    blockedReason={
+                      hoursDirty
+                        ? "Zuerst Öffnungszeiten speichern"
+                        : !draft.kitchenHoursEnabled
+                          ? "Zuerst eigene Küchenzeiten aktivieren"
+                          : null
+                    }
+                    onSynced={bumpPlatformStatus}
+                    className="w-full sm:w-auto"
+                  />
+                </OpeningHoursPlatformSyncStatusRow>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Deaktiviert — es gelten nur die Restaurant-Öffnungszeiten (keine
+                separaten Küchenzeiten in Gwada oder bei Google).
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 shadow-card">
+          <CardHeader className="gap-2">
+            <CardTitle className="text-xl">Sonderzeiten</CardTitle>
+            <CardDescription>
+              Schließungsstatus und abweichende Zeiten an bestimmten Tagen
+              (Feiertage, Events, Pausen).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <OpeningHoursClosureCard
               mode={openingHoursSettings.closureMode}
               from={openingHoursSettings.closureFrom}
@@ -1015,153 +1193,6 @@ export function RestaurantSettingsPanel({
                 }))
               }
             />
-
-            <Separator />
-
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                Reguläre Wochentage
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Standard pro Wochentag. „Geschlossen“ überschreibt Von–Bis. Bei
-                Saisonpause den Wochenplan behalten und oben den
-                Schließungsstatus setzen.
-              </p>
-              <WeekdayHoursGrid hours={draft.weeklyHours} onDayChange={updateDay} />
-              <OpeningHoursPlatformSyncStatusRow
-                badges={
-                  <>
-                    <OpeningHoursPlatformSyncStatusBadge
-                      platformLabel="Google"
-                      check={platformHoursStatus?.google.regular}
-                      loading={platformHoursStatusLoading}
-                      connected={googleConnected}
-                      hoursDirty={hoursDirty}
-                    />
-                    <OpeningHoursPlatformSyncStatusBadge
-                      platformLabel="Facebook"
-                      check={platformHoursStatus?.facebook.regular}
-                      loading={platformHoursStatusLoading}
-                      connected={facebookConnected}
-                      hoursDirty={hoursDirty}
-                    />
-                  </>
-                }
-              >
-                <IntegrationPlatformSyncButton
-                  target="opening_hours_google"
-                  restaurantId={workspaceRestaurantId}
-                  connected={googleConnected}
-                  connectionsLoading={platformConnectionsLoading}
-                  blockedReason={
-                    hoursDirty ? "Zuerst Öffnungszeiten speichern" : null
-                  }
-                  onSynced={bumpPlatformStatus}
-                  className="w-full sm:w-auto"
-                />
-                <IntegrationPlatformSyncButton
-                  target="opening_hours_facebook"
-                  restaurantId={workspaceRestaurantId}
-                  connected={facebookConnected}
-                  connectionsLoading={platformConnectionsLoading}
-                  blockedReason={
-                    hoursDirty ? "Zuerst Öffnungszeiten speichern" : null
-                  }
-                  onSynced={bumpPlatformStatus}
-                  className="w-full sm:w-auto"
-                />
-              </OpeningHoursPlatformSyncStatusRow>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-1.5">
-                  <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                    Küchenzeiten
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Wann die Küche Gerichte zubereitet (kann kürzer sein als die
-                    Restaurant-Öffnungszeiten). Übertragung nur an Google — Facebook
-                    unterstützt keine separaten Küchenzeiten.
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2 rounded-full border border-border/50 bg-muted/30 px-3 py-1.5">
-                  <Label
-                    htmlFor="kitchen-hours-enabled"
-                    className="cursor-pointer text-xs text-muted-foreground"
-                  >
-                    Eigene Küchenzeiten
-                  </Label>
-                  <Switch
-                    id="kitchen-hours-enabled"
-                    checked={draft.kitchenHoursEnabled}
-                    onCheckedChange={(v) => {
-                      const enabled = v === true;
-                      setDraft((prev) => {
-                        if (!prev) return prev;
-                        if (!enabled) {
-                          return { ...prev, kitchenHoursEnabled: false };
-                        }
-                        const kitchenWeeklyHours = { ...prev.kitchenWeeklyHours };
-                        for (const d of WEEKDAY_ORDER) {
-                          kitchenWeeklyHours[d] = {
-                            ...prev.weeklyHours[d],
-                          };
-                        }
-                        return {
-                          ...prev,
-                          kitchenHoursEnabled: true,
-                          kitchenWeeklyHours,
-                        };
-                      });
-                    }}
-                    size="sm"
-                  />
-                </div>
-              </div>
-              {draft.kitchenHoursEnabled ? (
-                <>
-                  <WeekdayHoursGrid
-                    hours={draft.kitchenWeeklyHours}
-                    onDayChange={updateKitchenDay}
-                  />
-                  <OpeningHoursPlatformSyncStatusRow
-                    badges={
-                      <OpeningHoursPlatformSyncStatusBadge
-                        platformLabel="Google Küche"
-                        check={platformHoursStatus?.google.kitchen}
-                        loading={platformHoursStatusLoading}
-                        connected={googleConnected}
-                        hoursDirty={hoursDirty}
-                      />
-                    }
-                  >
-                    <IntegrationPlatformSyncButton
-                      target="kitchen_hours_google"
-                      restaurantId={workspaceRestaurantId}
-                      connected={googleConnected}
-                      connectionsLoading={platformConnectionsLoading}
-                      blockedReason={
-                        hoursDirty
-                          ? "Zuerst Öffnungszeiten speichern"
-                          : !draft.kitchenHoursEnabled
-                            ? "Zuerst eigene Küchenzeiten aktivieren"
-                            : null
-                      }
-                      onSynced={bumpPlatformStatus}
-                      className="w-full sm:w-auto"
-                    />
-                  </OpeningHoursPlatformSyncStatusRow>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Deaktiviert — es gelten nur die Restaurant-Öffnungszeiten (keine
-                  separaten Küchenzeiten in Gwada oder bei Google).
-                </p>
-              )}
-            </div>
 
             <Separator />
 
@@ -1214,61 +1245,31 @@ export function RestaurantSettingsPanel({
                 onAddException={addHolidayException}
               />
 
-          {draft.dateExceptions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Keine Ausnahmen – es gelten nur die regulären Zeiten.
-            </p>
-          ) : (
-            <>
-              {!showPastExceptions && hiddenPastCount > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {hiddenPastCount} vergangene{" "}
-                  {hiddenPastCount === 1 ? "Termin" : "Termine"} ausgeblendet.
+              {draft.dateExceptions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Keine Ausnahmen – es gelten nur die regulären Zeiten.
                 </p>
+              ) : (
+                <>
+                  {!showPastExceptions && hiddenPastCount > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {hiddenPastCount} vergangene{" "}
+                      {hiddenPastCount === 1 ? "Termin" : "Termine"} ausgeblendet.
+                    </p>
+                  )}
+                  <div className="space-y-4">
+                    {exceptionsVisible.map((ex) => (
+                      <OpeningHoursExceptionCard
+                        key={ex.id}
+                        exception={ex}
+                        weeklyHours={draft.weeklyHours}
+                        onChange={(patch) => updateException(ex.id, patch)}
+                        onRemove={() => setExceptionDeleteId(ex.id)}
+                      />
+                    ))}
+                  </div>
+                </>
               )}
-              <div className="space-y-4">
-              {exceptionsVisible.map((ex) => (
-                <OpeningHoursExceptionCard
-                  key={ex.id}
-                  exception={ex}
-                  weeklyHours={draft.weeklyHours}
-                  onChange={(patch) => updateException(ex.id, patch)}
-                  onRemove={() => setExceptionDeleteId(ex.id)}
-                />
-              ))}
-              </div>
-            </>
-          )}
-
-              <Separator />
-
-              <div className="max-w-2xl space-y-1.5">
-                <Label
-                  htmlFor="opening-hours-embed-footer"
-                  className="text-xs text-muted-foreground"
-                >
-                  Hinweistext unter den Öffnungszeiten
-                </Label>
-                <Textarea
-                  id="opening-hours-embed-footer"
-                  value={openingHoursSettings.embedFooterText}
-                  onChange={(e) =>
-                    setOpeningHoursSettings((prev) => ({
-                      ...prev,
-                      embedFooterText: e.target.value,
-                    }))
-                  }
-                  placeholder="z. B. Parkplätze, Feiertags-Hinweise, Dresscode …"
-                  maxLength={OPENING_HOURS_EMBED_FOOTER_MAX}
-                  rows={4}
-                  className="min-h-[6rem] resize-y rounded-xl border border-input bg-transparent px-3 py-2.5 text-sm leading-relaxed"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {publicSurfaceScopeHint("embed")} Optional, max.{" "}
-                  {OPENING_HOURS_EMBED_FOOTER_MAX} Zeichen. Küche- und
-                  Sondertermine-Optionen unter Einbinden ({publicSurfaceEmbedOnlyDescription})
-                </p>
-              </div>
 
               <OpeningHoursPlatformSyncStatusRow
                 badges={
@@ -1300,6 +1301,7 @@ export function RestaurantSettingsPanel({
             </div>
           </CardContent>
         </Card>
+        </div>
         <SettingsStickySaveBar show={hoursDirty}>
           <div
             className={cn(

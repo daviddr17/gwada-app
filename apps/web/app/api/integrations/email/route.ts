@@ -11,6 +11,11 @@ import {
 import { getGmailOAuthPlatformConfigAdmin } from "@/lib/integrations/gmail-oauth";
 import { getOutlookOAuthPlatformConfigAdmin } from "@/lib/integrations/outlook-oauth";
 import { isRestaurantEmailMailboxStatus } from "@/lib/email/restaurant-email-mailbox";
+import {
+  parseSharedInboxAccess,
+  sharedInboxAccessToConfigPatch,
+  type SharedInboxAccessMode,
+} from "@/lib/email/shared-inbox-access";
 import { isEmailSendConfigured } from "@/lib/email/is-email-send-configured";
 import {
   emailIntegrationConfigToPublic,
@@ -23,6 +28,25 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { EmailIntegrationResponse } from "@/lib/types/restaurant-integration";
+
+function resolveSharedInboxPatch(params: {
+  existingConfig: Record<string, unknown> | undefined;
+  sharedInboxAccess?: SharedInboxAccessMode;
+  sharedInboxUserIds?: string[];
+}): Record<string, unknown> {
+  const current = parseSharedInboxAccess(params.existingConfig ?? {});
+  const access: SharedInboxAccessMode =
+    params.sharedInboxAccess === "restricted" ||
+    params.sharedInboxAccess === "all_staff"
+      ? params.sharedInboxAccess
+      : current.access;
+  const userIds = Array.isArray(params.sharedInboxUserIds)
+    ? params.sharedInboxUserIds.filter(
+        (id): id is string => typeof id === "string" && id.length > 0,
+      )
+    : current.userIds;
+  return sharedInboxAccessToConfigPatch({ access, userIds });
+}
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +88,7 @@ export async function GET(req: Request) {
   ]);
   const status = row?.status ?? "default";
   const pub = row?.config ?? {};
+  const shared = parseSharedInboxAccess(pub);
 
   const body: EmailIntegrationResponse = {
     configured: true,
@@ -80,6 +105,8 @@ export async function GET(req: Request) {
     imapPort: pub.imap_port != null ? String(pub.imap_port) : null,
     passwordConfigured: Boolean(pub.passwordConfigured),
     grantedScopes: Array.isArray(pub.granted_scopes) ? pub.granted_scopes : [],
+    sharedInboxAccess: shared.access,
+    sharedInboxUserIds: shared.userIds,
     defaultFromEmail: GWADA_DEFAULT_FROM_EMAIL,
     defaultFromName: GWADA_DEFAULT_FROM_NAME,
     message: sendConfigured
@@ -102,6 +129,8 @@ export async function POST(req: Request) {
     imapHost?: string;
     imapPort?: string;
     fromName?: string;
+    sharedInboxAccess?: SharedInboxAccessMode;
+    sharedInboxUserIds?: string[];
   };
 
   const restaurantId = body.restaurantId?.trim() ?? "";
@@ -115,6 +144,12 @@ export async function POST(req: Request) {
   }
 
   const useCustom = body.useCustom === true;
+  const existing = await fetchRestaurantEmailSmtpConfig(auth.sb, restaurantId);
+  const sharedPatch = resolveSharedInboxPatch({
+    existingConfig: existing?.config,
+    sharedInboxAccess: body.sharedInboxAccess,
+    sharedInboxUserIds: body.sharedInboxUserIds,
+  });
 
   if (useCustom) {
     const billing = await assertBillingFeature(
@@ -135,15 +170,13 @@ export async function POST(req: Request) {
       restaurantId,
       {
         status: "default",
-        config: {},
+        config: { ...sharedPatch },
         last_error: null,
       },
     );
     if (error) return Response.json({ error }, { status: 500 });
     return Response.json({ ok: true, status: "default" });
   }
-
-  const existing = await fetchRestaurantEmailSmtpConfig(auth.sb, restaurantId);
 
   if (body.mailboxMode === "gmail" || body.mailboxMode === "outlook") {
     const expectedStatus = body.mailboxMode;
@@ -161,6 +194,7 @@ export async function POST(req: Request) {
     const nextConfig = {
       ...existing.config,
       from_name: body.fromName?.trim() || existing.config.from_name,
+      ...sharedPatch,
     };
     const { error } = await upsertRestaurantEmailIntegration(
       auth.sb,
@@ -188,6 +222,7 @@ export async function POST(req: Request) {
     imap_host: body.imapHost?.trim(),
     imap_port: body.imapPort?.trim(),
     from_name: body.fromName?.trim(),
+    ...sharedPatch,
   };
 
   const validationError = validateSmtpConfigForSave(merged, {

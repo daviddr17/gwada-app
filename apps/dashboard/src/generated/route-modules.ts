@@ -120,7 +120,7 @@ const Lazy__dashboard_reservations_statistics = lazy(moduleSubpageLazy("reservie
 const Lazy__dashboard_reservations_floor_plan = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/floor-plan-screen").then((m) => ({ default: m.FloorPlanScreen as ComponentType }))));
 const Lazy__dashboard_settings_billing = settingsLazy(() => import("@/components/settings/restaurant-billing-panel").then((m) => ({ default: m.RestaurantBillingPanel as ComponentType })));
 const Lazy__dashboard_settings_api = settingsLazy(() => import("@/components/settings/restaurant-api-keys-panel").then((m) => ({ default: m.RestaurantApiKeysPanel as ComponentType })));
-const Lazy__dashboard_settings_dashboard = settingsLazy(() => import("@/components/settings/dashboard-shortcuts-panel").then((m) => ({ default: m.DashboardShortcutsPanel as ComponentType })));
+const Lazy__dashboard_settings_dashboard = settingsLazy(() => import("../routes/settings-dashboard-route").then((m) => ({ default: m.SettingsDashboardRoute as ComponentType })));
 const Lazy__dashboard_settings_displays = settingsLazy(() => import("@/components/settings/restaurant-displays-panel").then((m) => ({ default: m.RestaurantDisplaysPanel as ComponentType })));
 const Lazy__dashboard_settings_integrations = settingsLazy(() => import("../routes/settings-integrationen-route").then((m) => ({ default: m.SettingsIntegrationenRoute as ComponentType })));
 const Lazy__dashboard_settings_opening_hours_embed = settingsLazy(() => import("@/components/settings/opening-hours-embed-panel").then((m) => ({ default: m.OpeningHoursEmbedPanel as ComponentType })));
@@ -131,9 +131,8 @@ const Lazy__dashboard_changelog = changelogLazy(() => import("@/components/chang
 const Lazy__dashboard_staff_work_hours_fix = staffLazy(() => import("@/components/staff/staff-labor-compliance-screen").then((m) => ({ default: m.StaffLaborComplianceScreen as ComponentType })));
 const Lazy__dashboard_staff_work_hours_payroll = staffLazy(() => import("@/components/staff/staff-payroll-settlement-screen").then((m) => ({ default: m.StaffPayrollSettlementScreen as ComponentType })));
 const Lazy__dashboard_tasks_mine = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-meine-screen").then((m) => ({ default: m.AufgabenMeineScreen as ComponentType }))));
-const Lazy__dashboard_tasks_messages = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-nachrichten-screen").then((m) => ({ default: m.AufgabenNachrichtenScreen as ComponentType }))));
 const Lazy__dashboard_tasks_guides = lazy(moduleSubpageLazy("checklisten", () => import("@/components/guides/guides-screen").then((m) => ({ default: m.GuidesScreen as ComponentType }))));
-const Lazy__dashboard_settings_online_ordering = settingsLazy(() => import("@/components/pos/pos-settings-online-ordering-screen").then((m) => ({ default: m.PosSettingsOnlineOrderingScreen as ComponentType })));
+const Lazy__dashboard_pos_settings_online_ordering = posLazy(() => import("@/components/pos/pos-settings-online-ordering-screen").then((m) => ({ default: m.PosSettingsOnlineOrderingScreen as ComponentType })));
 
 export type DashboardRouteEntry = {
   path: string;
@@ -271,9 +270,9 @@ export const DASHBOARD_ROUTE_ENTRIES: DashboardRouteEntry[] = [
   { path: "/staff/work-hours/fix", fullPath: "/dashboard/staff/work-hours/fix", Lazy: Lazy__dashboard_staff_work_hours_fix },
   { path: "/staff/work-hours/payroll", fullPath: "/dashboard/staff/work-hours/payroll", Lazy: Lazy__dashboard_staff_work_hours_payroll },
   { path: "/tasks/mine", fullPath: "/dashboard/tasks/mine", Lazy: Lazy__dashboard_tasks_mine },
-  { path: "/tasks/messages", fullPath: "/dashboard/tasks/messages", Lazy: Lazy__dashboard_tasks_messages },
+  { path: "/tasks/messages", fullPath: "/dashboard/contacts/messages?mailbox=personal", redirect: "/dashboard/contacts/messages?mailbox=personal" },
   { path: "/tasks/guides", fullPath: "/dashboard/tasks/guides", Lazy: Lazy__dashboard_tasks_guides },
   { path: "/tasks/eigenkontrolle", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
-  { path: "/settings/online-ordering", fullPath: "/dashboard/settings/online-ordering", Lazy: Lazy__dashboard_settings_online_ordering },
-  { path: "/pos/settings/online-ordering", fullPath: "/dashboard/settings/online-ordering", redirect: "/dashboard/settings/online-ordering" },
+  { path: "/pos/settings/online-ordering", fullPath: "/dashboard/pos/settings/online-ordering", Lazy: Lazy__dashboard_pos_settings_online_ordering },
+  { path: "/settings/online-ordering", fullPath: "/dashboard/pos/settings/online-ordering", redirect: "/dashboard/pos/settings/online-ordering" },
 ];

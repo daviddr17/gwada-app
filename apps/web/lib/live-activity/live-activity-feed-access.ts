@@ -99,6 +99,11 @@ export function liveActivityPayloadVisibleToViewer(params: {
   shiftScope: "team" | "own";
   unrestricted: boolean;
 }): boolean {
+  // Private Notizen: nur Eigentümer — auch Inhaber/voller Zugriff nicht.
+  if (params.module === "personal_reminder") {
+    return payloadString(params.payload, "targetProfileId") === params.userId;
+  }
+
   if (params.unrestricted) return true;
 
   if (ROW_SCOPED_MODULES.has(params.module)) {

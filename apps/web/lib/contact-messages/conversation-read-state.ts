@@ -85,6 +85,12 @@ export function computeConversationUnread(params: {
   conversation: ConversationUnreadInput;
   /** Max `last_read_at` über alle Mitarbeiter mit Berechtigung. */
   communal_read_at?: string | null;
+  /**
+   * E-Mail (shared + personal): Gelesen/Ungelesen nur aus der persönlichen
+   * `contact_conversation_reads`-Zeile — kein Team-Soft-Clear, kein shared
+   * IMAP/`external_seen`-Zähler.
+   */
+  personalReadOnly?: boolean;
 }): ConversationUnreadResult {
   if (isConversationMarkedUnread(params.read)) {
     const base =
@@ -95,6 +101,18 @@ export function computeConversationUnread(params: {
           : 1;
     return {
       unread_count: base,
+      is_unread: true,
+      unread_hint: "channel",
+    };
+  }
+
+  if (params.personalReadOnly) {
+    const personal = computePersonalGwadaUnread(params);
+    if (!personal.is_unread) {
+      return { unread_count: 0, is_unread: false, unread_hint: null };
+    }
+    return {
+      unread_count: personal.unread_count,
       is_unread: true,
       unread_hint: "channel",
     };

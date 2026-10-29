@@ -20,6 +20,17 @@ import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
 
+/** Fixed weekday gutter — labels must not shrink with fluid cells. */
+const WEEKDAY_GUTTER = "1.5rem";
+/** Below this, overflow-x scrolls instead of crushing tiles. */
+const CELL_MIN = "0.625rem";
+/**
+ * Soft ceiling so 7×aspect-square rows stay compact on wide cards.
+ * Grid uses `min(100%, maxWidth)` — fills the card until this size, then stops.
+ */
+const CELL_MAX = "0.875rem";
+const CELL_GAP = "3px";
+
 const STREAK_STALE_MS = 5 * 60_000;
 
 async function fetchLoginStreakSummary(): Promise<LoginStreakSummary> {
@@ -28,6 +39,13 @@ async function fetchLoginStreakSummary(): Promise<LoginStreakSummary> {
   const json = (await res.json()) as { data?: LoginStreakSummary };
   if (!json.data) throw new Error("streak_empty");
   return json.data;
+}
+
+function streakHeatmapTrackWidth(
+  weekCount: number,
+  cellSize: string,
+): string {
+  return `calc(${WEEKDAY_GUTTER} + ${weekCount} * ${cellSize} + ${weekCount} * ${CELL_GAP})`;
 }
 
 export function ProfileLoginStreakCard() {
@@ -48,6 +66,8 @@ export function ProfileLoginStreakCard() {
     [summary],
   );
 
+  const weekCount = columns.length;
+
   return (
     <Card className="border-border/50 shadow-card">
       <CardHeader className="pb-2">
@@ -64,45 +84,54 @@ export function ProfileLoginStreakCard() {
       <CardContent className="space-y-3">
         {loading ? (
           <div className="space-y-2" aria-busy="true">
-            <Skeleton className="h-8 w-32 rounded-lg" />
-            <Skeleton className="h-14 w-48 rounded-lg" />
+            <Skeleton className="h-12 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
           </div>
         ) : error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
         ) : summary ? (
           <>
-            <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
-              <div>
-                <p className="text-xl font-semibold tabular-nums tracking-tight">
-                  {summary.currentStreak}
-                  <span className="ml-1 text-sm font-medium text-muted-foreground">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="min-w-0 space-y-0.5">
+                <p className="flex min-w-0 items-baseline gap-1">
+                  <span className="truncate text-xl font-semibold tabular-nums tracking-tight sm:text-2xl">
+                    {summary.currentStreak}
+                  </span>
+                  <span className="shrink-0 text-xs font-medium text-muted-foreground">
                     {summary.currentStreak === 1 ? "Tag" : "Tage"}
                   </span>
                 </p>
-                <p className="text-xs text-muted-foreground">aktueller Streak</p>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <p>
-                  Rekord{" "}
-                  <span className="font-semibold tabular-nums text-foreground">
-                    {summary.longestStreak}
-                  </span>
+                <p className="text-xs leading-snug text-muted-foreground">
+                  aktuell
                 </p>
-                <p>
-                  Gesamt{" "}
-                  <span className="font-semibold tabular-nums text-foreground">
-                    {summary.totalDays}
-                  </span>
+              </div>
+              <div className="min-w-0 space-y-0.5">
+                <p className="truncate text-xl font-semibold tabular-nums tracking-tight sm:text-2xl">
+                  {summary.longestStreak}
+                </p>
+                <p className="text-xs leading-snug text-muted-foreground">
+                  Rekord
+                </p>
+              </div>
+              <div className="min-w-0 space-y-0.5">
+                <p className="truncate text-xl font-semibold tabular-nums tracking-tight sm:text-2xl">
+                  {summary.totalDays}
+                </p>
+                <p className="text-xs leading-snug text-muted-foreground">
+                  Gesamt
                 </p>
               </div>
             </div>
 
-            {columns.length > 0 ? (
-              <div className="overflow-x-auto">
+            {weekCount > 0 ? (
+              <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:thin]">
                 <div
-                  className="inline-grid gap-[2px]"
+                  className="grid"
                   style={{
-                    gridTemplateColumns: `1.25rem repeat(${columns.length}, 0.5rem)`,
+                    gap: CELL_GAP,
+                    gridTemplateColumns: `${WEEKDAY_GUTTER} repeat(${weekCount}, minmax(${CELL_MIN}, 1fr))`,
+                    width: `min(100%, ${streakHeatmapTrackWidth(weekCount, CELL_MAX)})`,
+                    minWidth: streakHeatmapTrackWidth(weekCount, CELL_MIN),
                   }}
                   role="img"
                   aria-label="Aktivitäts-Heatmap der letzten Wochen"
@@ -111,7 +140,7 @@ export function ProfileLoginStreakCard() {
                     <Fragment key={label}>
                       <span
                         className={cn(
-                          "flex h-2 items-center justify-end pr-0.5 text-[9px] font-medium leading-none text-muted-foreground",
+                          "flex items-center justify-end pr-1 text-[10px] font-medium leading-none text-muted-foreground",
                           rowIndex % 2 === 0 && "invisible",
                         )}
                       >
@@ -131,7 +160,7 @@ export function ProfileLoginStreakCard() {
                                   : cell.day
                             }
                             className={cn(
-                              "size-2 rounded-[2px]",
+                              "aspect-square w-full min-w-0 rounded-[2px] sm:rounded-[3px]",
                               empty
                                 ? "bg-transparent"
                                 : cell.active

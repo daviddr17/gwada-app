@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useState } from "react";
 import { EmailIntegrationCard } from "@/components/settings/email-integration-card";
+import { PersonalEmailIntegrationCard } from "@/components/settings/personal-email-integration-card";
 import { AppleBusinessConnectIntegrationCard } from "@/components/settings/apple-business-connect-integration-card";
 import { FacebookIntegrationCard } from "@/components/settings/facebook-integration-card";
 import { GoogleBusinessIntegrationCard } from "@/components/settings/google-business-integration-card";
@@ -98,7 +99,12 @@ function IntegrationenContent() {
           </Suspense>
         ) : null}
         {emailEnabled ? (
-          <EmailIntegrationCard key={emailReload} onSaved={onEmailSaved} />
+          <>
+            <EmailIntegrationCard key={emailReload} onSaved={onEmailSaved} />
+            <Suspense fallback={null}>
+              <PersonalEmailIntegrationCard key={`personal-${emailReload}`} />
+            </Suspense>
+          </>
         ) : null}
         {lexofficeEnabled ? <LexofficeIntegrationCard /> : null}
         {tripadvisorEnabled ? <TripadvisorIntegrationCard /> : null}

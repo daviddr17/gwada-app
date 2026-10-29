@@ -29,6 +29,10 @@ export type ContactInboundInsertRow = {
   replyToExternalSourceId?: string | null;
   /** Quote/Reply: Text-Snapshot der zitierten Nachricht. */
   replyToBody?: string | null;
+  /**
+   * null/omit = shared Kontakt mailbox; set = private personal mailbox of that user.
+   */
+  mailboxOwnerUserId?: string | null;
 };
 
 export type ContactInboundInsertResult = {
@@ -89,6 +93,9 @@ export async function insertContactMessageIfNew(
         : {}),
       ...(row.replyToBody
         ? { reply_to_body: row.replyToBody.slice(0, 2000) }
+        : {}),
+      ...(row.mailboxOwnerUserId
+        ? { mailbox_owner_user_id: row.mailboxOwnerUserId }
         : {}),
     })
     .select("id")

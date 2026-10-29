@@ -229,6 +229,6 @@ export function buildOutlookMailboxConfig(params: {
 }
 
 export {
-  encodeOAuthState as encodeOutlookOAuthState,
-  decodeOAuthState as decodeOutlookOAuthState,
-} from "@/lib/integrations/meta-oauth-shared";
+  encodeEmailOAuthState as encodeOutlookOAuthState,
+  decodeEmailOAuthState as decodeOutlookOAuthState,
+} from "@/lib/integrations/email-oauth-state";

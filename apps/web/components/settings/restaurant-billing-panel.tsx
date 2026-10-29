@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, CreditCard, Infinity as InfinityIcon, Loader2 } from "lucide-react";
+import { Check, CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { BillingComparisonTable } from "@/components/billing/billing-comparison-table";
 import { RestaurantBillingInvoices } from "@/components/billing/restaurant-billing-invoices";
@@ -120,27 +120,6 @@ export function RestaurantBillingPanel() {
     entitlements?.source === "complimentary" ||
     entitlements?.source === "legacy";
 
-  const heroBits = useMemo(
-    () => [
-      {
-        icon: InfinityIcon,
-        title: "Keine Seat-Fees in Pro",
-        text: "Unbegrenzte Logins ab Pro. Free: 1 registrierter Nutzer, Basic: maximal 3.",
-      },
-      {
-        icon: InfinityIcon,
-        title: "Unbegrenzte Reservierungen",
-        text: "Kein Monatskontingent — auch im Free-Plan.",
-      },
-      {
-        icon: InfinityIcon,
-        title: "Unbegrenzte Speisen",
-        text: "Kategorien und Gerichte ohne künstliche Deckel.",
-      },
-    ],
-    [],
-  );
-
   async function startCheckout(planId: Exclude<BillingPlanId, "free">) {
     if (!restaurantId || !canManage) return;
     setBusyPlan(planId);
@@ -249,11 +228,13 @@ export function RestaurantBillingPanel() {
     return (
       <div className="space-y-4 pt-2">
         <SkeletonCardFrame className="h-28" />
+        <Skeleton className="h-10 w-48 rounded-full" />
         <div className="grid gap-3 md:grid-cols-3">
           <Skeleton className="h-48 rounded-xl" />
           <Skeleton className="h-48 rounded-xl" />
           <Skeleton className="h-48 rounded-xl" />
         </div>
+        <Skeleton className="h-40 rounded-xl" />
       </div>
     );
   }
@@ -272,58 +253,141 @@ export function RestaurantBillingPanel() {
   const pos = BILLING_ADDONS.pos;
   const posPrice = priceForInterval(pos.price, interval);
   const savings = yearlySavingsPercent(BILLING_PLANS.pro.price);
+  const currentCatalogPrice = priceForInterval(
+    BILLING_PLANS[currentPlan].price,
+    entitlements?.interval === "month" ? "month" : "year",
+  );
+  const showGratisPrice = lockedManual || currentCatalogPrice === 0;
+  const activeIntervalLabel =
+    entitlements?.interval === "month" ? "monatlich" : "jährlich";
 
   return (
     <div className="space-y-6 pt-2">
-      <Card className="overflow-hidden border-border/50 shadow-card">
+      <Card className="border-border/50 shadow-card">
         <CardHeader className="space-y-3 pb-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="rounded-full">
-              {BILLING_PLANS[currentPlan].name}
-            </Badge>
-            {entitlements ? (
-              <Badge variant="outline" className="rounded-full">
-                {planStatusLabel(entitlements.status, entitlements.source)}
-              </Badge>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              <CardTitle className="text-lg font-semibold tracking-tight">
+                Aktueller Plan
+              </CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="rounded-full">
+                  {BILLING_PLANS[currentPlan].name}
+                </Badge>
+                {entitlements ? (
+                  <Badge variant="outline" className="rounded-full">
+                    {planStatusLabel(entitlements.status, entitlements.source)}
+                  </Badge>
+                ) : null}
+                {entitlements?.addons.includes("pos") ? (
+                  <Badge className="rounded-full">POS aktiv</Badge>
+                ) : null}
+                {entitlements?.cancelAtPeriodEnd ? (
+                  <Badge variant="outline" className="rounded-full">
+                    Kündigung zum Periodenende
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+            {managedMollie && !entitlements?.cancelAtPeriodEnd ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0 rounded-full"
+                disabled={cancelBusy}
+                onClick={() => void setCancelAtPeriodEnd(true)}
+              >
+                {cancelBusy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CreditCard className="size-4" />
+                )}
+                Abo kündigen
+              </Button>
             ) : null}
-            {entitlements?.addons.includes("pos") ? (
-              <Badge className="rounded-full">POS aktiv</Badge>
-            ) : null}
-            {entitlements?.cancelAtPeriodEnd ? (
-              <Badge variant="outline" className="rounded-full">
-                Kündigung zum Periodenende
-              </Badge>
+            {managedMollie && entitlements?.cancelAtPeriodEnd ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0 rounded-full"
+                disabled={cancelBusy}
+                onClick={() => void setCancelAtPeriodEnd(false)}
+              >
+                {cancelBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                Kündigung zurücknehmen
+              </Button>
             ) : null}
           </div>
-          <CardTitle className="text-lg font-semibold tracking-tight">
-            Zahlt für Power — nicht für Köpfe
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Andere Tools rechnen pro Mitarbeiter und Reservierung. Gwada nicht:
-            unbegrenzte Reservierungen und Speisen in jedem Plan; Nutzer unbegrenzt
-            ab Pro (Free: 1 Login, Basic: 3). Ihr upgradet für Module, nicht für Volumen.
-            {entitlements?.currentPeriodEnd && managedMollie ? (
-              <>
-                {" "}
-                Laufzeit bis {formatBillingDate(entitlements.currentPeriodEnd)}
-                {entitlements.interval === "year" ? " (jährlich)" : " (monatlich)"}.
-              </>
-            ) : null}
-          </p>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-3">
-          {heroBits.map((bit) => (
-            <div
-              key={bit.title}
-              className="rounded-xl border border-border/50 bg-muted/20 px-3 py-3"
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            {showGratisPrice ? (
+              <span className="text-2xl font-semibold tracking-tight">0€</span>
+            ) : (
+              <>
+                <span className="text-2xl font-semibold tracking-tight">
+                  {currentCatalogPrice}€
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  /Monat · {activeIntervalLabel}
+                </span>
+              </>
+            )}
+          </div>
+          <div className="space-y-1 text-sm text-muted-foreground">
+            {lockedManual ? (
+              <p>
+                {entitlements?.source === "legacy"
+                  ? "Kostenlos (Bestandsschutz) — kein Abo-Betrag."
+                  : "Kostenlos (Kulanz) — kein Abo-Betrag."}
+              </p>
+            ) : null}
+            {entitlements?.currentPeriodEnd && managedMollie ? (
+              <p>
+                Laufzeit bis {formatBillingDate(entitlements.currentPeriodEnd)}
+                {entitlements.cancelAtPeriodEnd
+                  ? ` — danach Free`
+                  : ` (${activeIntervalLabel})`}
+                .
+              </p>
+            ) : null}
+            {!lockedManual && !managedMollie && currentPlan === "free" ? (
+              <p>Kostenloser Einstieg — Upgrade unten wählen.</p>
+            ) : null}
+          </div>
+          {entitlements?.addons.includes("pos") ? (
+            <p className="text-sm text-foreground">
+              POS-Kasse ist für diesen Betrieb freigeschaltet.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              POS-Kasse: Coming soon
+              {posPrice > 0
+                ? ` · geplant ${posPrice}€/Monat${yearly ? " (jährlich)" : ""}`
+                : null}
+              .
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              render={<a href="#abo-plan-aendern" />}
             >
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <bit.icon className="size-4 text-primary" />
-                {bit.title}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{bit.text}</p>
-            </div>
-          ))}
+              Plan ändern
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              render={<a href="#abo-rechnungen" />}
+            >
+              Rechnungen
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -353,286 +417,213 @@ export function RestaurantBillingPanel() {
       ) : null}
 
       {managedMollie && entitlements?.cancelAtPeriodEnd ? (
-        <div className="flex flex-col gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm">
-            Abo endet am {formatBillingDate(entitlements.currentPeriodEnd)} — bis
-            dahin bleibt {BILLING_PLANS[currentPlan].name} aktiv, danach Free.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="shrink-0 rounded-full"
-            disabled={cancelBusy}
-            onClick={() => void setCancelAtPeriodEnd(false)}
-          >
-            {cancelBusy ? <Loader2 className="size-4 animate-spin" /> : null}
-            Kündigung zurücknehmen
-          </Button>
+        <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-sm">
+          Abo endet am {formatBillingDate(entitlements.currentPeriodEnd)} — bis
+          dahin bleibt {BILLING_PLANS[currentPlan].name} aktiv, danach Free.
         </div>
       ) : null}
 
       {lockedManual ? (
         <p className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-          Dieser Betrieb ist {entitlements?.source === "legacy" ? "im Bestandsschutz" : "komplimentär"}{" "}
+          Dieser Betrieb ist{" "}
+          {entitlements?.source === "legacy" ? "im Bestandsschutz" : "komplimentär"}{" "}
           freigeschaltet — Planwechsel läuft nicht über Mollie-Checkout.
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Label
-            htmlFor="billing-interval"
-            className={cn(
-              "text-sm",
-              !yearly ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
-            Monatlich
-          </Label>
-          <Switch
-            id="billing-interval"
-            checked={yearly}
-            onCheckedChange={(v) => setYearly(v === true)}
-          />
-          <Label
-            htmlFor="billing-interval"
-            className={cn(
-              "text-sm",
-              yearly ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
-            Jährlich
-            {savings != null ? (
-              <span className="ml-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-                −{savings}%
-              </span>
-            ) : null}
-          </Label>
-        </div>
-
-        {managedMollie ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-full"
-            disabled={cancelBusy || entitlements?.cancelAtPeriodEnd}
-            onClick={() => void setCancelAtPeriodEnd(true)}
-          >
-            {cancelBusy ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <CreditCard className="size-4" />
-            )}
-            Abo kündigen
-          </Button>
-        ) : null}
-      </div>
-
-      {entitlements?.addons.includes("pos") ? (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+      <section id="abo-plan-aendern" className="scroll-mt-24 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-medium">POS-Kasse</p>
-              <Badge className="rounded-full">Aktiv</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Native Kasse mit TSE ist für diesen Betrieb freigeschaltet.
+            <h3 className="text-base font-semibold tracking-tight">
+              Plan ändern
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Intervall wählen und auf Free, Basic oder Pro wechseln.
             </p>
           </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-medium">POS-Kasse</p>
-              <Badge variant="secondary" className="rounded-full text-[10px] font-semibold tracking-wide uppercase">
-                Coming soon
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Native Kasse mit TSE — noch nicht zubuchbar. Geplanter Preis{" "}
-              {posPrice}€/Monat{yearly ? " (jährlich)" : ""}.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {PLAN_ORDER.map((planId) => {
-          const plan = BILLING_PLANS[planId];
-          const price = priceForInterval(plan.price, interval);
-          const isCurrent = currentPlan === planId;
-          const busy = busyPlan === planId;
-          return (
-            <Card
-              key={planId}
+          <div className="flex items-center gap-3">
+            <Label
+              htmlFor="billing-interval"
               className={cn(
-                "flex flex-col border-border/50 shadow-card",
-                plan.highlight && "ring-2 ring-primary/25",
-                isCurrent && "border-primary/40",
+                "text-sm",
+                !yearly ? "text-foreground" : "text-muted-foreground",
               )}
             >
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-lg">{plan.name}</CardTitle>
-                  {isCurrent ? (
-                    <Badge variant="secondary" className="rounded-full">
-                      Aktuell
-                    </Badge>
-                  ) : plan.highlight ? (
-                    <Badge className="rounded-full">Empfohlen</Badge>
-                  ) : null}
-                </div>
-                <p className="text-sm text-muted-foreground">{plan.tagline}</p>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col gap-4">
-                <div className="flex items-baseline gap-1">
-                  {price === 0 || (lockedManual && isCurrent) ? (
-                    <span className="text-3xl font-semibold tracking-tight">
-                      0€
-                    </span>
-                  ) : (
-                    <>
+              Monatlich
+            </Label>
+            <Switch
+              id="billing-interval"
+              checked={yearly}
+              onCheckedChange={(v) => setYearly(v === true)}
+            />
+            <Label
+              htmlFor="billing-interval"
+              className={cn(
+                "text-sm",
+                yearly ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              Jährlich
+              {savings != null ? (
+                <span className="ml-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+                  −{savings}%
+                </span>
+              ) : null}
+            </Label>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          {PLAN_ORDER.map((planId) => {
+            const plan = BILLING_PLANS[planId];
+            const price = priceForInterval(plan.price, interval);
+            const isCurrent = currentPlan === planId;
+            const busy = busyPlan === planId;
+            return (
+              <Card
+                key={planId}
+                className={cn(
+                  "flex flex-col border-border/50 shadow-card",
+                  plan.highlight && "ring-2 ring-primary/25",
+                  isCurrent && "border-primary/40",
+                )}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-lg">{plan.name}</CardTitle>
+                    {isCurrent ? (
+                      <Badge variant="secondary" className="rounded-full">
+                        Aktuell
+                      </Badge>
+                    ) : plan.highlight ? (
+                      <Badge className="rounded-full">Empfohlen</Badge>
+                    ) : null}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{plan.tagline}</p>
+                </CardHeader>
+                <CardContent className="flex flex-1 flex-col gap-4">
+                  <div className="flex items-baseline gap-1">
+                    {price === 0 || (lockedManual && isCurrent) ? (
                       <span className="text-3xl font-semibold tracking-tight">
-                        {price}€
+                        0€
                       </span>
-                      <span className="text-sm text-muted-foreground">
-                        /Monat
-                        {yearly ? " · jährlich" : ""}
-                      </span>
-                    </>
-                  )}
-                </div>
-                {lockedManual && isCurrent ? (
-                  <p className="text-xs text-muted-foreground">
-                    {entitlements?.source === "legacy"
-                      ? "Kostenlos (Bestandsschutz) — kein Abo-Betrag."
-                      : "Kostenlos (Kulanz) — kein Abo-Betrag."}
-                  </p>
-                ) : null}
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  {plan.cardBullets.map((b) => (
-                    <li key={b} className="flex gap-2">
-                      <Check className="mt-0.5 size-4 shrink-0 text-primary" />
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-auto pt-2">
-                  {planId === "free" ? (
-                    managedMollie &&
-                    !entitlements?.cancelAtPeriodEnd &&
-                    !isCurrent ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full rounded-full"
-                        disabled={cancelBusy}
-                        onClick={() => void setCancelAtPeriodEnd(true)}
-                      >
-                        {cancelBusy ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : null}
-                        Zum Periodenende kündigen
-                      </Button>
                     ) : (
+                      <>
+                        <span className="text-3xl font-semibold tracking-tight">
+                          {price}€
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          /Monat
+                          {yearly ? " · jährlich" : ""}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {lockedManual && isCurrent ? (
+                    <p className="text-xs text-muted-foreground">
+                      {entitlements?.source === "legacy"
+                        ? "Kostenlos (Bestandsschutz) — kein Abo-Betrag."
+                        : "Kostenlos (Kulanz) — kein Abo-Betrag."}
+                    </p>
+                  ) : null}
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    {plan.cardBullets.map((b) => (
+                      <li key={b} className="flex gap-2">
+                        <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-auto pt-2">
+                    {planId === "free" ? (
+                      managedMollie &&
+                      !entitlements?.cancelAtPeriodEnd &&
+                      !isCurrent ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full rounded-full"
+                          disabled={cancelBusy}
+                          onClick={() => void setCancelAtPeriodEnd(true)}
+                        >
+                          {cancelBusy ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : null}
+                          Zum Periodenende kündigen
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full rounded-full"
+                          disabled
+                        >
+                          {isCurrent
+                            ? "Aktueller Plan"
+                            : entitlements?.cancelAtPeriodEnd
+                              ? "Danach Free"
+                              : "Immer inklusive"}
+                        </Button>
+                      )
+                    ) : lockedManual ? (
                       <Button
                         type="button"
                         variant="outline"
                         className="w-full rounded-full"
                         disabled
                       >
+                        {isCurrent ? "Aktueller Plan" : "Nicht über Stripe"}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        className={cn(
+                          "w-full",
+                          brandActionButtonRoundedClassName,
+                        )}
+                        disabled={busy || isCurrent || planChangeBlocked}
+                        onClick={() =>
+                          void choosePaidPlan(
+                            planId as Exclude<BillingPlanId, "free">,
+                          )
+                        }
+                      >
+                        {busy ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : null}
                         {isCurrent
                           ? "Aktueller Plan"
-                          : entitlements?.cancelAtPeriodEnd
-                            ? "Danach Free"
-                            : "Immer inklusive"}
+                          : planChangeBlocked
+                            ? "Zahlung klären"
+                            : managedMollie
+                              ? "Wechseln"
+                              : plan.cta}
                       </Button>
-                    )
-                  ) : lockedManual ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full rounded-full"
-                      disabled
-                    >
-                      {isCurrent ? "Aktueller Plan" : "Nicht über Stripe"}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      className={cn(
-                        "w-full",
-                        brandActionButtonRoundedClassName,
-                      )}
-                      disabled={busy || isCurrent || planChangeBlocked}
-                      onClick={() =>
-                        void choosePaidPlan(
-                          planId as Exclude<BillingPlanId, "free">,
-                        )
-                      }
-                    >
-                      {busy ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : null}
-                      {isCurrent
-                        ? "Aktueller Plan"
-                        : planChangeBlocked
-                          ? "Zahlung klären"
-                          : managedMollie
-                            ? "Wechseln"
-                            : plan.cta}
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
 
-      <Card className="border-border/50 shadow-card">
-        <CardHeader className="space-y-1 pb-2">
-          <CardTitle className="text-base">
-            In {BILLING_PLANS[currentPlan].name} enthalten
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Kurzüberblick für euren aktuellen Plan — die volle Matrix steht
-            darunter.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {BILLING_PLANS[currentPlan].cardBullets.map((b) => (
-              <li key={b} className="flex gap-2 text-sm text-muted-foreground">
-                <Check className="mt-0.5 size-4 shrink-0 text-primary" />
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
-          {entitlements?.addons.includes("pos") ? (
-            <p className="mt-4 text-sm text-foreground">
-              Zusätzlich aktiv: <span className="font-medium">POS-Add-on</span>{" "}
-              (Kasse, TSE, Quittungen).
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <RestaurantBillingInvoices
-        restaurantId={restaurantId}
-        hasStripeCustomer={Boolean(entitlements?.mollieCustomerId)}
-        reloadToken={invoiceReload}
-      />
+      <section id="abo-rechnungen" className="scroll-mt-24">
+        <RestaurantBillingInvoices
+          restaurantId={restaurantId}
+          hasStripeCustomer={Boolean(entitlements?.mollieCustomerId)}
+          reloadToken={invoiceReload}
+        />
+      </section>
 
       <Card className="border-border/50 shadow-card" id="abo-vergleich">
         <CardHeader className="space-y-1 pb-2">
           <CardTitle className="text-base">
-            Was ist wann inklusive?
+            Planvergleich
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Free · Basic · Pro im Vergleich. Speisen und Reservierungen ohne Limit.
-            Registrierte Nutzer: 1 in Free, 3 in Basic, unbegrenzt in Pro.
+            Free · Basic · Pro im Überblick — Speisen und Reservierungen ohne
+            Limit. Registrierte Nutzer: 1 in Free, 3 in Basic, unbegrenzt in Pro.
           </p>
         </CardHeader>
         <CardContent>

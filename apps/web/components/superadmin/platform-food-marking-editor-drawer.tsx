@@ -153,7 +153,7 @@ export function PlatformFoodMarkingEditorDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className={drawerContentClassName}>
+        <DrawerContent className={drawerContentClassName("form")}>
           <DrawerHeader className={drawerFormHeaderClassName}>
             <DrawerTitle>
               {isEdit ? "Kennzeichnung bearbeiten" : "Neue Kennzeichnung"}

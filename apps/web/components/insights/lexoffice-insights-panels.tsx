@@ -30,7 +30,10 @@ import {
   formatAccountingMoney,
   type AccountingStatisticsResult,
 } from "@/lib/accounting/compute-accounting-statistics";
-import type { LexofficeInsightsSnapshot } from "@/lib/insights/compute-insights-statistics";
+import type {
+  InsightsVsPreviousPeriod,
+  LexofficeInsightsSnapshot,
+} from "@/lib/insights/compute-insights-statistics";
 
 const monthConfig = {
   count: { label: "Dokumente", color: "var(--accent)" },
@@ -68,8 +71,10 @@ function hasLexofficeDocuments(stats: AccountingStatisticsResult): boolean {
 
 export function LexofficeInsightsPanels({
   lexoffice,
+  trends,
 }: {
   lexoffice: LexofficeInsightsSnapshot;
+  trends?: InsightsVsPreviousPeriod["lexoffice"];
 }) {
   const stats = lexoffice.stats;
 
@@ -132,18 +137,21 @@ export function LexofficeInsightsPanels({
           icon={FileText}
           label="Rechnungen"
           value={String(stats.invoicesInPeriod)}
+          trendPercent={trends?.invoicesInPeriod}
           hint={`${stats.paidInvoicesInPeriod} bezahlt im Zeitraum`}
         />
         <KpiCard
           icon={FileText}
           label="Angebote"
           value={String(stats.quotationsInPeriod)}
+          trendPercent={trends?.quotationsInPeriod}
           hint="Im gewählten Zeitraum"
         />
         <KpiCard
           icon={Receipt}
           label="Belege"
           value={String(stats.vouchersInPeriod)}
+          trendPercent={trends?.vouchersInPeriod}
           hint={
             stats.voucherGrossInPeriod > 0
               ? formatAccountingMoney(stats.voucherGrossInPeriod)
@@ -167,12 +175,14 @@ export function LexofficeInsightsPanels({
           icon={Landmark}
           label="Rechnungsvolumen"
           value={formatAccountingMoney(stats.invoiceGrossInPeriod)}
+          trendPercent={trends?.invoiceGrossInPeriod}
           hint="Brutto im Zeitraum"
         />
         <KpiCard
           icon={Receipt}
           label="Belegvolumen"
           value={formatAccountingMoney(stats.voucherGrossInPeriod)}
+          trendPercent={trends?.voucherGrossInPeriod}
           hint={
             stats.topVoucherKind
               ? `Top Belegart: ${stats.topVoucherKind}`

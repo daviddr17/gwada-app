@@ -7,11 +7,20 @@ import {
   type InsightsStatsDays,
   type InsightsStatsPeriod,
   type InsightsStatisticsResult,
+  type InsightsVsPreviousPeriod,
 } from "@/lib/insights/compute-insights-statistics";
 import { fetchPlatformInsightsBundle } from "@/lib/insights/fetch-platform-insights-bundle";
 import { fetchRestaurantUsageInsights } from "@/lib/insights/fetch-restaurant-usage-insights";
+import {
+  insightsPercentChange,
+  insightsPreviousEqualYmdRange,
+  insightsRangeIsoFromYmd,
+} from "@/lib/insights/insights-period-trend";
 import { computeNewsStatistics } from "@/lib/news/compute-news-statistics";
-import { computeReservationStats } from "@/lib/reservations/compute-reservation-stats";
+import {
+  computeReservationStats,
+  isCountedReservation,
+} from "@/lib/reservations/compute-reservation-stats";
 import { computeReviewStatistics } from "@/lib/reviews/compute-review-statistics";
 import { readReviewsPlatformSyncState } from "@/lib/reviews/reviews-cache-db";
 import { reviewExternalId } from "@/lib/reviews/review-settings-types";
@@ -347,6 +356,76 @@ async function fetchContactBundleAdmin(
   return { messages, contacts, periodStart, periodEnd };
 }
 
+async function countReservationsInRange(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  restaurantId: string,
+  rangeStartIso: string,
+  rangeEndIso: string,
+): Promise<number> {
+  const { data, error } = await fetchAllSupabaseRows<Record<string, unknown>>(
+    async (from, to) =>
+      admin
+        .from("reservations")
+        .select(
+          `id, created_at, starts_at, party_size, ${RESERVATION_STATUS_EMBED} ( code, name, color_hex )`,
+        )
+        .eq("restaurant_id", restaurantId)
+        .gte("starts_at", rangeStartIso)
+        .lt("starts_at", rangeEndIso)
+        .order("starts_at", { ascending: true })
+        .range(from, to),
+  );
+  if (error) {
+    console.warn("insights previous reservations", error);
+    return 0;
+  }
+  const rows: ReservationAnalyticsRow[] = data.map((row) => {
+    const status = readReservationStatusEmbed(row);
+    return {
+      id: row.id as string,
+      created_at: row.created_at as string,
+      starts_at: row.starts_at as string,
+      party_size: row.party_size as number,
+      reservation_statuses:
+        status as ReservationAnalyticsRow["reservation_statuses"],
+    };
+  });
+  return rows.filter(isCountedReservation).length;
+}
+
+async function countGwadaMessagesInRange(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  restaurantId: string,
+  rangeStartIso: string,
+  rangeEndIso: string,
+): Promise<number> {
+  const { count, error } = await admin
+    .from("contact_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("restaurant_id", restaurantId)
+    .eq("platform", "gwada")
+    .gte("created_at", rangeStartIso)
+    .lt("created_at", rangeEndIso);
+  if (error) {
+    console.warn("insights previous messages", error.message);
+    return 0;
+  }
+  return count ?? 0;
+}
+
+function countPublishedNewsInRange(
+  items: UnifiedNewsItem[],
+  periodStart: Date,
+  periodEnd: Date,
+): number {
+  return items.filter((item) => {
+    if (item.status !== "published") return false;
+    const iso = item.publishedAt ?? item.createdAt;
+    const t = new Date(iso).getTime();
+    return t >= periodStart.getTime() && t <= periodEnd.getTime();
+  }).length;
+}
+
 async function fetchNewsItemsAdmin(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   restaurantId: string,
@@ -414,6 +493,12 @@ export async function fetchInsightsStatistics(
     endYmd,
   } = resolvePeriodInput(periodInput);
 
+  const previousYmd = insightsPreviousEqualYmdRange(startYmd, endYmd);
+  const previousRange = insightsRangeIsoFromYmd(
+    previousYmd.startYmd,
+    previousYmd.endYmd,
+  );
+
   const flags = await fetchPlatformMessagingFlags(sb);
 
   const [
@@ -428,6 +513,12 @@ export async function fetchInsightsStatistics(
     reviewSyncRows,
     lexofficeConfig,
     accountingBundleRes,
+    previousReservationsCount,
+    previousReviewsRes,
+    previousMessagesCount,
+    previousUsage,
+    previousPlatforms,
+    previousAccountingBundleRes,
   ] = await Promise.all([
     fetchGwadaReviewsOnly(
       admin,
@@ -474,6 +565,44 @@ export async function fetchInsightsStatistics(
           restaurantId,
           periodStart,
           periodEnd,
+        })
+      : Promise.resolve({ data: null, error: null }),
+    countReservationsInRange(
+      admin,
+      restaurantId,
+      previousRange.rangeStartIso,
+      previousRange.rangeEndIso,
+    ),
+    fetchGwadaReviewsOnly(
+      admin,
+      restaurantId,
+      previousRange.rangeStartIso,
+      previousRange.rangeEndIso,
+      previousRange.periodStart,
+      previousRange.periodEnd,
+    ),
+    countGwadaMessagesInRange(
+      admin,
+      restaurantId,
+      previousRange.rangeStartIso,
+      previousRange.rangeEndIso,
+    ),
+    fetchRestaurantUsageInsights({
+      restaurantId,
+      startYmd: previousYmd.startYmd,
+      endYmd: previousYmd.endYmd,
+    }),
+    fetchPlatformInsightsBundle({
+      restaurantId,
+      startYmd: previousYmd.startYmd,
+      endYmd: previousYmd.endYmd,
+      flags,
+    }),
+    flags.lexofficeEnabled
+      ? fetchAccountingStatisticsBundleWithClient(admin, {
+          restaurantId,
+          periodStart: previousRange.periodStart,
+          periodEnd: previousRange.periodEnd,
         })
       : Promise.resolve({ data: null, error: null }),
   ]);
@@ -540,6 +669,212 @@ export async function fetchInsightsStatistics(
     stats: lexofficeStats,
   };
 
+  const previousNewsPublished = countPublishedNewsInRange(
+    newsItems,
+    previousRange.periodStart,
+    previousRange.periodEnd,
+  );
+  const previousReviewsTotal = previousReviewsRes.data?.totalReviews ?? 0;
+  const previousLexofficeStats =
+    previousAccountingBundleRes.data && !previousAccountingBundleRes.error
+      ? computeLexofficeInsightsStatistics({
+          invoices: previousAccountingBundleRes.data.invoices,
+          quotations: previousAccountingBundleRes.data.quotations,
+          vouchers: previousAccountingBundleRes.data.vouchers,
+          cashEntries: previousAccountingBundleRes.data.cashEntries,
+          periodStart: previousAccountingBundleRes.data.periodStart,
+          periodEnd: previousAccountingBundleRes.data.periodEnd,
+        })
+      : null;
+
+  const vsPreviousPeriod: InsightsVsPreviousPeriod = {
+    previousStartYmd: previousYmd.startYmd,
+    previousEndYmd: previousYmd.endYmd,
+    reservations: insightsPercentChange(
+      reservations.totalInPeriod,
+      previousReservationsCount,
+    ),
+    reviews: insightsPercentChange(
+      gwadaReviewsRes.data.totalReviews,
+      previousReviewsTotal,
+    ),
+    messages: insightsPercentChange(
+      messages.totalMessages,
+      previousMessagesCount,
+    ),
+    news: insightsPercentChange(news.publishedInPeriod, previousNewsPublished),
+    usage: {
+      embedViews: insightsPercentChange(
+        usage.embedViews,
+        previousUsage.embedViews,
+      ),
+      apiRequests: insightsPercentChange(
+        usage.apiRequests,
+        previousUsage.apiRequests,
+      ),
+      profileViews: insightsPercentChange(
+        usage.profileViews,
+        previousUsage.profileViews,
+      ),
+      profileModuleOpens: insightsPercentChange(
+        usage.profileModuleOpens,
+        previousUsage.profileModuleOpens,
+      ),
+    },
+    google: {
+      impressions: insightsPercentChange(
+        platforms.google.impressions,
+        previousPlatforms.google.impressions,
+      ),
+      interactions: insightsPercentChange(
+        platforms.google.interactions,
+        previousPlatforms.google.interactions,
+      ),
+      searchImpressions: insightsPercentChange(
+        platforms.google.searchImpressions,
+        previousPlatforms.google.searchImpressions,
+      ),
+      mapsImpressions: insightsPercentChange(
+        platforms.google.mapsImpressions,
+        previousPlatforms.google.mapsImpressions,
+      ),
+      callClicks: insightsPercentChange(
+        platforms.google.callClicks,
+        previousPlatforms.google.callClicks,
+      ),
+      websiteClicks: insightsPercentChange(
+        platforms.google.websiteClicks,
+        previousPlatforms.google.websiteClicks,
+      ),
+      directionRequests: insightsPercentChange(
+        platforms.google.directionRequests,
+        previousPlatforms.google.directionRequests,
+      ),
+      conversations: insightsPercentChange(
+        platforms.google.conversations,
+        previousPlatforms.google.conversations,
+      ),
+      bookings: insightsPercentChange(
+        platforms.google.bookings,
+        previousPlatforms.google.bookings,
+      ),
+      menuClicks: insightsPercentChange(
+        platforms.google.menuClicks,
+        previousPlatforms.google.menuClicks,
+      ),
+      foodOrders: insightsPercentChange(
+        platforms.google.foodOrders,
+        previousPlatforms.google.foodOrders,
+      ),
+    },
+    facebook: {
+      reach: insightsPercentChange(
+        platforms.facebook.reach,
+        previousPlatforms.facebook.reach,
+      ),
+      impressions: insightsPercentChange(
+        platforms.facebook.impressions,
+        previousPlatforms.facebook.impressions,
+      ),
+      postEngagements: insightsPercentChange(
+        platforms.facebook.postEngagements,
+        previousPlatforms.facebook.postEngagements,
+      ),
+      pageViews: insightsPercentChange(
+        platforms.facebook.pageViews,
+        previousPlatforms.facebook.pageViews,
+      ),
+      followsUnique: insightsPercentChange(
+        platforms.facebook.followsUnique,
+        previousPlatforms.facebook.followsUnique,
+      ),
+      unfollowsUnique: insightsPercentChange(
+        platforms.facebook.unfollowsUnique,
+        previousPlatforms.facebook.unfollowsUnique,
+      ),
+      ctaClicks: insightsPercentChange(
+        platforms.facebook.ctaClicks,
+        previousPlatforms.facebook.ctaClicks,
+      ),
+      videoViews: insightsPercentChange(
+        platforms.facebook.videoViews,
+        previousPlatforms.facebook.videoViews,
+      ),
+    },
+    instagram: {
+      reach: insightsPercentChange(
+        platforms.instagram.reach,
+        previousPlatforms.instagram.reach,
+      ),
+      views: insightsPercentChange(
+        platforms.instagram.views,
+        previousPlatforms.instagram.views,
+      ),
+      totalInteractions: insightsPercentChange(
+        platforms.instagram.totalInteractions,
+        previousPlatforms.instagram.totalInteractions,
+      ),
+      accountsEngaged: insightsPercentChange(
+        platforms.instagram.accountsEngaged,
+        previousPlatforms.instagram.accountsEngaged,
+      ),
+      likes: insightsPercentChange(
+        platforms.instagram.likes,
+        previousPlatforms.instagram.likes,
+      ),
+      comments: insightsPercentChange(
+        platforms.instagram.comments,
+        previousPlatforms.instagram.comments,
+      ),
+      shares: insightsPercentChange(
+        platforms.instagram.shares,
+        previousPlatforms.instagram.shares,
+      ),
+      saves: insightsPercentChange(
+        platforms.instagram.saves,
+        previousPlatforms.instagram.saves,
+      ),
+      replies: insightsPercentChange(
+        platforms.instagram.replies,
+        previousPlatforms.instagram.replies,
+      ),
+      profileLinkTaps: insightsPercentChange(
+        platforms.instagram.profileLinkTaps,
+        previousPlatforms.instagram.profileLinkTaps,
+      ),
+      follows: insightsPercentChange(
+        platforms.instagram.follows,
+        previousPlatforms.instagram.follows,
+      ),
+      unfollows: insightsPercentChange(
+        platforms.instagram.unfollows,
+        previousPlatforms.instagram.unfollows,
+      ),
+    },
+    lexoffice: {
+      invoicesInPeriod: insightsPercentChange(
+        lexofficeStats?.invoicesInPeriod ?? 0,
+        previousLexofficeStats?.invoicesInPeriod ?? 0,
+      ),
+      quotationsInPeriod: insightsPercentChange(
+        lexofficeStats?.quotationsInPeriod ?? 0,
+        previousLexofficeStats?.quotationsInPeriod ?? 0,
+      ),
+      vouchersInPeriod: insightsPercentChange(
+        lexofficeStats?.vouchersInPeriod ?? 0,
+        previousLexofficeStats?.vouchersInPeriod ?? 0,
+      ),
+      invoiceGrossInPeriod: insightsPercentChange(
+        lexofficeStats?.invoiceGrossInPeriod ?? 0,
+        previousLexofficeStats?.invoiceGrossInPeriod ?? 0,
+      ),
+      voucherGrossInPeriod: insightsPercentChange(
+        lexofficeStats?.voucherGrossInPeriod ?? 0,
+        previousLexofficeStats?.voucherGrossInPeriod ?? 0,
+      ),
+    },
+  };
+
   return {
     data: computeInsightsStatistics({
       periodMode,
@@ -558,6 +893,7 @@ export async function fetchInsightsStatistics(
       platforms,
       tripadvisor,
       lexoffice,
+      vsPreviousPeriod,
     }),
     error: null,
   };

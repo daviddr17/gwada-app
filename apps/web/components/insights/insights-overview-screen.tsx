@@ -476,12 +476,14 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
               icon={CalendarDays}
               label="Reservierungen"
               value={String(data.reservations.totalInPeriod)}
+              trendPercent={data.vsPreviousPeriod?.reservations}
               hint={`${data.reservations.totalGuests} Gäste · Ø ${data.reservations.avgPartySize ?? "—"} Personen`}
             />
             <KpiCard
               icon={Star}
               label="Gwada-Bewertungen"
               value={String(data.reviews.totalReviews)}
+              trendPercent={data.vsPreviousPeriod?.reviews}
               hint={
                 data.reviews.averageRating != null
                   ? `Ø ${formatReviewRating(data.reviews.averageRating)} Sterne`
@@ -492,17 +494,22 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
               icon={MessageCircle}
               label="Gwada-Nachrichten"
               value={String(data.messages.totalMessages)}
+              trendPercent={data.vsPreviousPeriod?.messages}
               hint={`${data.messages.inboundCount} eingehend · ${data.messages.outboundCount} ausgehend`}
             />
             <KpiCard
               icon={Newspaper}
               label="Gwada-News"
               value={String(data.news.publishedInPeriod)}
+              trendPercent={data.vsPreviousPeriod?.news}
               hint="Veröffentlichte Beiträge in Gwada"
             />
           </div>
 
-          <GwadaUsageInsightsPanels usage={data.usage} />
+          <GwadaUsageInsightsPanels
+            usage={data.usage}
+            trends={data.vsPreviousPeriod?.usage}
+          />
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="min-w-0 border-border/50 shadow-card">
@@ -708,7 +715,10 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
 
       {!showInitialSkeleton && data && platform === "google_business" && google ? (
         <>
-          <GoogleInsightsPanels google={google} />
+          <GoogleInsightsPanels
+            google={google}
+            trends={data.vsPreviousPeriod?.google}
+          />
           <div className="grid gap-6 lg:grid-cols-2">
             <DayLineChart
               title="Google Aufrufe / Tag"
@@ -734,7 +744,10 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
 
       {!showInitialSkeleton && data && platform === "facebook" && facebook ? (
         <>
-          <FacebookInsightsPanels facebook={facebook} />
+          <FacebookInsightsPanels
+            facebook={facebook}
+            trends={data.vsPreviousPeriod?.facebook}
+          />
           <div className="grid gap-6 lg:grid-cols-2">
             <DayLineChart
               title="Facebook Reichweite / Tag"
@@ -761,7 +774,10 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
 
       {!showInitialSkeleton && data && platform === "instagram" && instagram ? (
         <>
-          <InstagramInsightsPanels instagram={instagram} />
+          <InstagramInsightsPanels
+            instagram={instagram}
+            trends={data.vsPreviousPeriod?.instagram}
+          />
           <div className="grid gap-6 lg:grid-cols-2">
             <DayLineChart
               title="Instagram Reichweite / Tag"
@@ -801,7 +817,10 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
       ) : null}
 
       {!showInitialSkeleton && data && platform === "lexoffice" ? (
-        <LexofficeInsightsPanels lexoffice={data.lexoffice} />
+        <LexofficeInsightsPanels
+          lexoffice={data.lexoffice}
+          trends={data.vsPreviousPeriod?.lexoffice}
+        />
       ) : null}
       </div>
     </div>

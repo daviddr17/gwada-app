@@ -53,6 +53,7 @@ export function peekInsightsOverviewCache(
     if (!raw) return null;
     const parsed = JSON.parse(raw) as InsightsOverviewCachePayload;
     if (!parsed.data?.periodStartYmd) return null;
+    if (!parsed.data.vsPreviousPeriod) return null;
     if (Date.now() - parsed.at > maxAgeMs) return null;
     memory.set(key, parsed);
     return parsed;

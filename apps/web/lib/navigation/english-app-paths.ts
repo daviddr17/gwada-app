@@ -57,6 +57,8 @@ export const APP_URL_SEGMENT_EN: Record<string, string> = {
   datenbank: "database",
   "lade-strategie": "load-strategy",
   vertragsvorlagen: "contract-templates",
+  kennzeichnungen: "food-markings",
+
   zahlungen: "payments",
   impressum: "imprint",
   datenschutz: "privacy",

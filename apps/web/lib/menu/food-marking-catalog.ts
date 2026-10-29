@@ -171,14 +171,12 @@ export function foodMarkingLabel(
   return `${m.shortLabel} · ${m.label}`;
 }
 
-/** Sortierung: Zusatzstoffe (Buchstaben) vor Allergenen (Zahlen). */
-export function sortFoodMarkingCodes(
+/** Sortierung gegen eine konkrete Definitionsliste (DB oder Seed). */
+export function sortFoodMarkingCodesAgainst(
   codes: readonly string[],
-  countryIso2: string | null | undefined,
+  definitions: readonly FoodMarkingDefinition[],
 ): string[] {
-  const order = new Map(
-    foodMarkingsForCountry(countryIso2).map((m, i) => [m.code, i]),
-  );
+  const order = new Map(definitions.map((m, i) => [m.code, i]));
   return [...new Set(codes.filter(Boolean))].sort((a, b) => {
     const ia = order.get(a);
     const ib = order.get(b);
@@ -188,6 +186,24 @@ export function sortFoodMarkingCodes(
     return a.localeCompare(b, "de");
   });
 }
+
+/** Sortierung: Zusatzstoffe (Buchstaben) vor Allergenen (Zahlen). */
+export function sortFoodMarkingCodes(
+  codes: readonly string[],
+  countryIso2: string | null | undefined,
+): string[] {
+  return sortFoodMarkingCodesAgainst(codes, foodMarkingsForCountry(countryIso2));
+}
+
+export function foodMarkingLabelFromDefinitions(
+  definitions: readonly FoodMarkingDefinition[],
+  code: string,
+): string {
+  const m = definitions.find((d) => d.code === code);
+  if (!m) return code;
+  return `${m.shortLabel} · ${m.label}`;
+}
+
 
 export function normalizeFoodMarkingCodes(
   raw: unknown,

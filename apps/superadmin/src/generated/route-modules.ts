@@ -216,6 +216,13 @@ const LazyVertragsvorlagen = chromeLazy(
   () =>
     import("@/app/(platform)/(app)/superadmin/vorlagen/vertragsvorlagen/page"),
 );
+const LazyKennzeichnungen = chromeLazy(
+  "Vorlagen",
+  "Superadmin Vorlagen",
+  SUPERADMIN_VORLAGEN_NAV,
+  () =>
+    import("@/app/(platform)/(app)/superadmin/vorlagen/kennzeichnungen/page"),
+);
 const LazyChangelog = chromeLazy(
   "Changelog",
   "Superadmin Changelog",
@@ -342,6 +349,11 @@ export const SUPERADMIN_ROUTE_ENTRIES: SuperadminRouteEntry[] = [
     path: "/templates/contract-templates",
     fullPath: "/superadmin/templates/contract-templates",
     Lazy: LazyVertragsvorlagen,
+  },
+  {
+    path: "/templates/food-markings",
+    fullPath: "/superadmin/templates/food-markings",
+    Lazy: LazyKennzeichnungen,
   },
   {
     path: "/contract-templates",

@@ -116,6 +116,8 @@ export async function renderPublishMedia(params: {
     feedLayout,
     feedPalette: kit.feedPalette,
     photoLook: kit.photoLook,
+    stylePreset: kit.stylePreset,
+    displayFont: kit.displayFont,
     overlayLine,
     formatId: feedFormat,
   });

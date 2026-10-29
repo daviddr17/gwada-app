@@ -11,6 +11,15 @@ import {
   type SocialFeedPalette,
   type SocialPhotoLook,
 } from "@/lib/social/social-feed-brand-system";
+import type { SocialStylePreset } from "@/lib/social/social-brand-kit";
+import {
+  brandAtelierBarMotifAt,
+  brandMotifSvg,
+  brandSoireeFrameSvg,
+  brandSoireeRuleMotifAt,
+  isSocialDisplayFontSerif,
+  type SocialDisplayFontId,
+} from "@/lib/social/social-brand-visual-system";
 import { overlayLineFromCaption } from "@/lib/social/social-caption-templates";
 import { loadSocialImageBuffer } from "@/lib/social/social-asset-resolve-server";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
@@ -31,7 +40,7 @@ const SIZE = 1080;
 const LOGO_MARK_SIZE = 96;
 const LOGO_RING = 4;
 
-const FONT_INTER =
+const FONT_INTER_SEMI =
   "/usr/share/fonts/truetype/macos/Inter-SemiBold.ttf";
 const FONT_INTER_BOLD =
   "/usr/share/fonts/truetype/macos/Inter-Bold.ttf";
@@ -39,27 +48,118 @@ const FONT_INTER_REG =
   "/usr/share/fonts/truetype/macos/Inter-Regular.ttf";
 const FONT_INTER_MED =
   "/usr/share/fonts/truetype/macos/Inter-Medium.ttf";
-const FONT_SERIF =
+const FONT_INTER_ITALIC =
+  "/usr/share/fonts/truetype/macos/Inter-Italic.ttf";
+const FONT_PUBLIC_BOLD =
+  "/usr/share/fonts/truetype/macos/PublicSans-Bold.ttf";
+const FONT_PUBLIC_REG =
+  "/usr/share/fonts/truetype/macos/PublicSans-Regular.ttf";
+const FONT_PUBLIC_ITALIC =
+  "/usr/share/fonts/truetype/macos/PublicSans-Italic.ttf";
+const FONT_NOTO_BOLD =
   "/usr/share/fonts/truetype/noto/NotoSerif-Bold.ttf";
-const FONT_SERIF_REG =
+const FONT_NOTO_REG =
   "/usr/share/fonts/truetype/noto/NotoSerif-Regular.ttf";
+const FONT_NOTO_ITALIC =
+  "/usr/share/fonts/truetype/noto/NotoSerif-Italic.ttf";
+const FONT_TINOS_BOLD =
+  "/usr/share/fonts/truetype/croscore/Tinos-Bold.ttf";
+const FONT_TINOS_REG =
+  "/usr/share/fonts/truetype/croscore/Tinos-Regular.ttf";
+const FONT_TINOS_ITALIC =
+  "/usr/share/fonts/truetype/croscore/Tinos-Italic.ttf";
+const FONT_ARIMO_BOLD =
+  "/usr/share/fonts/truetype/croscore/Arimo-Bold.ttf";
+const FONT_ARIMO_REG =
+  "/usr/share/fonts/truetype/croscore/Arimo-Regular.ttf";
+const FONT_ARIMO_ITALIC =
+  "/usr/share/fonts/truetype/croscore/Arimo-Italic.ttf";
 
-function fontFaceCss(): string {
-  const faces: Array<[string, string]> = [
-    ["GwadaInter", FONT_INTER_REG],
-    ["GwadaInterMed", FONT_INTER_MED],
-    ["GwadaInterSemi", FONT_INTER],
-    ["GwadaInterBold", FONT_INTER_BOLD],
-    ["GwadaSerif", FONT_SERIF_REG],
-    ["GwadaSerifBold", FONT_SERIF],
-  ];
-  return faces
-    .filter(([, path]) => existsSync(path))
-    .map(
-      ([family, path]) =>
-        `@font-face{font-family:'${family}';src:url('file://${path}');}`,
-    )
-    .join("");
+type BrandTypeKit = {
+  css: string;
+  /** Headline / restaurant name display face */
+  display: string;
+  displayItalic: string;
+  /** Tracked UI / CTA — Inter when display is serif */
+  ui: string;
+  support: string;
+};
+
+function faceCss(family: string, path: string): string {
+  if (!existsSync(path)) return "";
+  return `@font-face{font-family:'${family}';src:url('file://${path}');}`;
+}
+
+function brandTypeKit(displayFont: SocialDisplayFontId): BrandTypeKit {
+  const uiFaces =
+    faceCss("GwadaUi", FONT_INTER_REG) +
+    faceCss("GwadaUiMed", FONT_INTER_MED) +
+    faceCss("GwadaUiSemi", FONT_INTER_SEMI) +
+    faceCss("GwadaUiBold", FONT_INTER_BOLD);
+
+  let displayFaces = "";
+  let display = "GwadaDisplayBold, Georgia, serif";
+  let displayItalic = "GwadaDisplayItalic, Georgia, serif";
+  let ui = "GwadaUiSemi, Helvetica, sans-serif";
+  let support = "GwadaUiMed, Helvetica, sans-serif";
+
+  if (displayFont === "inter") {
+    displayFaces =
+      faceCss("GwadaDisplay", FONT_INTER_REG) +
+      faceCss("GwadaDisplayBold", FONT_INTER_BOLD) +
+      faceCss("GwadaDisplayItalic", FONT_INTER_ITALIC) +
+      faceCss("GwadaDisplaySemi", FONT_INTER_SEMI);
+    display = "GwadaDisplayBold, Helvetica, sans-serif";
+    displayItalic = "GwadaDisplayItalic, Helvetica, sans-serif";
+    ui = "GwadaDisplaySemi, Helvetica, sans-serif";
+    support = "GwadaUiMed, Helvetica, sans-serif";
+  } else if (displayFont === "public_sans") {
+    displayFaces =
+      faceCss("GwadaDisplay", FONT_PUBLIC_REG) +
+      faceCss("GwadaDisplayBold", FONT_PUBLIC_BOLD) +
+      faceCss("GwadaDisplayItalic", FONT_PUBLIC_ITALIC);
+    display = "GwadaDisplayBold, Helvetica, sans-serif";
+    displayItalic = "GwadaDisplayItalic, Helvetica, sans-serif";
+    ui = "GwadaDisplayBold, Helvetica, sans-serif";
+    support = "GwadaDisplay, Helvetica, sans-serif";
+  } else if (displayFont === "tinos") {
+    displayFaces =
+      faceCss("GwadaDisplay", FONT_TINOS_REG) +
+      faceCss("GwadaDisplayBold", FONT_TINOS_BOLD) +
+      faceCss("GwadaDisplayItalic", FONT_TINOS_ITALIC);
+    display = "GwadaDisplayBold, Georgia, serif";
+    displayItalic = "GwadaDisplayItalic, Georgia, serif";
+  } else if (displayFont === "arimo") {
+    displayFaces =
+      faceCss("GwadaDisplay", FONT_ARIMO_REG) +
+      faceCss("GwadaDisplayBold", FONT_ARIMO_BOLD) +
+      faceCss("GwadaDisplayItalic", FONT_ARIMO_ITALIC);
+    display = "GwadaDisplayBold, Helvetica, sans-serif";
+    displayItalic = "GwadaDisplayItalic, Helvetica, sans-serif";
+    ui = "GwadaDisplayBold, Helvetica, sans-serif";
+    support = "GwadaDisplay, Helvetica, sans-serif";
+  } else {
+    // noto_serif (default agency look)
+    displayFaces =
+      faceCss("GwadaDisplay", FONT_NOTO_REG) +
+      faceCss("GwadaDisplayBold", FONT_NOTO_BOLD) +
+      faceCss("GwadaDisplayItalic", FONT_NOTO_ITALIC);
+    display = "GwadaDisplayBold, Georgia, serif";
+    displayItalic = "GwadaDisplayItalic, Georgia, serif";
+  }
+
+  if (isSocialDisplayFontSerif(displayFont)) {
+    ui = "GwadaUiSemi, Helvetica, sans-serif";
+    support = "GwadaUiMed, Helvetica, sans-serif";
+  }
+
+  return {
+    css: uiFaces + displayFaces,
+    display,
+    displayItalic,
+    ui,
+    support,
+  };
 }
 
 function escapeXml(value: string): string {
@@ -202,20 +302,21 @@ function logoComposite(
   return [{ input: logo, top: 44, left: SIZE - LOGO_MARK_SIZE - 44 }];
 }
 
-function serifHeadlineSvg(params: {
+function displayHeadlineSvg(params: {
   lines: string[];
   x: number;
   startY: number;
   fill: string;
   fontSize: number;
   lineHeight: number;
+  fontFamily: string;
   anchor?: "start" | "middle";
 }): string {
   const anchor = params.anchor ?? "start";
   return params.lines
     .map((line, i) => {
       const y = params.startY + i * params.lineHeight;
-      return `<text x="${params.x}" y="${y}" ${anchor === "middle" ? 'text-anchor="middle"' : ""} fill="${params.fill}" font-size="${params.fontSize}" font-family="GwadaSerifBold, Georgia, serif">${escapeXml(line)}</text>`;
+      return `<text x="${params.x}" y="${y}" ${anchor === "middle" ? 'text-anchor="middle"' : ""} fill="${params.fill}" font-size="${params.fontSize}" font-family="${params.fontFamily}">${escapeXml(line)}</text>`;
     })
     .join("");
 }
@@ -227,6 +328,8 @@ function premiumEditorialOverlay(params: {
   title: string | null;
   captionLine: string;
   ctaLabel: string;
+  stylePreset: SocialStylePreset;
+  typeKit: BrandTypeKit;
 }): Buffer {
   const name = escapeXml(params.restaurantName.slice(0, 48).toUpperCase());
   const headline = layoutHeadline(
@@ -240,16 +343,22 @@ function premiumEditorialOverlay(params: {
   const accent = escapeXml(params.accent);
   const secondary = escapeXml(params.secondary ?? params.accent);
   const cta = escapeXml((params.ctaLabel.trim() || "Reservieren").slice(0, 28));
-  const css = fontFaceCss();
+  const { css, display, ui, support: supportFace } = params.typeKit;
   const headBlockH = headLines.length * 58;
   const supportStart = 792 + headBlockH + 8;
   const supports = supportLines
     .map(
       (line, i) =>
-        `<text x="64" y="${supportStart + i * 30}" fill="#ffffff" fill-opacity="0.86" font-size="23" font-family="GwadaInterMed, Helvetica, sans-serif">${line}</text>`,
+        `<text x="64" y="${supportStart + i * 30}" fill="#ffffff" fill-opacity="0.86" font-size="23" font-family="${supportFace}">${line}</text>`,
     )
     .join("");
   const ctaY = Math.min(1024, supportStart + supportLines.length * 30 + 36);
+  const motif = brandMotifSvg({
+    stylePreset: params.stylePreset,
+    accent,
+    secondary,
+    placement: "editorial_rule",
+  });
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
   <defs><style type="text/css"><![CDATA[${css}]]></style>
@@ -261,18 +370,18 @@ function premiumEditorialOverlay(params: {
     </linearGradient>
   </defs>
   <rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
-  <text x="64" y="742" fill="#ffffff" fill-opacity="0.72" font-size="13" letter-spacing="6" font-family="GwadaInterSemi, Helvetica, sans-serif">${name}</text>
-  <rect x="64" y="758" width="42" height="2.5" fill="${accent}"/>
-  <rect x="112" y="758" width="14" height="2.5" fill="${secondary}" fill-opacity="0.7"/>
-  ${serifHeadlineSvg({ lines: headLines, x: 64, startY: 820, fill: "#ffffff", fontSize: 54, lineHeight: 58 })}
+  <text x="64" y="742" fill="#ffffff" fill-opacity="0.72" font-size="13" letter-spacing="6" font-family="${ui}">${name}</text>
+  ${motif}
+  ${displayHeadlineSvg({ lines: headLines, x: 64, startY: 820, fill: "#ffffff", fontSize: 54, lineHeight: 58, fontFamily: display })}
   ${supports}
-  <text x="64" y="${ctaY}" fill="${accent}" font-size="20" letter-spacing="1" font-family="GwadaInterSemi, Helvetica, sans-serif">${cta} →</text>
+  <text x="64" y="${ctaY}" fill="${accent}" font-size="20" letter-spacing="1" font-family="${ui}">${cta} →</text>
 </svg>`;
   return Buffer.from(svg);
 }
 
 function premiumAtelierOverlay(params: {
   accent: string;
+  secondary: string | null;
   dark: string;
   light: string;
   restaurantName: string;
@@ -280,6 +389,8 @@ function premiumAtelierOverlay(params: {
   captionLine: string;
   ctaLabel: string;
   photoBandBottom: number;
+  stylePreset: SocialStylePreset;
+  typeKit: BrandTypeKit;
 }): Buffer {
   const name = escapeXml(params.restaurantName.slice(0, 42).toUpperCase());
   const headline = layoutHeadline(
@@ -291,12 +402,13 @@ function premiumAtelierOverlay(params: {
   const support = layoutSupportingLine(params.captionLine, headline);
   const supportLines = wrapLayoutLines(support, 36, 2).map(escapeXml);
   const accent = escapeXml(params.accent);
+  const secondary = escapeXml(params.secondary ?? params.accent);
   const dark = escapeXml(params.dark);
   const light = escapeXml(params.light);
   const cta = escapeXml(
     `${(params.ctaLabel.trim() || "Reservieren").slice(0, 28)} →`,
   );
-  const css = fontFaceCss();
+  const { css, display, ui, support: supportFace } = params.typeKit;
   const panelTop = params.photoBandBottom;
   const nameY = panelTop + 56;
   const headStart = nameY + 52;
@@ -304,19 +416,25 @@ function premiumAtelierOverlay(params: {
   const supports = supportLines
     .map(
       (line, i) =>
-        `<text x="64" y="${supportStart + i * 30}" fill="${light}" fill-opacity="0.78" font-size="22" font-family="GwadaInterMed, Helvetica, sans-serif">${line}</text>`,
+        `<text x="64" y="${supportStart + i * 30}" fill="${light}" fill-opacity="0.78" font-size="22" font-family="${supportFace}">${line}</text>`,
     )
     .join("");
   const ctaY = Math.min(SIZE - 48, supportStart + supportLines.length * 30 + 44);
+  const motif = brandAtelierBarMotifAt(
+    params.stylePreset,
+    accent,
+    secondary,
+    panelTop,
+  );
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
   <defs><style type="text/css"><![CDATA[${css}]]></style></defs>
   <rect x="0" y="${panelTop}" width="${SIZE}" height="${SIZE - panelTop}" fill="${dark}"/>
-  <rect x="64" y="${panelTop}" width="56" height="3" fill="${accent}"/>
-  <text x="64" y="${nameY}" fill="${light}" fill-opacity="0.58" font-size="13" letter-spacing="6" font-family="GwadaInterSemi, Helvetica, sans-serif">${name}</text>
-  ${serifHeadlineSvg({ lines: headLines, x: 64, startY: headStart, fill: light, fontSize: 46, lineHeight: 50 })}
+  ${motif}
+  <text x="64" y="${nameY}" fill="${light}" fill-opacity="0.58" font-size="13" letter-spacing="6" font-family="${ui}">${name}</text>
+  ${displayHeadlineSvg({ lines: headLines, x: 64, startY: headStart, fill: light, fontSize: 46, lineHeight: 50, fontFamily: display })}
   ${supports}
-  <text x="64" y="${ctaY}" fill="${accent}" font-size="21" letter-spacing="0.5" font-family="GwadaInterSemi, Helvetica, sans-serif">${cta}</text>
+  <text x="64" y="${ctaY}" fill="${accent}" font-size="21" letter-spacing="0.5" font-family="${ui}">${cta}</text>
 </svg>`;
   return Buffer.from(svg);
 }
@@ -329,6 +447,8 @@ function premiumSoireeOverlay(params: {
   title: string | null;
   captionLine: string;
   ctaLabel: string;
+  stylePreset: SocialStylePreset;
+  typeKit: BrandTypeKit;
 }): Buffer {
   const name = escapeXml(params.restaurantName.slice(0, 42).toUpperCase());
   const headline = layoutHeadline(
@@ -343,16 +463,27 @@ function premiumSoireeOverlay(params: {
   const secondary = escapeXml(params.secondary ?? params.accent);
   const light = escapeXml(params.light);
   const cta = escapeXml((params.ctaLabel.trim() || "Reservieren").slice(0, 28));
-  const css = fontFaceCss();
+  const { css, display, ui, support: supportFace } = params.typeKit;
   const headStart = 480;
   const supportStart = headStart + headLines.length * 62 + 24;
   const captions = supportLines
     .map(
       (line, i) =>
-        `<text x="540" y="${supportStart + i * 32}" text-anchor="middle" fill="${light}" fill-opacity="0.84" font-size="23" font-family="GwadaInterMed, Helvetica, sans-serif">${line}</text>`,
+        `<text x="540" y="${supportStart + i * 32}" text-anchor="middle" fill="${light}" fill-opacity="0.84" font-size="23" font-family="${supportFace}">${line}</text>`,
     )
     .join("");
   const ruleY = supportStart + supportLines.length * 32 + 28;
+  const frame = brandSoireeFrameSvg({
+    stylePreset: params.stylePreset,
+    accent,
+    secondary,
+  });
+  const rule = brandSoireeRuleMotifAt(
+    params.stylePreset,
+    accent,
+    secondary,
+    ruleY,
+  );
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
   <defs><style type="text/css"><![CDATA[${css}]]></style>
@@ -362,13 +493,12 @@ function premiumSoireeOverlay(params: {
     </linearGradient>
   </defs>
   <rect width="${SIZE}" height="${SIZE}" fill="url(#dim)"/>
-  <rect x="52" y="52" width="976" height="976" fill="none" stroke="${accent}" stroke-opacity="0.85" stroke-width="1.5"/>
-  <rect x="68" y="68" width="944" height="944" fill="none" stroke="${secondary}" stroke-opacity="0.3" stroke-width="1"/>
-  <text x="540" y="280" text-anchor="middle" fill="${light}" fill-opacity="0.68" font-size="14" letter-spacing="7" font-family="GwadaInterSemi, Helvetica, sans-serif">${name}</text>
-  ${serifHeadlineSvg({ lines: headLines, x: 540, startY: headStart, fill: light, fontSize: 56, lineHeight: 62, anchor: "middle" })}
+  ${frame}
+  <text x="540" y="280" text-anchor="middle" fill="${light}" fill-opacity="0.68" font-size="14" letter-spacing="7" font-family="${ui}">${name}</text>
+  ${displayHeadlineSvg({ lines: headLines, x: 540, startY: headStart, fill: light, fontSize: 56, lineHeight: 62, fontFamily: display, anchor: "middle" })}
   ${captions}
-  <rect x="492" y="${ruleY}" width="96" height="1.5" fill="${accent}"/>
-  <text x="540" y="${ruleY + 42}" text-anchor="middle" fill="${accent}" font-size="18" letter-spacing="1" font-family="GwadaInterSemi, Helvetica, sans-serif">${cta} →</text>
+  ${rule}
+  <text x="540" y="${ruleY + 42}" text-anchor="middle" fill="${accent}" font-size="18" letter-spacing="1" font-family="${ui}">${cta} →</text>
 </svg>`;
   return Buffer.from(svg);
 }
@@ -384,6 +514,8 @@ function premiumSignatureOverlay(params: {
   hasPhoto: boolean;
   hideMarkCircle: boolean;
   ctaLabel: string;
+  stylePreset: SocialStylePreset;
+  typeKit: BrandTypeKit;
 }): Buffer {
   const name = escapeXml(params.restaurantName.slice(0, 42));
   const headline = layoutHeadline(
@@ -402,22 +534,28 @@ function premiumSignatureOverlay(params: {
   const dark = escapeXml(params.dark);
   const light = escapeXml(params.light);
   const cta = escapeXml((params.ctaLabel.trim() || "Reservieren").slice(0, 28));
-  const css = fontFaceCss();
+  const { css, display, displayItalic, ui } = params.typeKit;
   const wash = params.hasPhoto
     ? `<rect width="${SIZE}" height="${SIZE}" fill="${light}" fill-opacity="0.94"/>`
     : `<rect width="${SIZE}" height="${SIZE}" fill="${light}"/>`;
   const mark = params.hideMarkCircle
     ? ""
     : `<circle cx="540" cy="316" r="44" fill="${secondary}" fill-opacity="0.18" stroke="${accent}" stroke-opacity="0.55" stroke-width="1.25"/>`;
+  const motif = brandMotifSvg({
+    stylePreset: params.stylePreset,
+    accent,
+    secondary,
+    placement: "signature_rule",
+  });
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
   <defs><style type="text/css"><![CDATA[${css}]]></style></defs>
   ${wash}
   ${mark}
-  <text x="540" y="460" text-anchor="middle" fill="${dark}" font-size="52" font-family="GwadaSerifBold, Georgia, serif">${name}</text>
-  <rect x="486" y="498" width="108" height="2" fill="${accent}"/>
-  <text x="540" y="580" text-anchor="middle" fill="${dark}" fill-opacity="0.88" font-size="28" font-style="italic" font-family="GwadaSerif, Georgia, serif">${line}</text>
-  <text x="540" y="700" text-anchor="middle" fill="${accent}" font-size="18" letter-spacing="1" font-family="GwadaInterSemi, Helvetica, sans-serif">${cta} →</text>
+  <text x="540" y="460" text-anchor="middle" fill="${dark}" font-size="52" font-family="${display}">${name}</text>
+  ${motif}
+  <text x="540" y="580" text-anchor="middle" fill="${dark}" fill-opacity="0.88" font-size="28" font-style="italic" font-family="${displayItalic}">${line}</text>
+  <text x="540" y="700" text-anchor="middle" fill="${accent}" font-size="18" letter-spacing="1" font-family="${ui}">${cta} →</text>
 </svg>`;
   return Buffer.from(svg);
 }
@@ -430,12 +568,15 @@ async function composeAtelierCanvas(params: {
   photoLook: SocialPhotoLook;
   dark: string;
   accent: string;
+  secondary: string | null;
   light: string;
   restaurantName: string;
   title: string | null;
   captionLine: string;
   ctaLabel: string;
   logoMark: Buffer | null;
+  stylePreset: SocialStylePreset;
+  typeKit: BrandTypeKit;
 }): Promise<Buffer> {
   const margin = 40;
   const photoH = Math.round(SIZE * 0.54);
@@ -459,6 +600,7 @@ async function composeAtelierCanvas(params: {
 
   const overlay = premiumAtelierOverlay({
     accent: params.accent,
+    secondary: params.secondary,
     dark: params.dark,
     light: params.light,
     restaurantName: params.restaurantName,
@@ -466,6 +608,8 @@ async function composeAtelierCanvas(params: {
     captionLine: params.captionLine,
     ctaLabel: params.ctaLabel,
     photoBandBottom: margin + photoH + 8,
+    stylePreset: params.stylePreset,
+    typeKit: params.typeKit,
   });
 
   return sharp(canvas)
@@ -484,6 +628,8 @@ async function renderPremiumFeedLayout(params: {
   feedLayout: SocialFeedLayoutId;
   feedPalette: SocialFeedPalette;
   photoLook: SocialPhotoLook;
+  stylePreset?: SocialStylePreset;
+  displayFont?: SocialDisplayFontId;
   restaurantName: string;
   title: string | null;
   caption: string;
@@ -503,6 +649,8 @@ async function renderPremiumFeedLayout(params: {
   const secondary = params.feedPalette.secondary
     ? (normalizeHex(params.feedPalette.secondary) ?? null)
     : null;
+  const stylePreset = params.stylePreset ?? "schlicht";
+  const typeKit = brandTypeKit(params.displayFont ?? "noto_serif");
   const captionLine =
     (params.overlayLine?.trim() ||
       overlayLineFromCaption(params.caption, { cta: params.ctaLabel })) ||
@@ -536,6 +684,8 @@ async function renderPremiumFeedLayout(params: {
       hasPhoto: Boolean(photo),
       hideMarkCircle: Boolean(logoMark),
       ctaLabel: params.ctaLabel,
+      stylePreset,
+      typeKit,
     });
     return sharp(base)
       .composite([
@@ -552,12 +702,15 @@ async function renderPremiumFeedLayout(params: {
       photoLook: params.photoLook,
       dark,
       accent,
+      secondary,
       light,
       restaurantName: params.restaurantName,
       title: params.title,
       captionLine,
       ctaLabel: params.ctaLabel,
       logoMark,
+      stylePreset,
+      typeKit,
     });
   }
 
@@ -572,6 +725,8 @@ async function renderPremiumFeedLayout(params: {
       title: params.title,
       captionLine,
       ctaLabel: params.ctaLabel,
+      stylePreset,
+      typeKit,
     });
     return sharp(base)
       .composite([
@@ -589,6 +744,8 @@ async function renderPremiumFeedLayout(params: {
     title: params.title,
     captionLine,
     ctaLabel: params.ctaLabel,
+    stylePreset,
+    typeKit,
   });
   return sharp(base)
     .composite([
@@ -606,6 +763,8 @@ export async function renderPremiumFeedLayoutFromBuffers(params: {
   feedLayout: SocialFeedLayoutId;
   feedPalette?: SocialFeedPalette;
   photoLook?: SocialPhotoLook;
+  stylePreset?: SocialStylePreset;
+  displayFont?: SocialDisplayFontId;
   restaurantName: string;
   title: string | null;
   caption: string;
@@ -624,6 +783,8 @@ export async function renderPremiumFeedLayoutFromBuffers(params: {
     ? (normalizeHex(kit.secondary) ?? null)
     : null;
   const photoLook = params.photoLook ?? "warm";
+  const stylePreset = params.stylePreset ?? "schlicht";
+  const typeKit = brandTypeKit(params.displayFont ?? "noto_serif");
   const cta = params.ctaLabel?.trim() || "Tisch reservieren";
   const captionLine =
     params.overlayLine?.trim() ||
@@ -639,12 +800,15 @@ export async function renderPremiumFeedLayoutFromBuffers(params: {
       photoLook,
       dark,
       accent,
+      secondary,
       light,
       restaurantName: params.restaurantName,
       title: params.title,
       captionLine,
       ctaLabel: cta,
       logoMark,
+      stylePreset,
+      typeKit,
     });
   }
 
@@ -662,6 +826,8 @@ export async function renderPremiumFeedLayoutFromBuffers(params: {
       hasPhoto: true,
       hideMarkCircle: Boolean(logoMark),
       ctaLabel: cta,
+      stylePreset,
+      typeKit,
     });
     return sharp(base)
       .composite([
@@ -681,6 +847,8 @@ export async function renderPremiumFeedLayoutFromBuffers(params: {
       title: params.title,
       captionLine,
       ctaLabel: cta,
+      stylePreset,
+      typeKit,
     });
     return sharp(base)
       .composite([
@@ -698,6 +866,8 @@ export async function renderPremiumFeedLayoutFromBuffers(params: {
     title: params.title,
     captionLine,
     ctaLabel: cta,
+    stylePreset,
+    typeKit,
   });
   return sharp(base)
     .composite([
@@ -721,6 +891,8 @@ export async function renderAndUploadSocialTemplate(params: {
   feedLayout: SocialFeedLayoutId;
   feedPalette?: SocialFeedPalette;
   photoLook?: SocialPhotoLook;
+  stylePreset?: SocialStylePreset;
+  displayFont?: SocialDisplayFontId;
   overlayLine?: string | null;
   /** Ohne LLM: Master croppen auf Plattform-Format. */
   formatId?: SocialMediaFormatId | null;
@@ -742,6 +914,8 @@ export async function renderAndUploadSocialTemplate(params: {
       feedLayout: params.feedLayout,
       feedPalette: params.feedPalette ?? DEFAULT_SOCIAL_FEED_PALETTE,
       photoLook: params.photoLook ?? "warm",
+      stylePreset: params.stylePreset,
+      displayFont: params.displayFont,
       restaurantName: params.restaurantName,
       title: params.title,
       caption: params.caption,

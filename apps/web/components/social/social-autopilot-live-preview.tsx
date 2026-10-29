@@ -62,6 +62,8 @@ export function SocialAutopilotLivePreview({
           feedLayout={layout}
           feedPalette={palette}
           photoLook={kit.photoLook}
+          stylePreset={kit.stylePreset}
+          displayFont={kit.displayFont}
           restaurantName={restaurantName}
           title={title}
           caption={caption}

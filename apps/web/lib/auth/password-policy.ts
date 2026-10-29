@@ -57,25 +57,41 @@ export function passwordMeetsPolicy(password: string): boolean {
   return req.lower && req.upper && req.digit && req.special;
 }
 
+/** 0–6: length (≥8, ≥12) + four character-class requirements. */
+export function getPasswordStrengthScore(password: string): number {
+  if (!password) return 0;
+  let score = 0;
+  if (password.length >= 8) score += 1;
+  if (password.length >= 12) score += 1;
+  const req = getPasswordRequirements(password);
+  score += Object.values(req).filter(Boolean).length;
+  return score;
+}
+
 export function getPasswordStrengthLevel(
   password: string,
 ): PasswordStrengthLevel {
-  if (!password) return "weak";
-  const req = getPasswordRequirements(password);
-  const met = Object.values(req).filter(Boolean).length;
-  if (met === 4 && password.length >= 10) return "strong";
-  if (met >= 3 && password.length >= 8) return "medium";
+  const score = getPasswordStrengthScore(password);
+  if (score >= 5) return "strong";
+  if (score >= 3) return "medium";
   return "weak";
 }
 
-export function passwordStrengthBarWidth(level: PasswordStrengthLevel): string {
+/** Smooth fill while typing (not only three hard steps). */
+export function passwordStrengthBarWidth(password: string): string {
+  if (!password) return "0%";
+  const score = Math.max(getPasswordStrengthScore(password), 1);
+  return `${Math.round((score / 6) * 100)}%`;
+}
+
+export function passwordStrengthLabel(level: PasswordStrengthLevel): string {
   switch (level) {
     case "strong":
-      return "100%";
+      return "Stark";
     case "medium":
-      return "66%";
+      return "Mittel";
     default:
-      return "33%";
+      return "Schwach";
   }
 }
 
@@ -86,8 +102,21 @@ export function passwordStrengthBarClassName(
     case "strong":
       return "bg-emerald-500";
     case "medium":
-      return "bg-yellow-500";
+      return "bg-amber-500";
     default:
       return "bg-destructive";
+  }
+}
+
+export function passwordStrengthLabelClassName(
+  level: PasswordStrengthLevel,
+): string {
+  switch (level) {
+    case "strong":
+      return "text-emerald-600 dark:text-emerald-400";
+    case "medium":
+      return "text-amber-600 dark:text-amber-400";
+    default:
+      return "text-destructive";
   }
 }

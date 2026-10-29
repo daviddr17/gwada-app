@@ -300,9 +300,6 @@ export function SocialAutopilotGenerateDrawer({
             className="min-h-24 rounded-xl"
             placeholder="z. B. Sonntagsbrunch bewerben, Sommerterrasse, neues Gericht …"
           />
-          <p className="text-xs text-muted-foreground">
-            Freitext optional — zusammen mit Speisekarte/Galerie und Stil.
-          </p>
         </div>
 
         {(cuesLoading || cues.length > 0) && (
@@ -410,9 +407,6 @@ export function SocialAutopilotGenerateDrawer({
               Ändern
             </span>
           </button>
-          <p className="text-xs text-muted-foreground">
-            {SOCIAL_MEDIA_FORMATS[sessionFormat]?.platformHint}
-          </p>
         </div>
 
         {aiConfigured === false ? (
@@ -547,11 +541,11 @@ export function SocialAutopilotGenerateDrawer({
             <DrawerTitle>
               {phase === "creating" ? "Einen Moment …" : "KI-Post"}
             </DrawerTitle>
-            <DrawerDescription>
-              {phase === "creating"
-                ? `${aiLabel} schreibt einen Post für euch.`
-                : "Vorgaben wählen — Generieren erstellt genau einen Entwurf."}
-            </DrawerDescription>
+            {phase === "creating" ? (
+              <DrawerDescription>
+                {aiLabel} schreibt einen Post für euch.
+              </DrawerDescription>
+            ) : null}
           </DrawerHeader>
           {mainBody}
         </DrawerContent>

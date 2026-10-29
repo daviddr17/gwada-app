@@ -3,6 +3,7 @@
 import { Code2, Eye, LayoutTemplate, MousePointerClick } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
+import type { InsightsVsPreviousPeriod } from "@/lib/insights/compute-insights-statistics";
 import type { RestaurantUsageInsights } from "@/lib/insights/restaurant-usage-constants";
 
 function BreakdownList({
@@ -45,8 +46,10 @@ function BreakdownList({
 /** First-party Gwada Usage (Embed / API / Profil) — keine Social-Impressions. */
 export function GwadaUsageInsightsPanels({
   usage,
+  trends,
 }: {
   usage: RestaurantUsageInsights;
+  trends?: InsightsVsPreviousPeriod["usage"];
 }) {
   return (
     <div className="space-y-4">
@@ -61,24 +64,28 @@ export function GwadaUsageInsightsPanels({
           icon={LayoutTemplate}
           label="Embed-Aufrufe"
           value={String(usage.embedViews)}
+          trendPercent={trends?.embedViews}
           hint="Widget-Ladevorgänge (Session-Dedup)"
         />
         <KpiCard
           icon={Code2}
           label="API-Anfragen"
           value={String(usage.apiRequests)}
+          trendPercent={trends?.apiRequests}
           hint="Erfolgreiche Restaurant-API-Calls"
         />
         <KpiCard
           icon={Eye}
           label="Profil-Aufrufe"
           value={String(usage.profileViews)}
+          trendPercent={trends?.profileViews}
           hint="Öffentliches Restaurant-Profil"
         />
         <KpiCard
           icon={MousePointerClick}
           label="Modul-Öffnungen"
           value={String(usage.profileModuleOpens)}
+          trendPercent={trends?.profileModuleOpens}
           hint="Apps im öffentlichen Profil"
         />
       </div>

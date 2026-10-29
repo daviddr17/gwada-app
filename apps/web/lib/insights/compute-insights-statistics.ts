@@ -11,6 +11,68 @@ export type LexofficeInsightsSnapshot = {
   stats: AccountingStatisticsResult | null;
 };
 
+/** Period-over-period % vs the previous equal-length range (`null` = no baseline). */
+export type InsightsMetricTrendPercent = number | null;
+
+export type InsightsVsPreviousPeriod = {
+  previousStartYmd: string;
+  previousEndYmd: string;
+  reservations: InsightsMetricTrendPercent;
+  reviews: InsightsMetricTrendPercent;
+  messages: InsightsMetricTrendPercent;
+  news: InsightsMetricTrendPercent;
+  usage: {
+    embedViews: InsightsMetricTrendPercent;
+    apiRequests: InsightsMetricTrendPercent;
+    profileViews: InsightsMetricTrendPercent;
+    profileModuleOpens: InsightsMetricTrendPercent;
+  };
+  google: {
+    impressions: InsightsMetricTrendPercent;
+    interactions: InsightsMetricTrendPercent;
+    searchImpressions: InsightsMetricTrendPercent;
+    mapsImpressions: InsightsMetricTrendPercent;
+    callClicks: InsightsMetricTrendPercent;
+    websiteClicks: InsightsMetricTrendPercent;
+    directionRequests: InsightsMetricTrendPercent;
+    conversations: InsightsMetricTrendPercent;
+    bookings: InsightsMetricTrendPercent;
+    menuClicks: InsightsMetricTrendPercent;
+    foodOrders: InsightsMetricTrendPercent;
+  };
+  facebook: {
+    reach: InsightsMetricTrendPercent;
+    impressions: InsightsMetricTrendPercent;
+    postEngagements: InsightsMetricTrendPercent;
+    pageViews: InsightsMetricTrendPercent;
+    followsUnique: InsightsMetricTrendPercent;
+    unfollowsUnique: InsightsMetricTrendPercent;
+    ctaClicks: InsightsMetricTrendPercent;
+    videoViews: InsightsMetricTrendPercent;
+  };
+  instagram: {
+    reach: InsightsMetricTrendPercent;
+    views: InsightsMetricTrendPercent;
+    totalInteractions: InsightsMetricTrendPercent;
+    accountsEngaged: InsightsMetricTrendPercent;
+    likes: InsightsMetricTrendPercent;
+    comments: InsightsMetricTrendPercent;
+    shares: InsightsMetricTrendPercent;
+    saves: InsightsMetricTrendPercent;
+    replies: InsightsMetricTrendPercent;
+    profileLinkTaps: InsightsMetricTrendPercent;
+    follows: InsightsMetricTrendPercent;
+    unfollows: InsightsMetricTrendPercent;
+  };
+  lexoffice: {
+    invoicesInPeriod: InsightsMetricTrendPercent;
+    quotationsInPeriod: InsightsMetricTrendPercent;
+    vouchersInPeriod: InsightsMetricTrendPercent;
+    invoiceGrossInPeriod: InsightsMetricTrendPercent;
+    voucherGrossInPeriod: InsightsMetricTrendPercent;
+  };
+};
+
 export type InsightsStatsPeriod = 3 | 6 | 12;
 
 /** Kurzzeitraum für Meta/Google (Meta API max. ~28 Tage). */
@@ -68,6 +130,8 @@ export type InsightsStatisticsResult = {
   };
   /** Lexoffice-Sync (Buchhaltung) — eigener Chip. */
   lexoffice: LexofficeInsightsSnapshot;
+  /** Colored PoP trends vs the previous equal-length selected range. */
+  vsPreviousPeriod: InsightsVsPreviousPeriod;
 };
 
 export function computeInsightsStatistics(input: {
@@ -87,6 +151,7 @@ export function computeInsightsStatistics(input: {
   platforms: PlatformInsightsBundle;
   tripadvisor: InsightsStatisticsResult["tripadvisor"];
   lexoffice: LexofficeInsightsSnapshot;
+  vsPreviousPeriod: InsightsVsPreviousPeriod;
 }): InsightsStatisticsResult {
   return {
     periodMode: input.periodMode,
@@ -128,5 +193,6 @@ export function computeInsightsStatistics(input: {
     platforms: input.platforms,
     tripadvisor: input.tripadvisor,
     lexoffice: input.lexoffice,
+    vsPreviousPeriod: input.vsPreviousPeriod,
   };
 }

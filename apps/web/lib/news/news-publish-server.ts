@@ -1,6 +1,9 @@
 import "server-only";
 
-import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import {
+  isNewsPlatform,
+  type NewsPlatform,
+} from "@/lib/constants/news-platforms";
 import { publishFacebookStory } from "@/lib/news/connectors/facebook-stories";
 import { publishInstagramStory } from "@/lib/news/connectors/instagram-stories";
 import { getNewsConnector } from "@/lib/news/connectors/registry";
@@ -345,6 +348,17 @@ export async function publishNewsPostToPlatforms(
       scheduledAt: null,
     };
 
+    await sb.from("gwada_news_publications").upsert(
+      {
+        post_id: params.postId,
+        restaurant_id: params.restaurantId,
+        platform,
+        status: "pending",
+        scheduled_at: null,
+      },
+      { onConflict: "post_id,platform" },
+    );
+
     if (platform === "gwada") {
       await sb
         .from("gwada_news_publications")
@@ -396,4 +410,158 @@ export async function publishNewsPostToPlatforms(
   }
 
   return { published, failed };
+}
+
+/**
+ * Bestehenden News-Entwurf (oder geplante Post) speichern und optional
+ * auf gewählte Kanäle veröffentlichen / planen.
+ */
+export async function publishOrScheduleExistingNewsDraft(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    postId: string;
+    title: string | null;
+    body: string;
+    media?: NewsMediaRow[];
+    platforms: NewsPlatform[];
+    scheduledAt?: string | null;
+    storyPlatforms?: NewsStoriesPlatform[];
+  },
+): Promise<
+  | { ok: true; postId: string; mode: "draft" | "scheduled" | "published" }
+  | { ok: false; error: string }
+> {
+  const { data: existing, error: loadError } = await sb
+    .from("gwada_news_posts")
+    .select("id, status, media")
+    .eq("id", params.postId)
+    .eq("restaurant_id", params.restaurantId)
+    .maybeSingle();
+  if (loadError) return { ok: false, error: loadError.message };
+  if (!existing) return { ok: false, error: "not_found" };
+
+  const status = String(existing.status ?? "");
+  if (status !== "draft" && status !== "scheduled") {
+    return { ok: false, error: "not_a_draft" };
+  }
+
+  const mediaRows =
+    params.media && params.media.length > 0
+      ? params.media
+      : parseNewsMedia(existing.media);
+  const mediaJson = mediaRows.map((m) => ({
+    id: m.id,
+    kind: m.kind,
+    storagePath: m.storagePath,
+    mimeType: m.mimeType,
+    sortOrder: m.sortOrder,
+    ...(m.width != null ? { width: m.width } : {}),
+    ...(m.height != null ? { height: m.height } : {}),
+  }));
+
+  const platforms =
+    params.platforms.length > 0
+      ? params.platforms
+      : (["gwada"] as NewsPlatform[]);
+  const isScheduled =
+    params.scheduledAt != null &&
+    new Date(params.scheduledAt).getTime() > Date.now() + 30_000;
+  const storyPlatforms = (params.storyPlatforms ?? []).filter(
+    isNewsStoriesPlatform,
+  );
+
+  const { error: updateError } = await sb
+    .from("gwada_news_posts")
+    .update({
+      title: params.title,
+      body: params.body,
+      media: mediaJson,
+      status: isScheduled ? "scheduled" : "draft",
+      scheduled_at: isScheduled ? params.scheduledAt : null,
+      story_platforms: storyPlatforms,
+      updated_by: params.userId,
+    })
+    .eq("id", params.postId)
+    .eq("restaurant_id", params.restaurantId);
+  if (updateError) return { ok: false, error: updateError.message };
+
+  if (isScheduled) {
+    for (const platform of platforms) {
+      await sb.from("gwada_news_publications").upsert(
+        {
+          post_id: params.postId,
+          restaurant_id: params.restaurantId,
+          platform,
+          status: "scheduled",
+          scheduled_at: params.scheduledAt,
+        },
+        { onConflict: "post_id,platform" },
+      );
+    }
+    return { ok: true, postId: params.postId, mode: "scheduled" };
+  }
+
+  const { published } = await publishNewsPostToPlatforms(sb, {
+    restaurantId: params.restaurantId,
+    postId: params.postId,
+    title: params.title,
+    body: params.body,
+    media: mediaJson,
+    platforms,
+  });
+
+  if (storyPlatforms.length > 0) {
+    const mediaUrls = await resolveNewsMediaSignedUrls(
+      mediaRows.map((m) => m.storagePath),
+    );
+    if (mediaUrls.length > 0) {
+      await publishNewsStories(
+        params.restaurantId,
+        storyPlatforms,
+        mediaUrls,
+        mediaRows.map((m) => m.kind),
+      );
+    }
+  }
+
+  const nextStatus = published > 0 ? "published" : "failed";
+  await sb
+    .from("gwada_news_posts")
+    .update({
+      status: nextStatus,
+      published_at:
+        nextStatus === "published" ? new Date().toISOString() : null,
+      updated_by: params.userId,
+    })
+    .eq("id", params.postId)
+    .eq("restaurant_id", params.restaurantId);
+
+  if (nextStatus !== "published") {
+    return { ok: false, error: "publish_failed" };
+  }
+  return { ok: true, postId: params.postId, mode: "published" };
+}
+
+/** Ziel-Kanäle eines Entwurfs aus Publication-Zeilen. */
+export async function listNewsDraftTargetPlatforms(
+  sb: SupabaseClient,
+  restaurantId: string,
+  postId: string,
+): Promise<NewsPlatform[]> {
+  const { data } = await sb
+    .from("gwada_news_publications")
+    .select("platform")
+    .eq("restaurant_id", restaurantId)
+    .eq("post_id", postId);
+  const out: NewsPlatform[] = [];
+  const seen = new Set<string>();
+  for (const row of data ?? []) {
+    const p = typeof row.platform === "string" ? row.platform : "";
+    if (!p || seen.has(p) || !isNewsPlatform(p)) continue;
+    seen.add(p);
+    out.push(p);
+  }
+  return out;
 }

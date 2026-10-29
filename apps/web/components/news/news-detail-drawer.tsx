@@ -9,6 +9,8 @@ import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-s
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Drawer,
@@ -21,8 +23,10 @@ import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import { FeedPinButton } from "@/components/feed-pin/feed-pin-button";
 import { NewsInsightsBadges } from "@/components/news/news-insights-badges";
+import { NewsPlatformChip } from "@/components/news/news-platform-filter-chips";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import {
+  isNewsPlatform,
   NEWS_PLATFORM_LABELS,
   type NewsPlatform,
 } from "@/lib/constants/news-platforms";
@@ -30,6 +34,7 @@ import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { formatNewsDetailDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABELS: Record<UnifiedNewsItem["status"], string> = {
@@ -54,6 +59,14 @@ function platformOpenUrl(
   return connector.externalEditBaseUrl;
 }
 
+function toDatetimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function NewsDetailDrawer({
   open,
   onOpenChange,
@@ -74,8 +87,15 @@ export function NewsDetailDrawer({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [platforms, setPlatforms] = useState<NewsPlatform[]>(["gwada"]);
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
   const mountContent = useDeferredDrawerMount(open);
+
+  const isDraftLike =
+    item?.status === "draft" || item?.status === "scheduled";
 
   const isGwadaEditable =
     canManage &&
@@ -87,12 +107,53 @@ export function NewsDetailDrawer({
     if (!open || !item) return;
     setTitle(item.title ?? "");
     setBody(item.body);
+    setScheduleEnabled(item.status === "scheduled" && Boolean(item.scheduledAt));
+    setScheduledAt(toDatetimeLocalValue(item.scheduledAt));
+    setPlatforms(["gwada"]);
   }, [open, item]);
+
+  useEffect(() => {
+    if (!open || !item?.postId || !isDraftLike || item.source !== "gwada") {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const qs = new URLSearchParams({ restaurantId });
+        const res = await fetch(
+          `/api/news/posts/${item.postId}?${qs.toString()}`,
+        );
+        const data = (await res.json().catch(() => ({}))) as {
+          platforms?: string[];
+          post?: { scheduledAt?: string | null };
+        };
+        if (cancelled || !res.ok) return;
+        const next = (data.platforms ?? [])
+          .filter((p): p is NewsPlatform => isNewsPlatform(p));
+        if (next.length > 0) setPlatforms(next);
+        if (data.post?.scheduledAt) {
+          setScheduleEnabled(true);
+          setScheduledAt(toDatetimeLocalValue(data.post.scheduledAt));
+        }
+      } catch {
+        /* keep defaults */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, item, restaurantId, isDraftLike]);
 
   const externalUrl = useMemo(
     () => (item ? platformOpenUrl(item, connectors) : null),
     [item, connectors],
   );
+
+  const togglePlatform = (key: NewsPlatform) => {
+    setPlatforms((prev) =>
+      prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key],
+    );
+  };
 
   const save = useCallback(async () => {
     if (!item?.postId || !body.trim()) {
@@ -112,15 +173,71 @@ export function NewsDetailDrawer({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "save_failed");
-      toast.success("News gespeichert.");
-      onOpenChange(false);
+      toast.success("Entwurf gespeichert.");
       onChanged();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
     } finally {
       setSaving(false);
     }
-  }, [item, body, title, restaurantId, onOpenChange, onChanged]);
+  }, [item, body, title, restaurantId, onChanged]);
+
+  const publish = useCallback(async () => {
+    if (!item?.postId || !body.trim()) {
+      toast.error("Bitte Text eingeben.");
+      return;
+    }
+    if (platforms.length === 0) {
+      toast.error("Bitte mindestens einen Kanal wählen.");
+      return;
+    }
+    if (scheduleEnabled && !scheduledAt.trim()) {
+      toast.error("Bitte Zeitpunkt für die Planung wählen.");
+      return;
+    }
+    setPublishing(true);
+    try {
+      const res = await fetch(`/api/news/posts/${item.postId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId,
+          title: title.trim() || null,
+          body: body.trim(),
+          platforms,
+          scheduledAt: scheduleEnabled
+            ? new Date(scheduledAt).toISOString()
+            : null,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        mode?: string;
+      };
+      if (!res.ok) throw new Error(data.error ?? "publish_failed");
+      toast.success(
+        data.mode === "scheduled" ? "News geplant." : "News veröffentlicht.",
+      );
+      onOpenChange(false);
+      onChanged();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Veröffentlichen fehlgeschlagen.",
+      );
+    } finally {
+      setPublishing(false);
+    }
+  }, [
+    item,
+    body,
+    title,
+    platforms,
+    scheduleEnabled,
+    scheduledAt,
+    restaurantId,
+    onOpenChange,
+    onChanged,
+  ]);
 
   const remove = useCallback(async () => {
     if (!item?.postId) return;
@@ -148,7 +265,7 @@ export function NewsDetailDrawer({
   const preview = item.media[0];
   const mediaSrc = preview?.url ?? preview?.thumbUrl ?? null;
   const platform = item.platform as NewsPlatform;
-  const pending = saving || deleting;
+  const pending = saving || publishing || deleting;
   const publishedLabel =
     item.status === "scheduled" && item.scheduledAt
       ? `Geplant · ${formatNewsDetailDate(item.scheduledAt)}`
@@ -230,6 +347,59 @@ export function NewsDetailDrawer({
                 )}
               </DrawerFormSection>
 
+              {isGwadaEditable && isDraftLike ? (
+                <>
+                  <DrawerFormSection contentPadding={4} title="Planen">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label
+                        htmlFor="news-draft-schedule"
+                        className="text-sm font-normal"
+                      >
+                        Später veröffentlichen
+                      </Label>
+                      <Switch
+                        id="news-draft-schedule"
+                        size="sm"
+                        checked={scheduleEnabled}
+                        onCheckedChange={(checked) => {
+                          const enabled = checked === true;
+                          setScheduleEnabled(enabled);
+                          if (!enabled) setScheduledAt("");
+                        }}
+                      />
+                    </div>
+                    {scheduleEnabled ? (
+                      <Input
+                        type="datetime-local"
+                        value={scheduledAt}
+                        onChange={(e) => setScheduledAt(e.target.value)}
+                        aria-label="Veröffentlichungszeitpunkt"
+                      />
+                    ) : null}
+                  </DrawerFormSection>
+
+                  <DrawerFormSection contentPadding={4} title="Plattformen">
+                    <div className="flex flex-wrap gap-2">
+                      {connectors.map((c) => {
+                        const disabled = c.key !== "gwada" && !c.connected;
+                        const selected = platforms.includes(c.key);
+                        return (
+                          <NewsPlatformChip
+                            key={c.key}
+                            platform={c.key}
+                            selected={selected}
+                            disabled={
+                              disabled || !c.capabilities.canCreatePost
+                            }
+                            onSelect={() => togglePlatform(c.key)}
+                          />
+                        );
+                      })}
+                    </div>
+                  </DrawerFormSection>
+                </>
+              ) : null}
+
               {item.insights ||
               externalUrl ||
               (item.source === "external" && !item.canEdit) ||
@@ -273,19 +443,59 @@ export function NewsDetailDrawer({
 
             {isGwadaEditable ? (
               <DrawerFooter className="border-t border-border/50 pt-2">
-                <DrawerFormFooter
-                  onCancel={() => onOpenChange(false)}
-                  cancelDisabled={pending}
-                  submitLabel="Speichern"
-                  submitPending={saving}
-                  submitDisabled={deleting}
-                  submitType="button"
-                  onSubmit={() => void save()}
-                  showDelete
-                  deleteLabel="Archivieren"
-                  deleteDisabled={pending}
-                  onDelete={() => void remove()}
-                />
+                {isDraftLike ? (
+                  <div className="flex w-full flex-col gap-3">
+                    <div className="flex gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-12 flex-1 rounded-xl"
+                        disabled={pending}
+                        onClick={() => void save()}
+                      >
+                        {saving ? "Speichern …" : "Als Entwurf"}
+                      </Button>
+                      <Button
+                        type="button"
+                        className={cn(
+                          "h-12 flex-1",
+                          brandActionButtonRoundedClassName,
+                        )}
+                        disabled={pending}
+                        onClick={() => void publish()}
+                      >
+                        {publishing
+                          ? "…"
+                          : scheduleEnabled
+                            ? "Planen"
+                            : "Veröffentlichen"}
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 w-full rounded-xl text-destructive"
+                      disabled={pending}
+                      onClick={() => void remove()}
+                    >
+                      Archivieren
+                    </Button>
+                  </div>
+                ) : (
+                  <DrawerFormFooter
+                    onCancel={() => onOpenChange(false)}
+                    cancelDisabled={pending}
+                    submitLabel="Speichern"
+                    submitPending={saving}
+                    submitDisabled={deleting}
+                    submitType="button"
+                    onSubmit={() => void save()}
+                    showDelete
+                    deleteLabel="Archivieren"
+                    deleteDisabled={pending}
+                    onDelete={() => void remove()}
+                  />
+                )}
               </DrawerFooter>
             ) : (
               <DrawerFooter className="border-t border-border/50 pt-2">

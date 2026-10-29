@@ -120,6 +120,17 @@ export function authorizeEmailRestaurantRoute(restaurantIdRaw: string | null) {
   });
 }
 
+/** Personal staff mailbox — any contacts reader may connect their own inbox. */
+export function authorizePersonalEmailRestaurantRoute(
+  restaurantIdRaw: string | null,
+) {
+  return authorizeRestaurantOAuthRoute({
+    restaurantIdRaw,
+    permission: "contacts.read",
+    assertPlatform: assertPlatformEmailEnabled,
+  });
+}
+
 export function authorizeMollieRestaurantRoute(restaurantIdRaw: string | null) {
   return authorizeRestaurantOAuthRoute({
     restaurantIdRaw,

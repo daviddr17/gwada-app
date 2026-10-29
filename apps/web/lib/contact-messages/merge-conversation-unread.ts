@@ -15,17 +15,20 @@ export function mergeUnreadIntoConversations(
   platform: ContactMessagePlatform,
   communalReads?: CommunalConversationReadMap,
 ): ContactConversationPreview[] {
+  const personalReadOnly = platform === "email";
   return conversations.map((c) => {
     const read = reads.get(
       conversationReadLookupKey(c.contact_id, platform),
     );
-    const communal_read_at = communalReads
-      ? communalReadAtForConversation(communalReads, c.contact_id, platform)
-      : null;
+    const communal_read_at =
+      personalReadOnly || !communalReads
+        ? null
+        : communalReadAtForConversation(communalReads, c.contact_id, platform);
     const { unread_count, is_unread, unread_hint } = computeConversationUnread({
       read,
       conversation: conversationUnreadInput(c, platform),
       communal_read_at,
+      personalReadOnly,
     });
     return {
       ...c,

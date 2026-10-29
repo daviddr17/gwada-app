@@ -1,4 +1,8 @@
 import {
+  parseSharedInboxAccess,
+  type SharedInboxAccessConfig,
+} from "@/lib/email/shared-inbox-access";
+import {
   smtpConfigFromJson,
   smtpConfigToPublic,
   type SmtpIntegrationConfig,
@@ -14,23 +18,47 @@ const EMAIL_KEY = "email" as const;
 
 export function parseRestaurantEmailSmtpConfig(
   raw: unknown,
-): SmtpIntegrationConfig {
-  return smtpConfigFromJson(raw);
+): SmtpIntegrationConfig & Record<string, unknown> {
+  const smtp = smtpConfigFromJson(raw);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return smtp;
+  const o = raw as Record<string, unknown>;
+  const access = parseSharedInboxAccess(o);
+  return {
+    ...smtp,
+    auth_mode:
+      o.auth_mode === "gmail_oauth" || o.auth_mode === "outlook_oauth"
+        ? o.auth_mode
+        : undefined,
+    granted_scopes: Array.isArray(o.granted_scopes)
+      ? o.granted_scopes.filter((s): s is string => typeof s === "string")
+      : undefined,
+    refresh_token:
+      typeof o.refresh_token === "string" ? o.refresh_token : undefined,
+    access_token:
+      typeof o.access_token === "string" ? o.access_token : undefined,
+    shared_inbox_access: access.access,
+    shared_inbox_user_ids: access.userIds,
+  };
 }
 
 export function emailIntegrationConfigToPublic(
   config: SmtpIntegrationConfig & {
     auth_mode?: "gmail_oauth" | "outlook_oauth";
     granted_scopes?: string[];
+    shared_inbox_access?: SharedInboxAccessConfig["access"];
+    shared_inbox_user_ids?: string[];
   },
 ): RestaurantEmailIntegrationConfig {
   const pub = smtpConfigToPublic(config);
+  const access = parseSharedInboxAccess(config);
   return {
     ...pub,
     from_email: config.email ?? config.from_email,
     from_name: config.from_name,
     auth_mode: config.auth_mode,
     granted_scopes: config.granted_scopes,
+    shared_inbox_access: access.access,
+    shared_inbox_user_ids: access.userIds,
   };
 }
 

@@ -106,7 +106,7 @@ export function ProfileDocumentsScreen() {
         documents={documents}
         allowUpload
         onUpload={handleUpload}
-        emptyMessage="Noch keine Dokumente — unterschriebene Arbeitsverträge erscheinen hier als PDF zum Download."
+        emptyMessage="Noch keine Dokumente — freigegebene Dokumente erscheinen hier als PDF zum Download."
       />
     </div>
   );

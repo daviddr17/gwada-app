@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertTriangle,
   Cake,
@@ -55,6 +56,10 @@ import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-per
 import { listStaffBirthdaysToday } from "@/lib/staff/staff-birthdays-today";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import { DASHBOARD_HOME } from "@/lib/navigation/app-routes";
+import {
+  DASHBOARD_METRIC_PRESS_SCALE,
+  DASHBOARD_WIDGET_PRESS_SPRING,
+} from "@/lib/ui/dashboard-widget-polish";
 import { cn } from "@/lib/utils";
 
 type HeuteActionTone = "attention" | "warning" | "birthday";
@@ -102,16 +107,14 @@ function HeuteSectionLabel({ children }: { children: ReactNode }) {
 }
 
 function HeuteActionRow({ item }: { item: HeuteActionItem }) {
-  return (
-    <button
-      type="button"
-      onClick={item.onClick}
-      className={cn(
-        "flex w-full min-h-12 items-stretch gap-2.5 rounded-xl border px-2.5 py-2.5 text-left transition-colors sm:min-h-14 sm:gap-3 sm:px-3 sm:py-3",
-        "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-        ACTION_TONE_SHELL[item.tone],
-      )}
-    >
+  const reduceMotion = useReducedMotion() ?? false;
+  const className = cn(
+    "flex w-full min-h-12 origin-center items-stretch gap-2.5 rounded-xl border px-2.5 py-2.5 text-left transition-colors sm:min-h-14 sm:gap-3 sm:px-3 sm:py-3",
+    "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+    ACTION_TONE_SHELL[item.tone],
+  );
+  const body = (
+    <>
       <span
         className={cn(
           "w-1 shrink-0 self-stretch rounded-full",
@@ -134,36 +137,74 @@ function HeuteActionRow({ item }: { item: HeuteActionItem }) {
         className="size-4 shrink-0 self-center text-muted-foreground/70"
         aria-hidden
       />
-    </button>
+    </>
+  );
+
+  if (reduceMotion) {
+    return (
+      <button type="button" onClick={item.onClick} className={className}>
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <motion.button
+      type="button"
+      onClick={item.onClick}
+      className={className}
+      whileTap={{ scale: DASHBOARD_METRIC_PRESS_SCALE }}
+      transition={DASHBOARD_WIDGET_PRESS_SPRING}
+    >
+      {body}
+    </motion.button>
   );
 }
 
 function HeuteLageTile({ item }: { item: HeuteLageItem }) {
-  return (
-    <button
-      type="button"
-      onClick={item.onClick}
-      className={cn(
-        "flex min-h-[4.75rem] w-full flex-col justify-between rounded-xl border border-border/50 bg-background/65 p-3 text-left transition-colors",
-        "hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-        "sm:min-h-[5.25rem] sm:p-3.5",
-        item.emphasize &&
-          "border-accent/40 bg-accent/[0.07] shadow-[inset_0_1px_0_0_color-mix(in_oklch,var(--accent)_20%,transparent)]",
-      )}
-    >
-      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+  const reduceMotion = useReducedMotion() ?? false;
+  const className = cn(
+    "flex min-h-[4.75rem] w-full origin-center flex-col justify-between rounded-xl border border-border/40 bg-background/70 p-3 text-left transition-colors",
+    "hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+    "sm:min-h-[5.25rem] sm:p-3.5",
+    item.emphasize &&
+      "border-accent/40 bg-accent/[0.07] shadow-[inset_0_1px_0_0_color-mix(in_oklch,var(--accent)_20%,transparent)]",
+  );
+  const body = (
+    <>
+      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         <span className="[&_svg]:size-3.5">{item.icon}</span>
         {item.label}
       </span>
       <span className="mt-2">
-        <span className="block text-xl font-semibold tabular-nums tracking-tight text-foreground sm:text-2xl">
+        <span className="block text-xl font-bold tabular-nums tracking-tight text-foreground sm:text-2xl">
           {item.value}
         </span>
         <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
           {item.meta}
         </span>
       </span>
-    </button>
+    </>
+  );
+
+  if (reduceMotion) {
+    return (
+      <button type="button" onClick={item.onClick} className={className}>
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <motion.button
+      type="button"
+      onClick={item.onClick}
+      className={className}
+      whileTap={{ scale: DASHBOARD_METRIC_PRESS_SCALE }}
+      transition={DASHBOARD_WIDGET_PRESS_SPRING}
+    >
+      {body}
+    </motion.button>
   );
 }
 
@@ -627,24 +668,25 @@ export function DashboardHeuteTile() {
   return (
     <DashboardWidgetShell
       title="Heute"
+      caption="Tagesüberblick"
       description={todayLabel}
       variant="compact"
-      cardClassName="border-border/40 shadow-sm"
+      emphasis="primary"
       background={
         <>
           <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/10 via-accent/8 to-transparent dark:from-amber-400/12 dark:via-accent/10"
+            className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-400/16 via-accent/10 to-sky-400/10 dark:from-amber-400/14 dark:via-accent/12 dark:to-sky-400/8"
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent"
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/55 to-transparent"
             aria-hidden
           />
         </>
       }
       icon={
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-300">
-          <Sun className="size-4" aria-hidden />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-300">
+          <Sun className="size-[1.125rem]" aria-hidden />
         </span>
       }
       ready={ready}

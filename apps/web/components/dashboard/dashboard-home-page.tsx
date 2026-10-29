@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { RefreshCw } from "lucide-react";
+import { LayoutGrid, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardAccountingTile } from "@/components/dashboard/dashboard-accounting-tile";
 import { DashboardChecklistsTile } from "@/components/dashboard/dashboard-checklists-tile";
@@ -36,6 +36,8 @@ import {
   dashboardWidgetMasonryMobileStackClassName,
   dashboardWidgetStackClassName,
 } from "@/lib/ui/dashboard-widget-masonry";
+import { dashboardWidgetSoftElevationClassName } from "@/lib/ui/dashboard-widget-polish";
+import { cn } from "@/lib/utils";
 
 function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   switch (id) {
@@ -116,14 +118,30 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
 
   if (permissionsError && !anyWidget) {
     return (
-      <div className="flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
-        <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-          Berechtigungen konnten gerade nicht geladen werden — oft nur kurz nach
-          einem Update. Bitte erneut versuchen.
-        </p>
+      <div
+        className={cn(
+          "flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 bg-card px-6 py-16 text-center",
+          dashboardWidgetSoftElevationClassName,
+        )}
+      >
+        <div
+          className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400/20 via-accent/12 to-sky-400/15 text-foreground"
+          aria-hidden
+        >
+          <RefreshCw className="size-6 opacity-80" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">
+            Berechtigungen nicht geladen
+          </h3>
+          <p className="mx-auto max-w-md text-sm text-muted-foreground sm:text-[0.9375rem]">
+            Oft nur kurz nach einem Update. Bitte erneut versuchen — danach
+            erscheinen deine Kacheln wieder.
+          </p>
+        </div>
         <Button
           type="button"
-          className="gap-2"
+          className="gap-2 rounded-full"
           onClick={() => void reloadPermissions()}
         >
           <RefreshCw className="size-4" aria-hidden />
@@ -135,17 +153,36 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
 
   if (!anyWidget) {
     return (
-      <div className="flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
-        <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-          Keine Kacheln sichtbar — entweder ausgeblendet oder ohne
-          Modulzugriff. Über das Raster-Icon oben kannst du sie anordnen.
-        </p>
+      <div
+        className={cn(
+          "flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 bg-card px-6 py-16 text-center",
+          dashboardWidgetSoftElevationClassName,
+        )}
+      >
+        <div
+          className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400/20 via-accent/12 to-sky-400/15 text-foreground"
+          aria-hidden
+        >
+          <LayoutGrid className="size-6 opacity-80" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">
+            Noch keine Kacheln
+          </h3>
+          <p className="mx-auto max-w-md text-sm text-muted-foreground sm:text-[0.9375rem]">
+            Blende Module ein oder ordne dein Dashboard — so siehst du Heute,
+            Reservierungen und mehr auf einen Blick.
+          </p>
+        </div>
         {onOpenArrange ? (
-          <Button type="button" onClick={onOpenArrange}>
+          <Button type="button" className="rounded-full" onClick={onOpenArrange}>
             Dashboard anordnen
           </Button>
         ) : (
-          <Button render={<AppNavLink href={APP_ROUTES.settings.dashboard} />}>
+          <Button
+            className="rounded-full"
+            render={<AppNavLink href={APP_ROUTES.settings.dashboard} />}
+          >
             Dashboard-Einstellungen
           </Button>
         )}

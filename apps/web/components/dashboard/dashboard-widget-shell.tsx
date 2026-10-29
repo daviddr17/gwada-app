@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -14,16 +15,36 @@ import {
 } from "@/components/ui/card";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { DashboardCompactMetricsSkeleton } from "@/components/dashboard/dashboard-compact-list";
+import {
+  DASHBOARD_WIDGET_PRESS_SCALE,
+  DASHBOARD_WIDGET_PRESS_SPRING,
+  dashboardWidgetPrimaryElevationClassName,
+  dashboardWidgetSoftElevationClassName,
+} from "@/lib/ui/dashboard-widget-polish";
 
 function DashboardWidgetSkeletonFrame({
   isCompact,
+  emphasis = "default",
 }: {
   isCompact: boolean;
+  emphasis?: "default" | "primary";
 }) {
   return (
-    <SkeletonCardFrame className="min-w-0 border-border/50 shadow-card">
+    <SkeletonCardFrame
+      className={cn(
+        "min-w-0",
+        emphasis === "primary"
+          ? dashboardWidgetPrimaryElevationClassName
+          : dashboardWidgetSoftElevationClassName,
+      )}
+    >
       <div className="flex items-center justify-between gap-2 pb-3">
-        <Skeleton className="h-5 w-32 rounded-md" />
+        <Skeleton
+          className={cn(
+            "rounded-md",
+            emphasis === "primary" ? "h-7 w-40" : "h-5 w-32",
+          )}
+        />
         <Skeleton className="size-8 rounded-lg" />
       </div>
       <DashboardCompactMetricsSkeleton count={isCompact ? 3 : 4} />
@@ -34,10 +55,12 @@ function DashboardWidgetSkeletonFrame({
 export function DashboardWidgetShell({
   title,
   description,
+  caption,
   icon,
   href,
   linkLabel = "Öffnen",
   variant = "compact",
+  emphasis = "default",
   background,
   ready,
   loading,
@@ -54,11 +77,15 @@ export function DashboardWidgetShell({
 }: {
   title: string;
   description?: string;
+  /** Kleine Overline über dem Titel (z. B. „Tagesüberblick“ bei Heute). */
+  caption?: string;
   icon?: ReactNode;
   /** Fehlt = reine Anzeige, kein Navigations-Pfeil. */
   href?: string;
   linkLabel?: string;
   variant?: "default" | "compact";
+  /** Primär = Heute-Hierarchie vs. Modul-Karten. */
+  emphasis?: "default" | "primary";
   /** Hintergrund über die gesamte Karte (z. B. Wetter-Ambience). */
   background?: ReactNode;
   ready: boolean;
@@ -72,23 +99,34 @@ export function DashboardWidgetShell({
   pressAriaLabel?: string;
 }) {
   const isCompact = variant === "compact";
+  const isPrimary = emphasis === "primary";
+  const reduceMotion = useReducedMotion() ?? false;
   const hasContent = children != null && children !== false;
   const showContentSkeleton = error == null && (loading || !hasContent);
 
   if (!staticChrome && !ready) {
-    return <DashboardWidgetSkeletonFrame isCompact={isCompact} />;
+    return (
+      <DashboardWidgetSkeletonFrame
+        isCompact={isCompact}
+        emphasis={emphasis}
+      />
+    );
   }
 
   const layered = Boolean(background);
   const interactive = Boolean(onPress);
+  const showDescription = Boolean(description) && (isPrimary || !isCompact);
 
-  return (
+  const card = (
     <Card
       className={cn(
-        "min-w-0 border-border/50 shadow-card",
+        "min-w-0",
+        isPrimary
+          ? dashboardWidgetPrimaryElevationClassName
+          : dashboardWidgetSoftElevationClassName,
         cardClassName,
         layered && "relative isolate overflow-hidden",
-        interactive && "cursor-pointer transition-colors hover:bg-muted/30",
+        interactive && "cursor-pointer hover:bg-muted/25",
       )}
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : undefined}
@@ -110,24 +148,39 @@ export function DashboardWidgetShell({
         className={cn(
           "shrink-0",
           isCompact
-            ? "flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3"
+            ? cn(
+                "flex flex-row items-start justify-between gap-2 space-y-0 px-4",
+                isPrimary ? "py-4" : "items-center py-3",
+              )
             : "flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0",
           layered && "relative z-10",
         )}
       >
-        <div className={isCompact ? "min-w-0" : "space-y-1"}>
+        <div className={cn("min-w-0", (isPrimary || !isCompact) && "space-y-1")}>
+          {caption ? (
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              {caption}
+            </p>
+          ) : null}
           <CardTitle
-            className={
-              isCompact
-                ? "flex items-center gap-2 text-base font-semibold"
-                : "flex items-center gap-2 text-lg"
-            }
+            className={cn(
+              "flex items-center gap-2 text-foreground",
+              isPrimary
+                ? "text-2xl font-bold tracking-tight sm:text-[1.75rem]"
+                : isCompact
+                  ? "text-[0.9375rem] font-semibold tracking-tight sm:text-base"
+                  : "text-lg font-semibold tracking-tight",
+            )}
           >
             {icon}
             {title}
           </CardTitle>
-          {!isCompact && description ? (
-            <CardDescription>{description}</CardDescription>
+          {showDescription ? (
+            <CardDescription
+              className={cn(isPrimary && "text-sm text-muted-foreground")}
+            >
+              {description}
+            </CardDescription>
           ) : null}
         </div>
         {href ? (
@@ -142,6 +195,7 @@ export function DashboardWidgetShell({
               isCompact
                 ? "size-8 shrink-0 rounded-lg text-muted-foreground"
                 : "h-9 shrink-0 gap-1 rounded-xl",
+              isPrimary && isCompact && "mt-0.5",
             )}
           >
             {isCompact ? (
@@ -163,6 +217,7 @@ export function DashboardWidgetShell({
               isCompact
                 ? "size-8 shrink-0 rounded-lg text-muted-foreground pointer-events-none"
                 : "h-9 shrink-0 gap-1 rounded-xl pointer-events-none",
+              isPrimary && isCompact && "mt-0.5",
             )}
             aria-hidden
           >
@@ -173,6 +228,7 @@ export function DashboardWidgetShell({
       <CardContent
         className={cn(
           isCompact ? "px-4 pb-4 pt-0" : "pt-0",
+          isPrimary && isCompact && "pb-5",
           layered && "relative z-10",
         )}
       >
@@ -191,5 +247,19 @@ export function DashboardWidgetShell({
         )}
       </CardContent>
     </Card>
+  );
+
+  if (!interactive || reduceMotion) {
+    return card;
+  }
+
+  return (
+    <motion.div
+      className="min-w-0 origin-center will-change-transform"
+      whileTap={{ scale: DASHBOARD_WIDGET_PRESS_SCALE }}
+      transition={DASHBOARD_WIDGET_PRESS_SPRING}
+    >
+      {card}
+    </motion.div>
   );
 }

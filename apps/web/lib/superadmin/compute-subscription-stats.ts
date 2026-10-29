@@ -1,7 +1,8 @@
 import {
-  catalogMonthlyEur,
+  billableCatalogMonthlyEur,
   formatEurFromCents,
 } from "@/lib/billing/billing-status-labels";
+import { isGratisBillingSource } from "@/lib/billing/gratis-billing";
 import {
   BILLING_PLANS,
   type BillingInterval,
@@ -99,15 +100,21 @@ export function computeSubscriptionStats(
 
     const countsForMrr =
       isPayingStatus(row.status) &&
-      row.source === "stripe" &&
-      planId !== "free";
+      (row.source === "mollie" || row.source === "stripe") &&
+      planId !== "free" &&
+      !isGratisBillingSource(row.source, row.status);
     if (countsForMrr) {
       payingCount += 1;
-      mrrEur += catalogMonthlyEur(
+      // billableCatalogMonthlyEur → Legacy/Complimentary bleiben 0 €
+      mrrEur += billableCatalogMonthlyEur(
         planId,
         asInterval(row.billing_interval),
         row.has_pos,
-        asInterval(row.pos_interval),
+        {
+          source: row.source,
+          status: row.status,
+          posInterval: asInterval(row.pos_interval),
+        },
       );
     }
   }

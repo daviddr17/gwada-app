@@ -7,6 +7,7 @@ import {
   type BillingInterval,
   type BillingPlanId,
 } from "@/lib/billing/plan-catalog";
+import { isGratisBillingSource } from "@/lib/billing/gratis-billing";
 import {
   billingSubscriptionDescription,
   billingSubscriptionInterval,
@@ -70,6 +71,9 @@ export async function createBillingCheckoutSession(
 
   await ensureRestaurantSubscriptionRow(input.restaurantId);
   const entitlements = await loadRestaurantEntitlements(input.restaurantId);
+  if (isGratisBillingSource(entitlements.source, entitlements.status)) {
+    return { ok: false, error: "manual_plan", status: 409 };
+  }
   const blockingStatuses = ["active", "trialing", "past_due", "unpaid"];
   if (
     entitlements.mollieSubscriptionId &&

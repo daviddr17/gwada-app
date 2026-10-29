@@ -13,11 +13,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  billableCatalogMonthlyEur,
   billingIntervalLabel,
   billingPlanLabel,
   billingSourceLabel,
   billingStatusLabel,
-  catalogMonthlyEur,
   formatEurFromCents,
 } from "@/lib/billing/billing-status-labels";
 import type { BillingInterval, BillingPlanId } from "@/lib/billing/plan-catalog";
@@ -112,8 +112,8 @@ export function SuperadminSubscriptionsScreen() {
   return (
     <div className="space-y-6 pt-2">
       <p className="text-sm text-muted-foreground">
-        Alle Restaurant-Abos (Mollie, Legacy, Complimentary). MRR-Schätzung
-        nutzt die Katalogpreise.
+        Alle Restaurant-Abos (Mollie, Legacy, Complimentary). MRR nutzt
+        Katalogpreise — Legacy und Complimentary zählen als 0&nbsp;€.
       </p>
 
       <SuperadminSearchToolbar
@@ -201,22 +201,34 @@ export function SuperadminSubscriptionsScreen() {
             header: "MRR",
             className: "text-right tabular-nums",
             sortValue: (r) =>
-              catalogMonthlyEur(
-                r.plan_id as BillingPlanId,
+              billableCatalogMonthlyEur(
+                (["free", "basic", "pro"].includes(r.plan_id)
+                  ? r.plan_id
+                  : "free") as BillingPlanId,
                 (r.billing_interval === "year"
                   ? "year"
                   : "month") as BillingInterval,
                 r.has_pos,
-                r.pos_interval === "year" ? "year" : "month",
+                {
+                  source: r.source,
+                  status: r.status,
+                  posInterval:
+                    r.pos_interval === "year" ? "year" : "month",
+                },
               ),
             cell: (r) => {
-              const eur = catalogMonthlyEur(
+              const eur = billableCatalogMonthlyEur(
                 (["free", "basic", "pro"].includes(r.plan_id)
                   ? r.plan_id
                   : "free") as BillingPlanId,
                 r.billing_interval === "year" ? "year" : "month",
                 r.has_pos,
-                r.pos_interval === "year" ? "year" : "month",
+                {
+                  source: r.source,
+                  status: r.status,
+                  posInterval:
+                    r.pos_interval === "year" ? "year" : "month",
+                },
               );
               return formatEurFromCents(Math.round(eur * 100));
             },

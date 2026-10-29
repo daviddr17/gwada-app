@@ -487,7 +487,7 @@ export function RestaurantBillingPanel() {
               </CardHeader>
               <CardContent className="flex flex-1 flex-col gap-4">
                 <div className="flex items-baseline gap-1">
-                  {price === 0 ? (
+                  {price === 0 || (lockedManual && isCurrent) ? (
                     <span className="text-3xl font-semibold tracking-tight">
                       0€
                     </span>
@@ -503,6 +503,13 @@ export function RestaurantBillingPanel() {
                     </>
                   )}
                 </div>
+                {lockedManual && isCurrent ? (
+                  <p className="text-xs text-muted-foreground">
+                    {entitlements?.source === "legacy"
+                      ? "Kostenlos (Bestandsschutz) — kein Abo-Betrag."
+                      : "Kostenlos (Kulanz) — kein Abo-Betrag."}
+                  </p>
+                ) : null}
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   {plan.cardBullets.map((b) => (
                     <li key={b} className="flex gap-2">

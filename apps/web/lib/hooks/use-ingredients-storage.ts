@@ -260,6 +260,12 @@ function normalizeIngredient(raw: Record<string, unknown>): Ingredient | null {
         ? null
         : undefined;
 
+  const markingCodes = Array.isArray(raw.markingCodes)
+    ? raw.markingCodes.filter(
+        (c): c is string => typeof c === "string" && c.trim().length > 0,
+      )
+    : undefined;
+
   return {
     id: raw.id,
     name: raw.name,
@@ -269,6 +275,7 @@ function normalizeIngredient(raw: Record<string, unknown>): Ingredient | null {
     purchaseUnitPrice,
     ...(articleNumber !== undefined ? { articleNumber } : {}),
     ...(imagePath !== undefined ? { imagePath } : {}),
+    ...(markingCodes !== undefined ? { markingCodes } : {}),
     lastPriceChangeAt:
       typeof raw.lastPriceChangeAt === "string" ? raw.lastPriceChangeAt : null,
     supplierId: raw.supplierId,

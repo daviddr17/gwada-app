@@ -25,6 +25,11 @@ export type Ingredient = {
   articleNumber?: string | null;
   /** Pfad im Bucket inventory-ingredient-images. */
   imagePath?: string | null;
+  /**
+   * Zusatzstoffe / Allergene (Codes der länderspezifischen Kennzeichnungsliste).
+   * Aggregation auf Gerichte über Rezept-Zutaten.
+   */
+  markingCodes?: string[];
   /** Letzte Preisänderung (aus Preishistorie, optional beim Laden). */
   lastPriceChangeAt?: string | null;
   supplierId: string;

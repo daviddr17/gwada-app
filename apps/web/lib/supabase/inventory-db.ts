@@ -674,7 +674,7 @@ export async function loadIngredientsRelational(
   const { data: ings, error: e1 } = await supabase
     .from("inventory_ingredients")
     .select(
-      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,article_number,image_path,supplier_id,category_id,production_site_id,brand_id,is_active",
+      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,article_number,image_path,marking_codes,supplier_id,category_id,production_site_id,brand_id,is_active",
     )
     .eq("restaurant_id", rid)
     .order("name", { ascending: true });
@@ -734,6 +734,7 @@ export async function loadIngredientsRelational(
         typeof o.image_path === "string" && o.image_path.trim()
           ? o.image_path.trim()
           : null,
+      markingCodes: parseMarkingCodesColumn(o.marking_codes),
       lastPriceChangeAt: lastPriceChangeByIng.get(o.id as string) ?? null,
       supplierId: o.supplier_id as string,
       categoryId: o.category_id as string,
@@ -742,6 +743,17 @@ export async function loadIngredientsRelational(
       active: (o.is_active as boolean) !== false,
       stockLog: byIng.get(o.id as string) ?? [],
     });
+  }
+  return out;
+}
+
+function parseMarkingCodesColumn(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const c = x.trim();
+    if (c && !out.includes(c)) out.push(c);
   }
   return out;
 }

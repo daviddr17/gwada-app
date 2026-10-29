@@ -29,6 +29,7 @@ type MenuItemRow = {
   category_id: string;
   available_from: string | null;
   available_to: string | null;
+  marking_codes: string[] | null;
   menu_item_tags: { tag_id: string }[] | null;
   menu_item_allergens: { allergen_id: string }[] | null;
   menu_item_recipe_lines:
@@ -38,6 +39,17 @@ type MenuItemRow = {
     | { option_group_id: string; sort_order: number }[]
     | null;
 };
+
+function parseMenuMarkingCodes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const c = x.trim();
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+}
 
 function rowToMenuItem(row: MenuItemRow): MenuItem {
   const tagIds = (row.menu_item_tags ?? []).map((x) => x.tag_id);
@@ -65,6 +77,7 @@ function rowToMenuItem(row: MenuItemRow): MenuItem {
     listNumber: row.list_number,
     recipe,
     optionGroupIds: optionLinks.map((x) => x.option_group_id),
+    markingCodes: parseMenuMarkingCodes(row.marking_codes),
     availableFrom: normalizeMenuAvailabilityYmd(row.available_from),
     availableTo: normalizeMenuAvailabilityYmd(row.available_to),
   };
@@ -532,7 +545,7 @@ export async function loadMenuItemsRelational(
     .select(
       `
       id, name, description, price, image_url, is_active, list_number, category_id,
-      available_from, available_to,
+      available_from, available_to, marking_codes,
       menu_item_tags(tag_id),
       menu_item_allergens(allergen_id),
       menu_item_recipe_lines(ingredient_id, amount),
@@ -566,6 +579,7 @@ export async function insertMenuItemRelational(item: MenuItem): Promise<boolean>
     list_number: item.listNumber ?? null,
     available_from: normalizeMenuAvailabilityYmd(item.availableFrom),
     available_to: normalizeMenuAvailabilityYmd(item.availableTo),
+    marking_codes: item.markingCodes ?? [],
   });
   if (error) {
     console.warn("[gwada] insert menu_items", error.message);
@@ -595,6 +609,7 @@ export async function updateMenuItemRelational(item: MenuItem): Promise<boolean>
       list_number: item.listNumber ?? null,
       available_from: normalizeMenuAvailabilityYmd(item.availableFrom),
       available_to: normalizeMenuAvailabilityYmd(item.availableTo),
+      marking_codes: item.markingCodes ?? [],
     })
     .eq("id", item.id);
   if (error) {

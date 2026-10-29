@@ -1,7 +1,12 @@
 "use client";
 
+import { motion, useReducedMotion } from "framer-motion";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DASHBOARD_METRIC_PRESS_SCALE,
+  DASHBOARD_WIDGET_PRESS_SPRING,
+} from "@/lib/ui/dashboard-widget-polish";
 import { STAFF_WORK_ENTRY_COLORS } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +49,7 @@ export function DashboardCompactList({
     <ul
       aria-label={ariaLabel}
       className={cn(
-        "overflow-hidden rounded-xl border border-border/50 divide-y divide-border/50",
+        "overflow-hidden rounded-xl border border-border/40 bg-muted/25 divide-y divide-border/40",
         className,
       )}
     >
@@ -132,6 +137,7 @@ export function DashboardCompactListItem({
   );
 }
 
+/** Soft-gruppierte Metrik-Liste (Apple-Settings-Stil) statt loser Pills. */
 export function DashboardCompactInlineMetrics({
   children,
   className,
@@ -142,7 +148,7 @@ export function DashboardCompactInlineMetrics({
   return (
     <div
       className={cn(
-        "flex flex-wrap gap-2",
+        "overflow-hidden rounded-xl bg-muted/35 divide-y divide-border/35 dark:bg-muted/25",
         className,
       )}
     >
@@ -171,50 +177,77 @@ export function DashboardCompactMetricPill({
   /** Vollständiger Label-Text (z. B. bei abgekürztem Pill-Label). */
   title?: string;
 }) {
-  const shellClass = cn(
-    "inline-flex min-w-0 rounded-lg border text-left",
-    highlight
-      ? "border-accent/35 bg-accent/8"
-      : "border-border/50 bg-muted/15",
-    (href || onClick) &&
-      "cursor-pointer transition-colors hover:border-accent/40 hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-  );
+  const reduceMotion = useReducedMotion() ?? false;
+  const interactive = Boolean(href || onClick);
 
   const content = (
     <div
       className={cn(
-        "flex items-stretch gap-2 py-1.5",
-        stripeVariant ? "pl-1.5 pr-2.5" : "px-2.5",
+        "flex w-full min-w-0 items-stretch gap-2.5 py-2.5",
+        stripeVariant ? "pl-2.5 pr-3.5" : "px-3.5",
       )}
     >
       {stripeVariant ? <DashboardCompactStripe variant={stripeVariant} /> : null}
-      <div className="flex min-w-0 flex-col">
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
           {icon ? <span className="shrink-0 [&_svg]:size-3.5">{icon}</span> : null}
           <span className="truncate" title={title}>
             {label}
           </span>
         </span>
-        <span className="text-sm font-semibold tabular-nums text-foreground">
+        <span className="text-[0.9375rem] font-semibold tabular-nums tracking-tight text-foreground sm:text-base">
           {value}
         </span>
       </div>
     </div>
   );
 
+  const shellClass = cn(
+    "block w-full min-w-0 text-left",
+    highlight ? "bg-accent/8" : "bg-transparent",
+    interactive &&
+      "cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
+  );
+
   if (onClick) {
+    if (reduceMotion) {
+      return (
+        <button type="button" onClick={onClick} className={shellClass}>
+          {content}
+        </button>
+      );
+    }
     return (
-      <button type="button" onClick={onClick} className={shellClass}>
+      <motion.button
+        type="button"
+        onClick={onClick}
+        className={shellClass}
+        whileTap={{ scale: DASHBOARD_METRIC_PRESS_SCALE }}
+        transition={DASHBOARD_WIDGET_PRESS_SPRING}
+      >
         {content}
-      </button>
+      </motion.button>
     );
   }
 
   if (href) {
+    if (reduceMotion) {
+      return (
+        <AppNavLink href={href} prefetch={false} className={shellClass}>
+          {content}
+        </AppNavLink>
+      );
+    }
     return (
-      <AppNavLink href={href} prefetch={false} className={shellClass}>
-        {content}
-      </AppNavLink>
+      <motion.div
+        className="origin-center will-change-transform"
+        whileTap={{ scale: DASHBOARD_METRIC_PRESS_SCALE }}
+        transition={DASHBOARD_WIDGET_PRESS_SPRING}
+      >
+        <AppNavLink href={href} prefetch={false} className={shellClass}>
+          {content}
+        </AppNavLink>
+      </motion.div>
     );
   }
 
@@ -223,7 +256,12 @@ export function DashboardCompactMetricPill({
 
 export function DashboardCompactMetricPillSkeleton() {
   return (
-    <Skeleton className="h-[2.625rem] w-[5.5rem] shrink-0 rounded-lg border border-border/50" />
+    <div className="flex w-full items-stretch gap-2.5 px-3.5 py-2.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <Skeleton className="h-2.5 w-16 rounded" />
+        <Skeleton className="h-4 w-10 rounded-md" />
+      </div>
+    </div>
   );
 }
 

@@ -66,7 +66,7 @@ export const speisekarteGuide: UserGuidePage = {
           ["Gericht aktiv", "Aus = Gericht wird nirgends angezeigt"],
           ["Anzeige von / bis", "Zeitlich begrenzte Sichtbarkeit (Saison, Aktion)"],
           ["Bild-URL", "Foto des Gerichts in Karten-Ansicht und Profil"],
-          ["Tags & Allergene", "Mehrfachauswahl aus Stammdaten"],
+          ["Tags", "Mehrfachauswahl aus Stammdaten"],
           ["Rezept", "Zutat + Einheit + Menge — verknüpft Bestand für Food-Cost"],
         ],
       },

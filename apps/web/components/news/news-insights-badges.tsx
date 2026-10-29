@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Heart, MessageCircle, Share2 } from "lucide-react";
+import { Eye, Heart, MessageCircle, Share2, Users } from "lucide-react";
 import type { NewsInsights } from "@/lib/news/unified-news-item";
 import { cn } from "@/lib/utils";
 
@@ -37,14 +37,20 @@ export function NewsInsightsBadges({
   insights: NewsInsights;
   className?: string;
 }) {
+  const hasReach = insights.reach != null;
   const hasLikes = insights.likes != null;
   const hasComments = insights.comments != null;
-  const hasViews = insights.views != null;
+  const hasViews = insights.views != null && insights.reach == null;
   const hasShares = insights.shares != null;
-  if (!hasLikes && !hasComments && !hasViews && !hasShares) return null;
+  if (!hasReach && !hasLikes && !hasComments && !hasViews && !hasShares) {
+    return null;
+  }
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      {hasReach ? (
+        <InsightStat icon={Users} value={insights.reach!} label="Reichweite" />
+      ) : null}
       {hasLikes ? (
         <InsightStat icon={Heart} value={insights.likes!} label="Likes" />
       ) : null}

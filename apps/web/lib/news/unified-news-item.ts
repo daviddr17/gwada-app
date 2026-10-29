@@ -18,6 +18,8 @@ export type NewsInsights = {
   comments?: number;
   views?: number;
   shares?: number;
+  /** Einzigartige Reichweite (Meta), falls verfügbar. */
+  reach?: number;
 };
 
 export type UnifiedNewsItem = {

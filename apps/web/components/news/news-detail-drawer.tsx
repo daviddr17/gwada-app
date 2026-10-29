@@ -22,7 +22,10 @@ import {
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import { FeedPinButton } from "@/components/feed-pin/feed-pin-button";
-import { NewsInsightsBadges } from "@/components/news/news-insights-badges";
+import {
+  NewsChannelInsightsList,
+  newsChannelRowFromItemInsights,
+} from "@/components/news/news-channel-insights";
 import { NewsPlatformChip } from "@/components/news/news-platform-filter-chips";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import {
@@ -32,6 +35,7 @@ import {
 } from "@/lib/constants/news-platforms";
 import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { formatNewsDetailDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
+import type { NewsChannelInsightRow } from "@/lib/news/news-insights";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
@@ -92,6 +96,9 @@ export function NewsDetailDrawer({
   const [platforms, setPlatforms] = useState<NewsPlatform[]>(["gwada"]);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
+  const [channelInsights, setChannelInsights] = useState<
+    NewsChannelInsightRow[]
+  >([]);
   const mountContent = useDeferredDrawerMount(open);
 
   const isDraftLike =
@@ -110,6 +117,7 @@ export function NewsDetailDrawer({
     setScheduleEnabled(item.status === "scheduled" && Boolean(item.scheduledAt));
     setScheduledAt(toDatetimeLocalValue(item.scheduledAt));
     setPlatforms(["gwada"]);
+    setChannelInsights([]);
   }, [open, item]);
 
   useEffect(() => {
@@ -143,6 +151,39 @@ export function NewsDetailDrawer({
       cancelled = true;
     };
   }, [open, item, restaurantId, isDraftLike]);
+
+  useEffect(() => {
+    if (!open || !item) return;
+
+    if (item.source === "gwada" && item.postId) {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const qs = new URLSearchParams({ restaurantId });
+          const res = await fetch(
+            `/api/news/posts/${item.postId}/insights?${qs.toString()}`,
+          );
+          const data = (await res.json().catch(() => ({}))) as {
+            channels?: NewsChannelInsightRow[];
+          };
+          if (cancelled || !res.ok) return;
+          setChannelInsights(Array.isArray(data.channels) ? data.channels : []);
+        } catch {
+          if (!cancelled) setChannelInsights([]);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const single = newsChannelRowFromItemInsights(
+      item.platform,
+      NEWS_PLATFORM_LABELS[item.platform],
+      item.insights,
+    );
+    setChannelInsights(single ? [single] : []);
+  }, [open, item, restaurantId]);
 
   const externalUrl = useMemo(
     () => (item ? platformOpenUrl(item, connectors) : null),
@@ -400,15 +441,22 @@ export function NewsDetailDrawer({
                 </>
               ) : null}
 
-              {item.insights ||
-              externalUrl ||
+              {channelInsights.length > 0 ? (
+                <DrawerFormSection
+                  contentPadding={4}
+                  title="Reichweite & Engagement"
+                >
+                  <NewsChannelInsightsList
+                    channels={channelInsights}
+                    compact={isDraftLike}
+                  />
+                </DrawerFormSection>
+              ) : null}
+
+              {externalUrl ||
               (item.source === "external" && !item.canEdit) ||
               (canManage && item.status !== "archived") ? (
                 <DrawerFormSection contentPadding={4} title="Aktionen">
-                  {item.insights ? (
-                    <NewsInsightsBadges insights={item.insights} className="text-sm" />
-                  ) : null}
-
                   {externalUrl ? (
                     <a
                       href={externalUrl}

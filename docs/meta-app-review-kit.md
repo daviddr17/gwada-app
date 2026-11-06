@@ -54,13 +54,16 @@ Dieses Dokument ist zum **Kopieren in die Meta Developer Console** und für Scre
 
 ### 1.3 Webhooks (Messenger / Instagram Messaging)
 
+**Ops-Runbook:** `docs/runbook-meta-webhooks.md` (Verify, Env, Inbound-Gate, Non-Messaging).
+
 | Feld | Wert |
 |------|------|
 | Callback URL | `https://gwada.app/api/integrations/meta/webhook` |
 | Verify Token | Wert aus Live-Env `META_WEBHOOK_VERIFY_TOKEN` |
-| App Secret | Meta App Secret (auch in Gwada Superadmin → Integrationen Facebook/Instagram) |
+| App Secret | Meta App Secret (Env `META_APP_SECRET` oder Superadmin → Integrationen Facebook/Instagram `client_secret`) |
+| Inbound-Flag | `META_WEBHOOK_INBOUND_ENABLED` — **aus** bis Advanced Access `pages_messaging` |
 
-Subscribe (Page): `messages`, `messaging_postbacks`, `message_deliveries`, `message_reads` (nur was ihr wirklich verarbeitet).
+Subscribe (Page): `messages` (Pflicht für Inbox); optional `messaging_postbacks`, `message_deliveries`, `message_reads` (Gwada speichert sie heute nicht). Non-Messaging (`feed`/comments) optional ohne Nutzen — weiter Graph-Pull.
 
 ### 1.4 Produkte in der Meta-App aktivieren
 

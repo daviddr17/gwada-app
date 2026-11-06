@@ -93,7 +93,7 @@ export const LANDING_INTEGRATION_ITEMS: LandingIntegrationItem[] = [
     id: "whatsapp",
     title: "WhatsApp",
     description:
-      "Die Nummer eures Hauses per QR oder Pairing (WAHA) — Gäste schreiben, ihr antwortet aus Gwada heraus.",
+      "Die Nummer eures Hauses per QR oder Pairing — Gäste schreiben, ihr antwortet aus Gwada heraus.",
     Glyph: WhatsAppGlyph,
     accent: "from-emerald-500/25 via-teal-500/10 to-transparent",
     brandGlow: "bg-emerald-500/25",

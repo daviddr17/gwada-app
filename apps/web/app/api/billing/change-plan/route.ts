@@ -46,7 +46,10 @@ export async function POST(req: Request) {
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: result.status });
     }
-    return Response.json({ ok: true });
+    return Response.json({
+      ok: true,
+      proration: result.proration ?? null,
+    });
   } catch (err) {
     console.warn(
       "updateRestaurantBillingPlan",

@@ -92,8 +92,8 @@ export function RestaurantBillingInvoices({
           Rechnungen & Belege
         </h3>
         <p className="text-sm text-muted-foreground">
-          Gwada-Abo für diesen Betrieb — PDF und Belegseite zum Speichern. Nicht
-          die Gast-Rechnungen aus der Buchführung.
+          Gwada-Abo für diesen Betrieb — PDF-Beleg zum Speichern. Nicht die
+          Gast-Rechnungen aus der Buchführung.
         </p>
       </div>
 

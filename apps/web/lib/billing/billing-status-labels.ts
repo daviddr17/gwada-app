@@ -81,6 +81,10 @@ export function billingReasonLabel(reason: string | null | undefined): string {
       return "Abschluss";
     case "subscription_update":
       return "Änderung";
+    case "payment_method_update":
+      return "Zahlungsmittel";
+    case "subscription":
+      return "Abo";
     case "subscription_threshold":
       return "Schwellenwert";
     case "manual":

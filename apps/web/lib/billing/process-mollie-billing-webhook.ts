@@ -10,7 +10,9 @@ import { syncMolliePaymentInvoiceToDb } from "@/lib/billing/sync-mollie-invoice"
 import { syncMollieSubscriptionToDb } from "@/lib/billing/sync-mollie-subscription";
 import {
   findRestaurantIdByMollieCustomer,
+  loadRestaurantEntitlements,
   stampRestaurantPastDueSince,
+  upsertRestaurantSubscriptionAdmin,
 } from "@/lib/billing/subscription-db";
 import {
   isBillingInterval,
@@ -22,6 +24,7 @@ import {
   mollieCreateSubscription,
   mollieGetPayment,
   mollieGetSubscription,
+  mollieUpdateSubscription,
 } from "@/lib/mollie/mollie-payments";
 import { getPublicSiteUrl } from "@/lib/public-env";
 
@@ -115,6 +118,57 @@ export async function processMollieBillingPaymentId(
       console.warn("billing_first subscription create", created.detail);
     }
 
+    await syncMolliePaymentInvoiceToDb(payment, restaurantId);
+    return { processed: true };
+  }
+
+  // New mandate from payment-method update → attach to active subscription.
+  if (
+    metadata.purpose === "billing_update_mandate" &&
+    payment.status === "paid" &&
+    payment.customerId &&
+    payment.mandateId
+  ) {
+    const entitlements = await loadRestaurantEntitlements(restaurantId);
+    if (
+      entitlements.mollieSubscriptionId &&
+      entitlements.mollieCustomerId &&
+      entitlements.source === "mollie" &&
+      !entitlements.cancelAtPeriodEnd
+    ) {
+      const updated = await mollieUpdateSubscription(
+        client.auth,
+        entitlements.mollieCustomerId,
+        entitlements.mollieSubscriptionId,
+        { mandateId: payment.mandateId },
+      );
+      if (updated.ok) {
+        await syncMollieSubscriptionToDb(updated.data, restaurantId);
+      } else {
+        console.warn(
+          "billing_update_mandate subscription patch",
+          updated.detail,
+        );
+      }
+    }
+    await upsertRestaurantSubscriptionAdmin({
+      restaurantId,
+      planId: entitlements.planId,
+      interval: entitlements.interval,
+      status: entitlements.status,
+      source: "mollie",
+      mollieCustomerId: payment.customerId,
+      mollieSubscriptionId: entitlements.mollieSubscriptionId,
+      mollieMandateId: payment.mandateId,
+      currentPeriodEnd: entitlements.currentPeriodEnd,
+      cancelAtPeriodEnd: entitlements.cancelAtPeriodEnd,
+    });
+    await syncMolliePaymentInvoiceToDb(payment, restaurantId);
+    return { processed: true };
+  }
+
+  // Proration charge already applied plan update synchronously; keep invoice only.
+  if (metadata.purpose === "billing_proration") {
     await syncMolliePaymentInvoiceToDb(payment, restaurantId);
     return { processed: true };
   }

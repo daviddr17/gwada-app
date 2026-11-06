@@ -8,6 +8,7 @@ import {
   type BillingPlanId,
 } from "@/lib/billing/plan-catalog";
 import { nextPastDueSince } from "@/lib/billing/past-due-grace";
+import { subtractBillingInterval } from "@/lib/billing/plan-change-proration";
 import {
   clearRestaurantAddonAdmin,
   clearRestaurantPastDueSince,
@@ -76,6 +77,11 @@ export async function syncMollieSubscriptionToDb(
   let cancelAtPeriodEnd =
     options?.cancelAtPeriodEnd ?? existing?.cancelAtPeriodEnd ?? false;
   let currentPeriodEnd = molliePeriodEnd ?? existing?.currentPeriodEnd ?? null;
+  let currentPeriodStart =
+    existing?.currentPeriodStart ??
+    (currentPeriodEnd
+      ? subtractBillingInterval(currentPeriodEnd, interval)
+      : null);
   let effectivePlanId: BillingPlanId = planId === "free" ? "basic" : planId;
   let softPeriodEndHold = false;
 
@@ -90,6 +96,7 @@ export async function syncMollieSubscriptionToDb(
     softPeriodEndHold = true;
     cancelAtPeriodEnd = true;
     currentPeriodEnd = existing?.currentPeriodEnd ?? currentPeriodEnd;
+    currentPeriodStart = existing?.currentPeriodStart ?? currentPeriodStart;
     status =
       existing?.status && existing.status !== "canceled"
         ? existing.status
@@ -103,6 +110,10 @@ export async function syncMollieSubscriptionToDb(
   } else {
     // Active Mollie subscription ⇒ not pending period-end cancel (unless caller forces).
     cancelAtPeriodEnd = options?.cancelAtPeriodEnd ?? false;
+    if (molliePeriodEnd) {
+      currentPeriodEnd = molliePeriodEnd;
+      currentPeriodStart = subtractBillingInterval(molliePeriodEnd, interval);
+    }
   }
 
   const existingPastDue = await loadRestaurantPastDueSince(restaurantId);
@@ -131,6 +142,7 @@ export async function syncMollieSubscriptionToDb(
     mollieCustomerId: customerId,
     mollieSubscriptionId: sub.id,
     mollieMandateId: sub.mandateId ?? existing?.mollieMandateId ?? null,
+    currentPeriodStart,
     currentPeriodEnd,
     cancelAtPeriodEnd,
     pastDueSince: pastDueSince ?? null,

@@ -16,15 +16,20 @@ import {
   getMollieBillingAuth,
   mollieBillingAmount,
 } from "@/lib/billing/mollie-server";
+import { computePlanChangeProration } from "@/lib/billing/plan-change-proration";
+import { syncMolliePaymentInvoiceToDb } from "@/lib/billing/sync-mollie-invoice";
 import { syncMollieSubscriptionToDb } from "@/lib/billing/sync-mollie-subscription";
 import {
   loadRestaurantEntitlements,
   loadRestaurantMollieMandateId,
+  loadRestaurantPeriodEndCancelState,
   upsertRestaurantSubscriptionAdmin,
 } from "@/lib/billing/subscription-db";
+import { mollieAmountEur } from "@/lib/mollie/mollie-amount";
 import { getPublicSiteUrl } from "@/lib/public-env";
 import {
   mollieCancelSubscription,
+  mollieCreatePayment,
   mollieCreateSubscription,
   mollieGetSubscription,
   mollieUpdateSubscription,
@@ -133,7 +138,10 @@ export async function updateRestaurantBillingPlan(input: {
   restaurantId: string;
   planId: Exclude<BillingPlanId, "free">;
   interval: BillingInterval;
-}): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+}): Promise<
+  | { ok: true; proration?: { chargeNowEuros: number; unusedCreditEuros: number } }
+  | { ok: false; error: string; status: number }
+> {
   if (!isBillingPlanId(input.planId)) {
     return { ok: false, error: "invalid_plan", status: 400 };
   }
@@ -164,6 +172,11 @@ export async function updateRestaurantBillingPlan(input: {
     return { ok: false, error: "mollie_not_configured", status: 503 };
   }
 
+  const currentPlan = paidPlanId(entitlements.planId);
+  if (!currentPlan) {
+    return { ok: false, error: "no_managed_subscription", status: 409 };
+  }
+
   const includePos = entitlements.addons.includes("pos");
   const amount = mollieBillingAmount(input.planId, input.interval, includePos);
   const description = billingSubscriptionDescription({
@@ -186,6 +199,80 @@ export async function updateRestaurantBillingPlan(input: {
     });
     if (!recreated.ok) return recreated;
     return { ok: true };
+  }
+
+  const periodState = await loadRestaurantPeriodEndCancelState(
+    input.restaurantId,
+  );
+  const periodEndIso =
+    entitlements.currentPeriodEnd ?? periodState?.currentPeriodEnd ?? null;
+
+  let proration:
+    | { chargeNowEuros: number; unusedCreditEuros: number }
+    | undefined;
+
+  if (periodEndIso) {
+    const calc = computePlanChangeProration({
+      currentPlanId: currentPlan,
+      currentInterval: entitlements.interval,
+      newPlanId: input.planId,
+      newInterval: input.interval,
+      includePos,
+      periodEndIso,
+      periodStartIso: periodState?.currentPeriodStart,
+    });
+    proration = {
+      chargeNowEuros: calc.chargeNowEuros,
+      unusedCreditEuros: calc.unusedCreditEuros,
+    };
+
+    if (calc.chargeNowEuros > 0) {
+      const mandateId =
+        (await loadRestaurantMollieMandateId(input.restaurantId)) ??
+        periodState?.mollieMandateId ??
+        null;
+      if (!mandateId) {
+        return { ok: false, error: "mandate_required", status: 409 };
+      }
+
+      const charged = await mollieCreatePayment(client.auth, {
+        amount: mollieAmountEur(calc.chargeNowEuros),
+        customerId: entitlements.mollieCustomerId,
+        mandateId,
+        sequenceType: "recurring",
+        description: `Gwada Planwechsel — anteilig (${calc.chargeNowEuros.toFixed(2)} €)`,
+        webhookUrl: billingWebhookUrl(),
+        ...(client.config.profile_id
+          ? { profileId: client.config.profile_id }
+          : {}),
+        metadata: {
+          restaurant_id: input.restaurantId,
+          plan_id: input.planId,
+          interval: input.interval,
+          include_pos: includePos ? "1" : "0",
+          purpose: "billing_proration",
+          period_start: calc.periodStartIso,
+          period_end: calc.periodEndIso,
+          unused_credit_euros: String(calc.unusedCreditEuros),
+        },
+      });
+
+      if (!charged.ok) {
+        return {
+          ok: false,
+          error: charged.detail || "proration_charge_failed",
+          status: 502,
+        };
+      }
+      if (charged.data.status !== "paid") {
+        return {
+          ok: false,
+          error: "proration_payment_incomplete",
+          status: 402,
+        };
+      }
+      await syncMolliePaymentInvoiceToDb(charged.data, input.restaurantId);
+    }
   }
 
   const updated = await mollieUpdateSubscription(
@@ -220,7 +307,7 @@ export async function updateRestaurantBillingPlan(input: {
   if (!synced.ok) {
     return { ok: false, error: synced.error, status: 500 };
   }
-  return { ok: true };
+  return { ok: true, proration };
 }
 
 export async function cancelRestaurantBillingSubscription(input: {

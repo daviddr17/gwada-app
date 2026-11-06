@@ -441,6 +441,7 @@ export async function loadRestaurantMollieMandateId(
 
 export type PeriodEndCancelState = {
   cancelAtPeriodEnd: boolean;
+  currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   status: string;
   planId: BillingPlanId;
@@ -458,13 +459,14 @@ export async function loadRestaurantPeriodEndCancelState(
   const { data } = await admin
     .from("restaurant_subscriptions")
     .select(
-      "cancel_at_period_end, current_period_end, status, plan_id, interval, mollie_mandate_id, mollie_customer_id, mollie_subscription_id",
+      "cancel_at_period_end, current_period_start, current_period_end, status, plan_id, interval, mollie_mandate_id, mollie_customer_id, mollie_subscription_id",
     )
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
   if (!data) return null;
   return {
     cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
+    currentPeriodStart: (data.current_period_start as string | null) ?? null,
     currentPeriodEnd: (data.current_period_end as string | null) ?? null,
     status: (data.status as string) ?? "active",
     planId: asPlanId((data.plan_id as string) ?? "free"),

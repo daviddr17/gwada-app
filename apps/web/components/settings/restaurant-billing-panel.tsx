@@ -78,6 +78,7 @@ export function RestaurantBillingPanel() {
   const [yearly, setYearly] = useState(true);
   const [busyPlan, setBusyPlan] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [paymentMethodBusy, setPaymentMethodBusy] = useState(false);
   const [invoiceReload, setInvoiceReload] = useState(0);
 
   const interval: BillingInterval = yearly ? "year" : "month";
@@ -161,22 +162,62 @@ export function RestaurantBillingPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ restaurantId, planId, interval }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        proration?: { chargeNowEuros: number; unusedCreditEuros: number } | null;
+      };
       if (!res.ok) {
         toast.error(
           data.error === "payment_required"
             ? "Zuerst die ausstehende Zahlung klären oder den Plan erneut wählen."
             : data.error === "mollie_not_configured"
               ? "Mollie-Billing ist noch nicht freigeschaltet. Bitte Superadmin."
-              : "Planwechsel fehlgeschlagen.",
+              : data.error === "proration_payment_incomplete" ||
+                  data.error === "proration_charge_failed"
+                ? "Anteilige Zahlung für den Planwechsel ist fehlgeschlagen."
+                : data.error === "mandate_required"
+                  ? "Bitte zuerst das Zahlungsmittel aktualisieren."
+                  : "Planwechsel fehlgeschlagen.",
         );
         return;
       }
-      toast.success("Abo aktualisiert.");
+      const charged = data.proration?.chargeNowEuros ?? 0;
+      toast.success(
+        charged > 0
+          ? `Abo aktualisiert — ${charged.toFixed(2).replace(".", ",")} € anteilig berechnet.`
+          : "Abo aktualisiert — neuer Plan gilt sofort.",
+      );
       reload();
       setInvoiceReload((n) => n + 1);
     } finally {
       setBusyPlan(null);
+    }
+  }
+
+  async function updatePaymentMethod() {
+    if (!restaurantId || !canManage) return;
+    setPaymentMethodBusy(true);
+    try {
+      const res = await fetch("/api/billing/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId,
+          returnUrl: `${window.location.origin}/dashboard/settings/billing?checkout=success`,
+        }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        toast.error(
+          data.error === "mollie_not_configured"
+            ? "Mollie-Billing ist noch nicht freigeschaltet. Bitte Superadmin."
+            : "Zahlungsmittel konnte nicht aktualisiert werden.",
+        );
+        return;
+      }
+      window.location.assign(data.url);
+    } finally {
+      setPaymentMethodBusy(false);
     }
   }
 
@@ -378,6 +419,23 @@ export function RestaurantBillingPanel() {
             >
               Plan ändern
             </Button>
+            {managedMollie ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={paymentMethodBusy}
+                onClick={() => void updatePaymentMethod()}
+              >
+                {paymentMethodBusy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CreditCard className="size-4" />
+                )}
+                Zahlungsmittel ändern
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"

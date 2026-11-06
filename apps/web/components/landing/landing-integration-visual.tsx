@@ -357,12 +357,147 @@ function LexofficeVisual({ item, active }: SceneProps) {
   );
 }
 
+function EmailVisual({ item, active }: SceneProps) {
+  const { Glyph } = item;
+  const rows = [
+    { from: "Gast", subject: "Tisch für Samstag?" },
+    { from: "Lieferant", subject: "Lieferschein #882" },
+    { from: "Team", subject: "Schichtplan KW 12" },
+  ];
+  return (
+    <SceneStage active={active}>
+      <GlowOrb active={active} className={cn("left-1/4 top-1/4 size-40", item.brandGlow)} />
+      <motion.div
+        className="absolute right-3 top-12 z-20 w-[12.5rem]"
+        animate={active ? { y: [0, -6, 0] } : {}}
+        transition={scrollSceneLoop(active, { duration: 4.2, ease: "easeInOut" })}
+      >
+        <GlassPanel active={active} className="space-y-2 p-3">
+          <p className="text-[10px] font-semibold text-muted-foreground">Postfach</p>
+          {rows.map((row, i) => (
+            <motion.div
+              key={row.subject}
+              className="border-b border-border/30 pb-2 last:border-0 last:pb-0"
+              animate={active ? { opacity: [0.55, 1, 0.55] } : {}}
+              transition={scrollSceneLoop(active, {
+                duration: 2.6,
+                delay: i * 0.1,
+                ease: "easeInOut",
+              })}
+            >
+              <p className="text-[10px] font-semibold text-foreground">{row.from}</p>
+              <p className="truncate text-[9px] text-muted-foreground">{row.subject}</p>
+            </motion.div>
+          ))}
+        </GlassPanel>
+      </motion.div>
+      <HeroBrand Glyph={Glyph} active={active} className="absolute left-1/2 top-[46%] -translate-x-1/2 -translate-y-1/2" />
+    </SceneStage>
+  );
+}
+
+function TripadvisorVisual({ item, active }: SceneProps) {
+  const { Glyph } = item;
+  return (
+    <SceneStage active={active}>
+      <GlowOrb active={active} className={cn("right-1/4 top-1/3 size-40", item.brandGlow)} />
+      <motion.div
+        className="absolute left-4 top-14 z-20 w-44"
+        animate={active ? { y: [0, -5, 0], rotate: [-2, 1, -2] } : {}}
+        transition={scrollSceneLoop(active, { duration: 4, ease: "easeInOut" })}
+      >
+        <GlassPanel active={active} className="p-3">
+          <p className="text-[10px] font-semibold text-muted-foreground">TripAdvisor</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">4,5 · 128 Reviews</p>
+          <p className="mt-2 line-clamp-2 text-[10px] leading-snug text-muted-foreground">
+            „Tolle Lage und freundliches Team …“
+          </p>
+        </GlassPanel>
+      </motion.div>
+      <HeroBrand Glyph={Glyph} active={active} className="absolute left-1/2 top-[46%] -translate-x-1/2 -translate-y-1/2" />
+    </SceneStage>
+  );
+}
+
+function MollieVisual({ item, active }: SceneProps) {
+  const { Glyph } = item;
+  return (
+    <SceneStage active={active}>
+      <GlowOrb active={active} className={cn("left-1/3 top-1/4 size-40", item.brandGlow)} />
+      <motion.div
+        className="absolute right-4 top-12 z-20 w-40"
+        animate={active ? { y: [0, -6, 0] } : {}}
+        transition={scrollSceneLoop(active, { duration: 4.3, ease: "easeInOut" })}
+      >
+        <GlassPanel active={active} className="p-3">
+          <p className="text-[10px] font-semibold text-muted-foreground">Zahlung</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">48,50 €</p>
+          <motion.span
+            className="mt-2 inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300"
+            animate={active ? { opacity: [0.55, 1, 0.55] } : {}}
+            transition={scrollSceneLoop(active, { duration: 2, ease: "easeInOut" })}
+          >
+            Bezahlt
+          </motion.span>
+        </GlassPanel>
+      </motion.div>
+      <motion.div
+        className="absolute bottom-16 left-6 rounded-xl border border-border/50 bg-card/90 px-3 py-2 shadow-sm"
+        animate={active ? { x: [0, 4, 0] } : {}}
+        transition={scrollSceneLoop(active, { duration: 3.4, ease: "easeInOut" })}
+      >
+        <p className="text-[10px] font-semibold text-foreground">Connect verknüpft</p>
+      </motion.div>
+      <HeroBrand Glyph={Glyph} active={active} className="absolute left-1/2 top-[46%] -translate-x-1/2 -translate-y-1/2" />
+    </SceneStage>
+  );
+}
+
+function WeatherVisual({ item, active }: SceneProps) {
+  const { Glyph } = item;
+  return (
+    <SceneStage active={active}>
+      <GlowOrb active={active} className={cn("left-1/2 top-1/5 size-44 -translate-x-1/2", item.brandGlow)} />
+      <motion.div
+        className="absolute left-5 top-12 z-20 w-40"
+        animate={active ? { y: [0, -5, 0] } : {}}
+        transition={scrollSceneLoop(active, { duration: 4, ease: "easeInOut" })}
+      >
+        <GlassPanel active={active} className="p-3">
+          <p className="text-[10px] font-semibold text-muted-foreground">Heute</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">18°</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">Leicht bewölkt · 12% Regen</p>
+        </GlassPanel>
+      </motion.div>
+      <motion.div
+        className="absolute bottom-16 right-5 flex gap-1.5"
+        animate={active ? { opacity: [0.5, 1, 0.5] } : {}}
+        transition={scrollSceneLoop(active, { duration: 2.8, ease: "easeInOut" })}
+      >
+        {["Mo", "Di", "Mi"].map((d) => (
+          <span
+            key={d}
+            className="rounded-lg border border-border/50 bg-card/90 px-2 py-1 text-[9px] font-semibold text-muted-foreground"
+          >
+            {d}
+          </span>
+        ))}
+      </motion.div>
+      <HeroBrand Glyph={Glyph} active={active} className="absolute left-1/2 top-[48%] -translate-x-1/2 -translate-y-1/2" />
+    </SceneStage>
+  );
+}
+
 const VISUALS: Record<LandingIntegrationId, ComponentType<SceneProps>> = {
   google: GoogleVisual,
   facebook: FacebookVisual,
   instagram: InstagramVisual,
   whatsapp: WhatsAppVisual,
+  email: EmailVisual,
   lexoffice: LexofficeVisual,
+  tripadvisor: TripadvisorVisual,
+  mollie: MollieVisual,
+  weather: WeatherVisual,
 };
 
 export function LandingIntegrationVisual({

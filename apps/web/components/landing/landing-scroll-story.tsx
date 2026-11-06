@@ -8,13 +8,15 @@ import {
   useTransform,
   type MotionValue,
 } from "framer-motion";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { LandingFeatureVisual } from "@/components/landing/landing-feature-visual";
 import { LANDING_FEATURE_ITEMS } from "@/components/landing/landing-feature-items";
+import { LandingScrollStorySkipNav } from "@/components/landing/landing-scroll-story-skip-nav";
 import { Badge } from "@/components/ui/badge";
 import {
   SCROLL_STORY_VH_PER_ITEM,
   scrollStoryItemRange,
+  scrollToStoryItem,
 } from "@/lib/landing/scroll-story-range";
 import { cn } from "@/lib/utils";
 
@@ -90,9 +92,10 @@ function FeatureSlide({ index, scrollYProgress }: FeatureSlideProps) {
 
 type StoryCopyProps = {
   scrollYProgress: MotionValue<number>;
+  onSelectIndex: (index: number) => void;
 };
 
-function StoryCopy({ scrollYProgress }: StoryCopyProps) {
+function StoryCopy({ scrollYProgress, onSelectIndex }: StoryCopyProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useMotionValueEvent(scrollYProgress, "change", (v) => {
@@ -141,20 +144,12 @@ function StoryCopy({ scrollYProgress }: StoryCopyProps) {
       >
         {feature.description}
       </motion.p>
-      <div className="mt-8 flex gap-2">
-        {LANDING_FEATURE_ITEMS.map((item, i) => (
-          <div
-            key={item.id}
-            className={cn(
-              "h-1.5 rounded-full transition-all duration-300",
-              i === activeIndex
-                ? "w-8 bg-primary"
-                : "w-1.5 bg-muted-foreground/30",
-            )}
-            aria-hidden
-          />
-        ))}
-      </div>
+      <LandingScrollStorySkipNav
+        items={LANDING_FEATURE_ITEMS}
+        activeIndex={activeIndex}
+        onSelect={onSelectIndex}
+        itemNoun="Modul"
+      />
     </div>
   );
 }
@@ -169,6 +164,10 @@ export function LandingScrollStory() {
     target: ref,
     offset: ["start end", "end start"],
   });
+
+  const selectIndex = useCallback((index: number) => {
+    scrollToStoryItem(ref.current, index, FEATURE_COUNT);
+  }, []);
 
   return (
     <section
@@ -206,7 +205,10 @@ export function LandingScrollStory() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,var(--background)_68%)]" />
 
           <div className="relative mx-auto grid w-full max-w-6xl gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
-            <StoryCopy scrollYProgress={scrollYProgress} />
+            <StoryCopy
+              scrollYProgress={scrollYProgress}
+              onSelectIndex={selectIndex}
+            />
 
             <div className="relative aspect-square max-h-[min(72vw,460px)] w-full max-w-md justify-self-center lg:max-h-[min(48vw,480px)]">
               {LANDING_FEATURE_ITEMS.map((item, index) => (

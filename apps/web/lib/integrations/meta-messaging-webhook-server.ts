@@ -1,6 +1,5 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "crypto";
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { resolveOrCreateContactForMetaInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import { CONTACT_MESSAGE_PLATFORM_LABELS } from "@/lib/constants/contact-message-platforms";
@@ -9,14 +8,32 @@ import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
+import { getMetaPlatformConfigAdmin } from "@/lib/integrations/meta-oauth-shared";
+import {
+  metaWebhookInboundEnabled,
+  metaWebhookVerifyChallenge,
+  verifyMetaWebhookSignature,
+} from "@/lib/integrations/meta-webhook-verify";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+export {
+  metaWebhookInboundEnabled,
+  metaWebhookVerifyChallenge,
+  verifyMetaWebhookSignature,
+};
 
 export type MetaWebhookBody = {
   object?: string;
   entry?: Array<{
     id?: string;
     time?: number;
+    /** Messenger / IG DM events — only path Gwada persists today. */
     messaging?: Array<MetaMessagingEvent>;
+    /**
+     * Page/IG field changes (`feed`, comments, …). Accepted (HTTP 200) but not
+     * persisted — News/Reviews/Insights stay on Graph pull + Cron until handlers exist.
+     */
+    changes?: unknown[];
   }>;
 };
 
@@ -31,32 +48,13 @@ type MetaMessagingEvent = {
   };
 };
 
-/**
- * Nach Meta App Review auf `true` setzen → Inbound wie WAHA realtime in die DB.
- * Bis dahin: Connect-Historie + täglicher Cron `meta-inbox-sync`.
- */
-export function metaWebhookInboundEnabled(): boolean {
-  return process.env.META_WEBHOOK_INBOUND_ENABLED?.trim() === "true";
-}
-
-export function verifyMetaWebhookSignature(
-  rawBody: string,
-  signatureHeader: string | null,
-): boolean {
-  const secret = process.env.META_APP_SECRET?.trim();
-  if (!secret) return true;
-  if (!signatureHeader?.startsWith("sha256=")) return false;
-  const expected = createHmac("sha256", secret)
-    .update(rawBody)
-    .digest("hex");
-  const received = signatureHeader.slice("sha256=".length);
-  try {
-    const a = Buffer.from(expected, "hex");
-    const b = Buffer.from(received, "hex");
-    return a.length === b.length && timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
+/** Env first; else Superadmin → Integrationen Facebook/Instagram `client_secret` (App Secret). */
+export async function resolveMetaWebhookAppSecret(): Promise<string | null> {
+  const fromEnv = process.env.META_APP_SECRET?.trim();
+  if (fromEnv) return fromEnv;
+  const cfg = await getMetaPlatformConfigAdmin("facebook");
+  const secret = cfg?.appSecret?.trim();
+  return secret || null;
 }
 
 async function restaurantIdForPageId(
@@ -108,8 +106,13 @@ export async function handleMetaMessagingWebhook(
   }
 
   let processed = 0;
+  let sawMessaging = false;
+  let sawChangesOnly = false;
 
   for (const entry of body.entry ?? []) {
+    if ((entry.changes?.length ?? 0) > 0 && !(entry.messaging?.length)) {
+      sawChangesOnly = true;
+    }
     const pageId = entry.id?.trim();
     if (!pageId) continue;
 
@@ -119,6 +122,7 @@ export async function handleMetaMessagingWebhook(
     const platform = platformFromWebhookObject(body.object, resolved.platform);
 
     for (const event of entry.messaging ?? []) {
+      sawMessaging = true;
       const message = event.message;
       if (!message?.mid || message.is_echo) continue;
 
@@ -154,6 +158,10 @@ export async function handleMetaMessagingWebhook(
       });
       if (result.imported) processed += 1;
     }
+  }
+
+  if (!sawMessaging && sawChangesOnly) {
+    return { ok: true, processed: 0, reason: "non_messaging_ignored" };
   }
 
   return { ok: true, processed };

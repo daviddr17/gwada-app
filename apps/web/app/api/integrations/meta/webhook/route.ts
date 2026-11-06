@@ -1,5 +1,7 @@
 import {
   handleMetaMessagingWebhook,
+  metaWebhookVerifyChallenge,
+  resolveMetaWebhookAppSecret,
   verifyMetaWebhookSignature,
   type MetaWebhookBody,
 } from "@/lib/integrations/meta-messaging-webhook-server";
@@ -9,22 +11,19 @@ export const dynamic = "force-dynamic";
 
 /**
  * Meta Webhook — GET für Verifikation, POST für Events.
- * Inbound-Schreiben nur wenn META_WEBHOOK_INBOUND_ENABLED=true (nach App Review).
+ * Inbound-Schreiben nur wenn META_WEBHOOK_INBOUND_ENABLED=true
+ * (nach Advanced Access pages_messaging — siehe docs/runbook-meta-webhooks.md).
  * Parallel: täglicher Pull via /api/cron/meta-inbox-sync.
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const mode = url.searchParams.get("hub.mode");
-  const token = url.searchParams.get("hub.verify_token");
-  const challenge = url.searchParams.get("hub.challenge");
+  const challenge = metaWebhookVerifyChallenge({
+    mode: url.searchParams.get("hub.mode"),
+    token: url.searchParams.get("hub.verify_token"),
+    challenge: url.searchParams.get("hub.challenge"),
+  });
 
-  const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN?.trim();
-  if (
-    mode === "subscribe" &&
-    verifyToken &&
-    token === verifyToken &&
-    challenge
-  ) {
+  if (challenge) {
     return new Response(challenge, {
       status: 200,
       headers: { "Content-Type": "text/plain" },
@@ -37,8 +36,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const rawBody = await req.text();
   const signature = req.headers.get("x-hub-signature-256");
+  const appSecret = await resolveMetaWebhookAppSecret();
 
-  if (!verifyMetaWebhookSignature(rawBody, signature)) {
+  if (!verifyMetaWebhookSignature(rawBody, signature, appSecret)) {
     return Response.json({ error: "invalid_signature" }, { status: 401 });
   }
 

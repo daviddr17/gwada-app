@@ -232,9 +232,13 @@ export async function upsertRestaurantSubscriptionAdmin(input: {
     source: input.source,
     current_period_start: input.currentPeriodStart ?? null,
     current_period_end: input.currentPeriodEnd ?? null,
-    cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
     updated_at: new Date().toISOString(),
   };
+
+  // `undefined` = Spalte nicht anfassen (z. B. Sync darf Flag nicht wegwischen).
+  if (input.cancelAtPeriodEnd !== undefined) {
+    payload.cancel_at_period_end = input.cancelAtPeriodEnd;
+  }
 
   if (input.stripeCustomerId !== undefined) {
     payload.stripe_customer_id = input.stripeCustomerId;
@@ -420,6 +424,122 @@ export type PastDueGraceExpiredRow = {
   mollieCustomerId: string | null;
   pastDueSince: string;
 };
+
+export async function loadRestaurantMollieMandateId(
+  restaurantId: string,
+): Promise<string | null> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+  const { data } = await admin
+    .from("restaurant_subscriptions")
+    .select("mollie_mandate_id")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const mandate = data?.mollie_mandate_id;
+  return typeof mandate === "string" && mandate.trim() ? mandate.trim() : null;
+}
+
+export type PeriodEndCancelState = {
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
+  status: string;
+  planId: BillingPlanId;
+  interval: BillingInterval;
+  mollieMandateId: string | null;
+  mollieCustomerId: string | null;
+  mollieSubscriptionId: string | null;
+};
+
+export async function loadRestaurantPeriodEndCancelState(
+  restaurantId: string,
+): Promise<PeriodEndCancelState | null> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+  const { data } = await admin
+    .from("restaurant_subscriptions")
+    .select(
+      "cancel_at_period_end, current_period_end, status, plan_id, interval, mollie_mandate_id, mollie_customer_id, mollie_subscription_id",
+    )
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
+    currentPeriodEnd: (data.current_period_end as string | null) ?? null,
+    status: (data.status as string) ?? "active",
+    planId: asPlanId((data.plan_id as string) ?? "free"),
+    interval: asInterval((data.interval as string) ?? "month"),
+    mollieMandateId: (data.mollie_mandate_id as string | null) ?? null,
+    mollieCustomerId: (data.mollie_customer_id as string | null) ?? null,
+    mollieSubscriptionId: (data.mollie_subscription_id as string | null) ?? null,
+  };
+}
+
+export type PeriodEndCancelDueRow = {
+  restaurantId: string;
+  mollieSubscriptionId: string | null;
+  mollieCustomerId: string | null;
+  currentPeriodEnd: string;
+  interval: BillingInterval;
+};
+
+/** Soft-canceled Abos deren bezahlte Periode abgelaufen ist → Free. */
+export async function listMollieSubscriptionsPeriodEndCancelDue(
+  now: Date = new Date(),
+): Promise<PeriodEndCancelDueRow[]> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return [];
+  const { data, error } = await admin
+    .from("restaurant_subscriptions")
+    .select(
+      "restaurant_id, mollie_subscription_id, mollie_customer_id, current_period_end, interval, source, status, cancel_at_period_end",
+    )
+    .eq("source", "mollie")
+    .eq("cancel_at_period_end", true)
+    .neq("status", "canceled");
+
+  if (error || !data) return [];
+  const nowMs = now.getTime();
+  return data.flatMap((row) => {
+    const restaurantId = row.restaurant_id as string;
+    const currentPeriodEnd = row.current_period_end as string | null;
+    if (!restaurantId || !currentPeriodEnd) return [];
+    const endMs = Date.parse(currentPeriodEnd);
+    if (!Number.isFinite(endMs) || endMs > nowMs) return [];
+    return [
+      {
+        restaurantId,
+        mollieSubscriptionId:
+          (row.mollie_subscription_id as string | null) ?? null,
+        mollieCustomerId: (row.mollie_customer_id as string | null) ?? null,
+        currentPeriodEnd,
+        interval: asInterval((row.interval as string) ?? "month"),
+      },
+    ];
+  });
+}
+
+export async function finalizeRestaurantPeriodEndCancel(input: {
+  restaurantId: string;
+  interval: BillingInterval;
+  mollieCustomerId: string | null;
+  mollieSubscriptionId: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await upsertRestaurantSubscriptionAdmin({
+    restaurantId: input.restaurantId,
+    planId: "free",
+    interval: input.interval,
+    status: "canceled",
+    source: "mollie",
+    mollieCustomerId: input.mollieCustomerId,
+    mollieSubscriptionId: input.mollieSubscriptionId,
+    cancelAtPeriodEnd: false,
+    pastDueSince: null,
+  });
+  if (!result.ok) return result;
+  await clearRestaurantAddonAdmin(input.restaurantId, "pos");
+  return { ok: true };
+}
 
 export async function listMollieSubscriptionsPastDueGraceExpired(
   now: Date = new Date(),

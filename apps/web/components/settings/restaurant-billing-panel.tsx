@@ -302,7 +302,7 @@ export function RestaurantBillingPanel() {
                 ) : (
                   <CreditCard className="size-4" />
                 )}
-                Abo kündigen
+                Zum Periodenende kündigen
               </Button>
             ) : null}
             {managedMollie && entitlements?.cancelAtPeriodEnd ? (
@@ -572,7 +572,7 @@ export function RestaurantBillingPanel() {
                         className="w-full rounded-full"
                         disabled
                       >
-                        {isCurrent ? "Aktueller Plan" : "Nicht über Stripe"}
+                        {isCurrent ? "Aktueller Plan" : "Nicht über Checkout"}
                       </Button>
                     ) : (
                       <Button

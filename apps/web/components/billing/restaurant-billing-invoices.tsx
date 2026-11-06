@@ -102,8 +102,8 @@ export function RestaurantBillingInvoices({
       ) : invoices.length === 0 ? (
         <p className="rounded-xl border border-border/50 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
           {hasStripeCustomer
-            ? "Noch keine Rechnungen. Sobald Stripe abbucht, erscheinen Belege hier."
-            : "Nach dem ersten bezahlten Abo liegen Rechnungen und PDFs hier bereit."}
+            ? "Noch keine Rechnungen. Sobald Mollie abbucht, erscheinen Belege hier."
+            : "Nach dem ersten bezahlten Abo liegen Rechnungen hier bereit."}
         </p>
       ) : (
         <ModulePaginatedDataTable

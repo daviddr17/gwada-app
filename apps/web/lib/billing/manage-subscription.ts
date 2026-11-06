@@ -17,11 +17,117 @@ import {
   mollieBillingAmount,
 } from "@/lib/billing/mollie-server";
 import { syncMollieSubscriptionToDb } from "@/lib/billing/sync-mollie-subscription";
-import { loadRestaurantEntitlements } from "@/lib/billing/subscription-db";
+import {
+  loadRestaurantEntitlements,
+  loadRestaurantMollieMandateId,
+  upsertRestaurantSubscriptionAdmin,
+} from "@/lib/billing/subscription-db";
+import { getPublicSiteUrl } from "@/lib/public-env";
 import {
   mollieCancelSubscription,
+  mollieCreateSubscription,
+  mollieGetSubscription,
   mollieUpdateSubscription,
 } from "@/lib/mollie/mollie-payments";
+
+function billingWebhookUrl(): string {
+  const site = getPublicSiteUrl() || "https://gwada.app";
+  return `${site}/api/billing/mollie/webhook`;
+}
+
+/** Mollie startDate is YYYY-MM-DD and must be today or later (UTC). */
+function mollieStartDateFromPeriodEnd(
+  periodEndIso: string | null,
+): string | undefined {
+  if (!periodEndIso) return undefined;
+  const ms = Date.parse(periodEndIso);
+  if (!Number.isFinite(ms)) return undefined;
+  const ymd = new Date(ms).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  if (ymd < today) return undefined;
+  return ymd;
+}
+
+function paidPlanId(
+  planId: BillingPlanId,
+): Exclude<BillingPlanId, "free"> | null {
+  if (planId === "free" || !isBillingPlanId(planId)) return null;
+  return planId;
+}
+
+async function recreateMollieSubscription(input: {
+  restaurantId: string;
+  customerId: string;
+  mandateId: string | null;
+  planId: Exclude<BillingPlanId, "free">;
+  interval: BillingInterval;
+  includePos: boolean;
+  startDate?: string;
+}): Promise<{ ok: true; subscriptionId: string } | { ok: false; error: string; status: number }> {
+  const client = await getMollieBillingAuth();
+  if (!client) {
+    return { ok: false, error: "mollie_not_configured", status: 503 };
+  }
+
+  const amount = mollieBillingAmount(
+    input.planId,
+    input.interval,
+    input.includePos,
+  );
+  const description = billingSubscriptionDescription({
+    planId: input.planId,
+    interval: input.interval,
+    includePos: input.includePos,
+  });
+
+  const created = await mollieCreateSubscription(
+    client.auth,
+    input.customerId,
+    {
+      amount,
+      interval: billingSubscriptionInterval(input.interval),
+      description,
+      webhookUrl: billingWebhookUrl(),
+      ...(input.mandateId ? { mandateId: input.mandateId } : {}),
+      ...(input.startDate ? { startDate: input.startDate } : {}),
+      metadata: {
+        restaurant_id: input.restaurantId,
+        plan_id: input.planId,
+        interval: input.interval,
+        include_pos: input.includePos ? "1" : "0",
+      },
+    },
+  );
+
+  if (!created.ok) {
+    return {
+      ok: false,
+      error: created.detail || "subscription_recreate_failed",
+      status: 502,
+    };
+  }
+
+  const synced = await syncMollieSubscriptionToDb(
+    {
+      ...created.data,
+      status: "active",
+      customerId: input.customerId,
+      mandateId: input.mandateId ?? created.data.mandateId,
+      metadata: {
+        restaurant_id: input.restaurantId,
+        plan_id: input.planId,
+        interval: input.interval,
+        include_pos: input.includePos ? "1" : "0",
+      },
+    },
+    input.restaurantId,
+    { cancelAtPeriodEnd: false },
+  );
+  if (!synced.ok) {
+    return { ok: false, error: synced.error, status: 500 };
+  }
+  return { ok: true, subscriptionId: created.data.id };
+}
 
 export async function updateRestaurantBillingPlan(input: {
   restaurantId: string;
@@ -65,6 +171,22 @@ export async function updateRestaurantBillingPlan(input: {
     interval: input.interval,
     includePos,
   });
+
+  // Pending period-end cancel already deleted the Mollie sub — recreate instead of PATCH.
+  if (entitlements.cancelAtPeriodEnd) {
+    const mandateId = await loadRestaurantMollieMandateId(input.restaurantId);
+    const recreated = await recreateMollieSubscription({
+      restaurantId: input.restaurantId,
+      customerId: entitlements.mollieCustomerId,
+      mandateId,
+      planId: input.planId,
+      interval: input.interval,
+      includePos,
+      startDate: mollieStartDateFromPeriodEnd(entitlements.currentPeriodEnd),
+    });
+    if (!recreated.ok) return recreated;
+    return { ok: true };
+  }
 
   const updated = await mollieUpdateSubscription(
     client.auth,
@@ -134,6 +256,7 @@ export async function cancelRestaurantBillingSubscription(input: {
   const synced = await syncMollieSubscriptionToDb(
     canceled.data,
     input.restaurantId,
+    { forceImmediateCancel: true },
   );
   if (!synced.ok) {
     return { ok: false, error: synced.error, status: 500 };
@@ -142,18 +265,109 @@ export async function cancelRestaurantBillingSubscription(input: {
 }
 
 /**
- * Mollie has no Stripe-style cancel_at_period_end.
- * cancel=true → Subscription sofort bei Mollie beenden.
- * cancel=false → nicht unterstützt (kein Undo nach Cancel).
+ * Period-end cancel for Mollie SaaS billing.
+ * cancel=true → stop future Mollie charges now, keep paid access until currentPeriodEnd.
+ * cancel=false → undo by recreating the Mollie subscription (mandate + startDate).
  */
 export async function setRestaurantBillingCancelAtPeriodEnd(input: {
   restaurantId: string;
   cancel: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
-  if (!input.cancel) {
-    return { ok: false, error: "mollie_cancel_undo_unsupported", status: 400 };
+  const entitlements = await loadRestaurantEntitlements(input.restaurantId);
+  if (
+    !hasManagedMollieSubscription(entitlements) ||
+    !entitlements.mollieSubscriptionId ||
+    !entitlements.mollieCustomerId
+  ) {
+    return { ok: false, error: "no_managed_subscription", status: 409 };
   }
-  return cancelRestaurantBillingSubscription({
+
+  const client = await getMollieBillingAuth();
+  if (!client) {
+    return { ok: false, error: "mollie_not_configured", status: 503 };
+  }
+
+  const planId = paidPlanId(entitlements.planId);
+  if (!planId) {
+    return { ok: false, error: "no_managed_subscription", status: 409 };
+  }
+
+  if (!input.cancel) {
+    if (!entitlements.cancelAtPeriodEnd) {
+      return { ok: true };
+    }
+    const mandateId = await loadRestaurantMollieMandateId(input.restaurantId);
+    const recreated = await recreateMollieSubscription({
+      restaurantId: input.restaurantId,
+      customerId: entitlements.mollieCustomerId,
+      mandateId,
+      planId,
+      interval: entitlements.interval,
+      includePos: entitlements.addons.includes("pos"),
+      startDate: mollieStartDateFromPeriodEnd(entitlements.currentPeriodEnd),
+    });
+    if (!recreated.ok) return recreated;
+    return { ok: true };
+  }
+
+  if (entitlements.cancelAtPeriodEnd) {
+    return { ok: true };
+  }
+
+  const current = await mollieGetSubscription(
+    client.auth,
+    entitlements.mollieCustomerId,
+    entitlements.mollieSubscriptionId,
+  );
+
+  let mandateId = await loadRestaurantMollieMandateId(input.restaurantId);
+  let periodEnd = entitlements.currentPeriodEnd;
+
+  if (current.ok) {
+    mandateId = current.data.mandateId ?? mandateId;
+    if (current.data.nextPaymentDate) {
+      periodEnd = new Date(
+        `${current.data.nextPaymentDate}T00:00:00.000Z`,
+      ).toISOString();
+    }
+    if (current.data.status !== "canceled") {
+      const canceled = await mollieCancelSubscription(
+        client.auth,
+        entitlements.mollieCustomerId,
+        entitlements.mollieSubscriptionId,
+      );
+      if (!canceled.ok) {
+        return {
+          ok: false,
+          error: canceled.detail || "cancel_failed",
+          status: 502,
+        };
+      }
+      mandateId = canceled.data.mandateId ?? mandateId;
+    }
+  } else if (current.status !== 404) {
+    return {
+      ok: false,
+      error: current.detail || "cancel_failed",
+      status: 502,
+    };
+  }
+
+  const upserted = await upsertRestaurantSubscriptionAdmin({
     restaurantId: input.restaurantId,
+    planId,
+    interval: entitlements.interval,
+    status:
+      entitlements.status === "canceled" ? "active" : entitlements.status,
+    source: "mollie",
+    mollieCustomerId: entitlements.mollieCustomerId,
+    mollieSubscriptionId: entitlements.mollieSubscriptionId,
+    mollieMandateId: mandateId,
+    currentPeriodEnd: periodEnd,
+    cancelAtPeriodEnd: true,
   });
+  if (!upserted.ok) {
+    return { ok: false, error: upserted.error, status: 500 };
+  }
+  return { ok: true };
 }

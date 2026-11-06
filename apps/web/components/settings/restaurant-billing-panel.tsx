@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, CreditCard, Loader2 } from "lucide-react";
+import { Ban, Check, CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { BillingComparisonTable } from "@/components/billing/billing-comparison-table";
 import { RestaurantBillingInvoices } from "@/components/billing/restaurant-billing-invoices";
@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -28,6 +29,7 @@ import {
   hasManagedMollieSubscription,
 } from "@/lib/billing/entitlements";
 import { isBillingDunningStatus } from "@/lib/billing/past-due-grace";
+import { computePlanChangeProration } from "@/lib/billing/plan-change-proration";
 import {
   BILLING_ADDONS,
   BILLING_PLANS,
@@ -80,6 +82,11 @@ export function RestaurantBillingPanel() {
   const [cancelBusy, setCancelBusy] = useState(false);
   const [paymentMethodBusy, setPaymentMethodBusy] = useState(false);
   const [invoiceReload, setInvoiceReload] = useState(0);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [pendingPlanId, setPendingPlanId] = useState<Exclude<
+    BillingPlanId,
+    "free"
+  > | null>(null);
 
   const interval: BillingInterval = yearly ? "year" : "month";
   const showSkeleton = useDeferredSkeleton(
@@ -88,7 +95,12 @@ export function RestaurantBillingPanel() {
 
   useEffect(() => {
     const checkout = searchParams.get("checkout");
-    if (checkout === "success") {
+    const paymentMethod = searchParams.get("paymentMethod");
+    if (paymentMethod === "updated") {
+      toast.success("Zahlungsmittel aktualisiert.");
+      reload();
+      setInvoiceReload((n) => n + 1);
+    } else if (checkout === "success") {
       toast.success("Abo aktualisiert — willkommen an Bord.");
       reload();
       setInvoiceReload((n) => n + 1);
@@ -203,7 +215,7 @@ export function RestaurantBillingPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           restaurantId,
-          returnUrl: `${window.location.origin}/dashboard/settings/billing?checkout=success`,
+          returnUrl: `${window.location.origin}/dashboard/settings/billing?paymentMethod=updated`,
         }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
@@ -237,7 +249,7 @@ export function RestaurantBillingPanel() {
             ? "Kündigung konnte nicht gesetzt werden."
             : "Kündigung konnte nicht zurückgenommen werden.",
         );
-        return;
+        throw new Error(data.error || "cancel_failed");
       }
       toast.success(
         cancel
@@ -252,11 +264,24 @@ export function RestaurantBillingPanel() {
 
   async function choosePaidPlan(planId: Exclude<BillingPlanId, "free">) {
     if (entitlements && canChangeMolliePlan(entitlements)) {
-      await changePlan(planId);
+      setPendingPlanId(planId);
       return;
     }
     await startCheckout(planId);
   }
+
+  const planChangePreview = useMemo(() => {
+    if (!pendingPlanId || !entitlements?.currentPeriodEnd) return null;
+    if (entitlements.planId === "free") return null;
+    return computePlanChangeProration({
+      currentPlanId: entitlements.planId as Exclude<BillingPlanId, "free">,
+      currentInterval: entitlements.interval,
+      newPlanId: pendingPlanId,
+      newInterval: interval,
+      includePos: entitlements.addons.includes("pos"),
+      periodEndIso: entitlements.currentPeriodEnd,
+    });
+  }, [pendingPlanId, entitlements, interval]);
 
   if (!workspaceReady) {
     return <WorkspaceRestaurantResolvePlaceholder />;
@@ -302,8 +327,49 @@ export function RestaurantBillingPanel() {
   const activeIntervalLabel =
     entitlements?.interval === "month" ? "monatlich" : "jährlich";
 
+  const cancelPeriodLabel = entitlements?.currentPeriodEnd
+    ? formatBillingDate(entitlements.currentPeriodEnd)
+    : "Periodenende";
+
   return (
     <div className="space-y-6 pt-2">
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        title="Abo zum Periodenende kündigen?"
+        description={`Der aktuelle Plan bleibt bis ${cancelPeriodLabel} aktiv. Danach wechselt der Betrieb auf Free. Die Kündigung kannst du bis dahin zurücknehmen.`}
+        confirmLabel="Zum Periodenende kündigen"
+        cancelLabel="Abbrechen"
+        destructive
+        onConfirm={() => setCancelAtPeriodEnd(true)}
+      />
+      <ConfirmDialog
+        open={pendingPlanId != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPlanId(null);
+        }}
+        title={
+          pendingPlanId
+            ? `Auf ${BILLING_PLANS[pendingPlanId].name} wechseln?`
+            : "Plan wechseln?"
+        }
+        description={
+          planChangePreview && planChangePreview.chargeNowEuros > 0
+            ? `Neuer Plan gilt sofort. Ungenutzter Rest der laufenden Periode wird gutgeschrieben — jetzt fällig ca. ${planChangePreview.chargeNowEuros
+                .toFixed(2)
+                .replace(".", ",")} €.`
+            : "Neuer Plan gilt sofort. Ein Guthaben aus dem laufenden Zeitraum deckt den Wechsel — keine Sofortzahlung."
+        }
+        confirmLabel="Wechseln"
+        cancelLabel="Abbrechen"
+        destructive={false}
+        onConfirm={async () => {
+          if (!pendingPlanId) return;
+          const next = pendingPlanId;
+          setPendingPlanId(null);
+          await changePlan(next);
+        }}
+      />
       <Card className="border-border/50 shadow-card">
         <CardHeader className="space-y-3 pb-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -336,12 +402,12 @@ export function RestaurantBillingPanel() {
                 variant="outline"
                 className="shrink-0 rounded-full"
                 disabled={cancelBusy}
-                onClick={() => void setCancelAtPeriodEnd(true)}
+                onClick={() => setCancelConfirmOpen(true)}
               >
                 {cancelBusy ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <CreditCard className="size-4" />
+                  <Ban className="size-4" />
                 )}
                 Zum Periodenende kündigen
               </Button>
@@ -602,7 +668,7 @@ export function RestaurantBillingPanel() {
                           variant="outline"
                           className="w-full rounded-full"
                           disabled={cancelBusy}
-                          onClick={() => void setCancelAtPeriodEnd(true)}
+                          onClick={() => setCancelConfirmOpen(true)}
                         >
                           {cancelBusy ? (
                             <Loader2 className="size-4 animate-spin" />

@@ -2,8 +2,9 @@
 
 import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { labelForTagId } from "@/lib/constants/menu-labels";
-import { isMenuItemActive } from "@/lib/menu/item-utils";
+import { isMenuItemActive, isMenuItemSoldOut } from "@/lib/menu/item-utils";
 import { MenuItemAvailabilityBadge } from "@/components/menu/menu-item-availability-badge";
 import type { UseSortableReorderResult } from "@/lib/hooks/use-sortable-reorder";
 import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
@@ -20,6 +21,8 @@ type MenuItemCompactRowProps = {
   tagDefinitions: readonly MenuTaxonomyDefinition[];
   currencyCode?: string;
   onSelect?: (item: MenuItem) => void;
+  /** Fast 86 toggle without opening the dish editor. */
+  onSoldOutChange?: (item: MenuItem, soldOut: boolean) => void;
   sortable?: boolean;
   itemRef?: (el: HTMLTableRowElement | null) => void;
   itemClassName?: string;
@@ -31,12 +34,14 @@ export function MenuItemCompactRow({
   tagDefinitions,
   currencyCode,
   onSelect,
+  onSoldOutChange,
   sortable = false,
   itemRef,
   itemClassName,
   handleProps,
 }: MenuItemCompactRowProps) {
   const live = isMenuItemActive(item);
+  const soldOut = isMenuItemSoldOut(item);
   const canDrag = sortable && !!handleProps;
 
   return (
@@ -105,6 +110,15 @@ export function MenuItemCompactRow({
               Inaktiv
             </Badge>
           ) : null}
+          {soldOut ? (
+            <Badge
+              variant="outline"
+              className="h-6 shrink-0 rounded-full border-amber-500/40 bg-amber-500/10 px-2 text-[0.7rem] font-semibold text-amber-800 dark:text-amber-200"
+              title="Ausverkauft"
+            >
+              Ausverkauft
+            </Badge>
+          ) : null}
           <MenuItemAvailabilityBadge item={item} />
           {item.tags.map((tag) => {
             const vis = getTagChipVisual(tag, tagDefinitions);
@@ -124,6 +138,21 @@ export function MenuItemCompactRow({
           })}
         </div>
       </td>
+      {onSoldOutChange ? (
+        <td
+          className="whitespace-nowrap px-2 py-2.5 text-right align-middle"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="inline-flex items-center gap-1.5">
+            <span className="text-[0.65rem] text-muted-foreground">86</span>
+            <Switch
+              checked={soldOut}
+              onCheckedChange={(v) => onSoldOutChange(item, v === true)}
+              aria-label={`${item.name} ausverkauft`}
+            />
+          </div>
+        </td>
+      ) : null}
       <td className="whitespace-nowrap px-3 py-2.5 text-right align-middle font-semibold tabular-nums text-accent">
         {formatMenuPrice(item.price, currencyCode)}
       </td>

@@ -15,6 +15,7 @@ type MenuCompactItemsTableProps = {
   sortable: boolean;
   onReorder: (orderedIds: string[]) => void;
   onSelect: (id: string) => void;
+  onSoldOutChange?: (item: MenuItem, soldOut: boolean) => void;
 };
 
 export function MenuCompactItemsTable({
@@ -24,6 +25,7 @@ export function MenuCompactItemsTable({
   sortable,
   onReorder,
   onSelect,
+  onSoldOutChange,
 }: MenuCompactItemsTableProps) {
   const ordered = items;
   const itemIds = React.useMemo(() => ordered.map((i) => i.id), [ordered]);
@@ -52,6 +54,9 @@ export function MenuCompactItemsTable({
             <th className="w-14 px-2 py-2">Nr.</th>
             <th className="min-w-0 px-2 py-2">Gericht</th>
             <th className="min-w-[5rem] px-2 py-2">Tags</th>
+            {onSoldOutChange ? (
+              <th className="px-2 py-2 text-right">86</th>
+            ) : null}
             <th className="px-3 py-2 text-right">Preis</th>
           </tr>
         </thead>
@@ -63,6 +68,7 @@ export function MenuCompactItemsTable({
               tagDefinitions={tagDefinitions}
               currencyCode={currencyCode}
               onSelect={(row) => onSelect(row.id)}
+              onSoldOutChange={onSoldOutChange}
               sortable={sortable}
               itemRef={(el) => sort.registerItemRef(item.id, el)}
               itemClassName={sort.getItemDropClassName(item.id)}

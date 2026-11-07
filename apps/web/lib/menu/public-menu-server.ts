@@ -59,6 +59,9 @@ type MenuItemRow = {
   category_id: string;
   available_from: string | null;
   available_to: string | null;
+  available_online?: boolean | null;
+  available_kiosk?: boolean | null;
+  sold_out?: boolean | null;
   menu_item_tags: { tag_id: string }[] | null;
   menu_item_allergens: { allergen_id: string }[] | null;
 };
@@ -106,6 +109,9 @@ function rowToMenuItem(
     optionGroupIds,
     availableFrom: normalizeMenuAvailabilityYmd(row.available_from),
     availableTo: normalizeMenuAvailabilityYmd(row.available_to),
+    availableOnline: row.available_online !== false,
+    availableKiosk: row.available_kiosk !== false,
+    soldOut: row.sold_out === true,
   };
 }
 
@@ -177,7 +183,9 @@ export async function fetchPublicEmbedMenu(
       .order("sort_order", { ascending: true }),
     admin
       .from("menu_categories")
-      .select("id, name, is_active, sort_order, main_category_id")
+      .select(
+        "id, name, is_active, sort_order, main_category_id, available_online, available_kiosk",
+      )
       .eq("restaurant_id", restaurantId)
       .eq("is_active", true)
       .order("sort_order", { ascending: true }),
@@ -186,7 +194,7 @@ export async function fetchPublicEmbedMenu(
       .select(
         `
         id, name, description, price, image_url, is_active, list_number, category_id,
-        available_from, available_to,
+        available_from, available_to, available_online, available_kiosk, sold_out,
         menu_item_tags(tag_id),
         menu_item_allergens(allergen_id)
       `,
@@ -241,6 +249,10 @@ export async function fetchPublicEmbedMenu(
       name: c.name as string,
       active: c.is_active as boolean,
       mainCategoryId: c.main_category_id as string,
+      availableOnline:
+        (c as { available_online?: boolean }).available_online !== false,
+      availableKiosk:
+        (c as { available_kiosk?: boolean }).available_kiosk !== false,
     }),
   );
 

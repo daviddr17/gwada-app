@@ -15,6 +15,8 @@ export const DEFAULT_NOTIFY_STATUSES = [
   "cancelled",
 ] as const;
 
+export type SoldOutGuestDisplay = "hide" | "grey";
+
 export type OnlineOrderingSettings = {
   restaurantId: string;
   onlineEnabled: boolean;
@@ -41,6 +43,13 @@ export type OnlineOrderingSettings = {
   slotCapacity: number;
   slotHorizonHours: number;
   kioskMollieTerminalId: string | null;
+  /** Guest sold-out tiles: hide (default) or greyed/disabled. */
+  soldOutGuestDisplay: SoldOutGuestDisplay;
+  /**
+   * Opt-in live inventory check on guest menu/checkout.
+   * Default OFF — separate from POS inventory_booking_enabled.
+   */
+  guestLiveStockCheckEnabled: boolean;
 };
 
 export type OnlineOrderingSettingsPatch = Partial<
@@ -126,4 +135,6 @@ export const DEFAULT_ONLINE_ORDERING_SETTINGS: Omit<
   slotCapacity: 8,
   slotHorizonHours: 24,
   kioskMollieTerminalId: null,
+  soldOutGuestDisplay: "hide",
+  guestLiveStockCheckEnabled: false,
 };

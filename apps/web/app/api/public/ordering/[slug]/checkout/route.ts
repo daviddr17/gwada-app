@@ -20,6 +20,7 @@ export async function POST(
     slug,
     input: body,
     redirectPathTemplate: body.redirectPathTemplate,
+    request,
   });
 
   if (!result.ok) {

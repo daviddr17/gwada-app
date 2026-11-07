@@ -154,6 +154,7 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
     deleteItem,
     getItemById,
     reorderItemsInCategory,
+    setSoldOut,
     isHydrated: menuHydrated,
   } = useMenuStorage();
 
@@ -543,6 +544,8 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
     name: string;
     active?: boolean;
     mainCategoryId?: string;
+    availableOnline?: boolean;
+    availableKiosk?: boolean;
   }) => {
     const mainCategoryId =
       payload.mainCategoryId ?? activeMainCategoryId ?? mainCategories[0]?.id;
@@ -551,12 +554,18 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
         name: payload.name,
         active: payload.active,
         mainCategoryId,
+        availableOnline: payload.availableOnline,
+        availableKiosk: payload.availableKiosk,
       });
     } else if (mainCategoryId) {
       const created = await addCategory(
         payload.name,
         payload.active !== false,
         mainCategoryId,
+        {
+          availableOnline: payload.availableOnline,
+          availableKiosk: payload.availableKiosk,
+        },
       );
       if (created) {
         setActiveMainCategoryId(mainCategoryId);
@@ -825,6 +834,9 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
                         reorderItemsInCategory(cat.id, ids)
                       }
                       onSelect={openEditDrawer}
+                      onSoldOutChange={(item, soldOut) =>
+                        setSoldOut(item.id, soldOut)
+                      }
                     />
                   )}
                 </section>

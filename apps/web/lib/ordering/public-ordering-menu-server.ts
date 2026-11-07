@@ -1,35 +1,97 @@
 import "server-only";
 
+import {
+  isCategoryAvailableForChannel,
+  isMenuItemAvailableForChannel,
+  isMenuItemSoldOut,
+  type GuestMenuChannel,
+} from "@/lib/menu/item-utils";
 import { fetchPublicEmbedMenu } from "@/lib/menu/public-menu-server";
-import type { PublicOrderingRecipeIngredient } from "@/lib/ordering/online-ordering-types";
+import { menuItemIdsInsufficientStock } from "@/lib/ordering/guest-live-stock-server";
+import type {
+  PublicOrderingRecipeIngredient,
+  SoldOutGuestDisplay,
+} from "@/lib/ordering/online-ordering-types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type { PublicOrderingRecipeIngredient };
+
+export type FetchPublicOrderingMenuOptions = {
+  channel?: GuestMenuChannel;
+  soldOutGuestDisplay?: SoldOutGuestDisplay;
+  guestLiveStockCheckEnabled?: boolean;
+};
 
 /**
  * Public menu plus recipe ingredients for guest „ohne“ selection.
  * Ingredient ids are plain text (inventory_ingredients) — no PostgREST FK embed.
  */
-export async function fetchPublicOrderingMenu(slug: string) {
+export async function fetchPublicOrderingMenu(
+  slug: string,
+  options: FetchPublicOrderingMenuOptions = {},
+) {
   const menuResult = await fetchPublicEmbedMenu(slug);
   if (!menuResult.data) return menuResult;
+
+  const channel = options.channel;
+  const soldOutDisplay = options.soldOutGuestDisplay ?? "hide";
+  const liveStock = options.guestLiveStockCheckEnabled === true;
+
+  let categories = menuResult.data.categories;
+  let items = menuResult.data.items;
+
+  if (channel) {
+    categories = categories.filter((c) =>
+      isCategoryAvailableForChannel(c, channel),
+    );
+    const categoryIds = new Set(categories.map((c) => c.id));
+    items = items.filter(
+      (item) =>
+        categoryIds.has(item.category) &&
+        isMenuItemAvailableForChannel(item, channel),
+    );
+  }
+
+  if (liveStock) {
+    const admin = createSupabaseAdminClient();
+    if (admin) {
+      const insufficient = await menuItemIdsInsufficientStock({
+        supabase: admin,
+        restaurantId: menuResult.data.restaurantId,
+        menuItemIds: items.map((i) => i.id),
+      });
+      if (insufficient.size) {
+        items = items.map((item) =>
+          insufficient.has(item.id) ? { ...item, soldOut: true } : item,
+        );
+      }
+    }
+  }
+
+  if (soldOutDisplay === "hide") {
+    items = items.filter((item) => !isMenuItemSoldOut(item));
+  }
 
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return {
       data: {
         ...menuResult.data,
+        categories,
+        items,
         recipeByItemId: {} as Record<string, PublicOrderingRecipeIngredient[]>,
       },
       error: null,
     };
   }
 
-  const itemIds = menuResult.data.items.map((i) => i.id);
+  const itemIds = items.map((i) => i.id);
   if (!itemIds.length) {
     return {
       data: {
         ...menuResult.data,
+        categories,
+        items,
         recipeByItemId: {} as Record<string, PublicOrderingRecipeIngredient[]>,
       },
       error: null,
@@ -70,6 +132,8 @@ export async function fetchPublicOrderingMenu(slug: string) {
   return {
     data: {
       ...menuResult.data,
+      categories,
+      items,
       recipeByItemId,
     },
     error: null,

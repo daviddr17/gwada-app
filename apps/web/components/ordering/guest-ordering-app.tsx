@@ -18,7 +18,13 @@ import {
   formatEarliestLabelDe,
   toDatetimeLocalValue,
 } from "@/lib/ordering/ordering-lead-time";
+import {
+  guestKioskDeviceHeaderValue,
+  readGuestKioskDeviceCredential,
+  type StoredGuestKioskDeviceCredential,
+} from "@/lib/ordering/guest-kiosk-device-storage";
 import type { PublicOrderingRecipeIngredient } from "@/lib/ordering/online-ordering-types";
+import { isMenuItemSoldOut } from "@/lib/menu/item-utils";
 import type { MenuItem, MenuOptionGroup } from "@/lib/types/menu";
 import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
@@ -41,6 +47,8 @@ type PublicSettings = {
   kioskIdleSeconds: number;
   guestStatusMessage: string | null;
   hasKioskTerminal?: boolean;
+  soldOutGuestDisplay?: "hide" | "grey";
+  guestLiveStockCheckEnabled?: boolean;
 };
 
 type OrderingPayload = {
@@ -112,10 +120,20 @@ export function GuestOrderingApp({
   const [terminalWaiting, setTerminalWaiting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [kioskDevice, setKioskDevice] =
+    useState<StoredGuestKioskDeviceCredential | null>(null);
   const [cartBump, setCartBump] = useState(false);
   const cartBumpTimerRef = useRef<number | null>(null);
 
   const showSkeleton = useDeferredSkeleton(loading);
+
+  useEffect(() => {
+    if (mode === "online") {
+      setKioskDevice(null);
+      return;
+    }
+    setKioskDevice(readGuestKioskDeviceCredential());
+  }, [mode]);
 
   useEffect(() => {
     return () => {
@@ -129,9 +147,10 @@ export function GuestOrderingApp({
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await fetch(`/api/public/ordering/${encodeURIComponent(slug)}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `/api/public/ordering/${encodeURIComponent(slug)}?channel=${encodeURIComponent(mode)}`,
+        { cache: "no-store" },
+      );
       const json = (await res.json()) as OrderingPayload & { error?: string };
       if (!res.ok) {
         setLoadError(json.error ?? "Laden fehlgeschlagen");
@@ -200,8 +219,10 @@ export function GuestOrderingApp({
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const hideSoldOut = data?.settings.soldOutGuestDisplay !== "grey";
     return (data?.menu.items ?? []).filter((item) => {
       if (!item.active) return false;
+      if (hideSoldOut && isMenuItemSoldOut(item)) return false;
       // Search is menu-wide; category chips only apply when the query is empty.
       if (!q && categoryId !== "all" && item.category !== categoryId) {
         return false;
@@ -239,13 +260,28 @@ export function GuestOrderingApp({
           ? `/order/${data.restaurant.slug}/status/{token}?paid=1`
           : `/kiosk/${data.restaurant.slug}/thanks/{token}`;
 
+      const deviceCred =
+        mode === "online"
+          ? null
+          : kioskDevice ?? readGuestKioskDeviceCredential();
       const useTerminal =
-        mode === "kiosk" && Boolean(data.settings.hasKioskTerminal);
+        mode === "kiosk" &&
+        Boolean(
+          data.settings.hasKioskTerminal ||
+            deviceCred?.mollieTerminalId ||
+            deviceCred,
+        );
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (deviceCred) {
+        headers["x-gwada-kiosk-device"] = guestKioskDeviceHeaderValue(deviceCred);
+      }
       const res = await fetch(
         `/api/public/ordering/${encodeURIComponent(slug)}/checkout`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             channel,
             fulfillmentType: fulfillment,
@@ -262,6 +298,7 @@ export function GuestOrderingApp({
                 ? new Date(scheduledLocal).toISOString()
                 : undefined,
             payWithTerminal: useTerminal,
+            mollieTerminalId: deviceCred?.mollieTerminalId || undefined,
             items: cart.map((l) => ({
               menuItemId: l.menuItemId,
               quantity: l.quantity,
@@ -495,14 +532,21 @@ export function GuestOrderingApp({
                     : "grid-cols-1 sm:grid-cols-2",
                 )}
               >
-                {filteredItems.map((item) => (
+                {filteredItems.map((item) => {
+                  const soldOut = isMenuItemSoldOut(item);
+                  return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setConfigureItem(item)}
+                    disabled={soldOut}
+                    onClick={() => {
+                      if (soldOut) return;
+                      setConfigureItem(item);
+                    }}
                     className={cn(
                       "rounded-2xl border border-border/50 bg-card p-4 text-left shadow-card transition-transform active:scale-[0.99]",
                       largeTouch && "min-h-28 p-5",
+                      soldOut && "cursor-not-allowed opacity-[0.55]",
                     )}
                   >
                     <p
@@ -512,6 +556,11 @@ export function GuestOrderingApp({
                       )}
                     >
                       {item.name}
+                      {soldOut ? (
+                        <span className="ml-2 text-sm font-medium text-muted-foreground">
+                          Ausverkauft
+                        </span>
+                      ) : null}
                     </p>
                     {item.description ? (
                       <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
@@ -528,7 +577,8 @@ export function GuestOrderingApp({
                       {formatEuroFromCents(Math.round(Number(item.price) * 100))}
                     </p>
                   </button>
-                ))}
+                  );
+                })}
               </div>
               {filteredItems.length === 0 ? (
                 <p className="py-10 text-center text-muted-foreground">
@@ -1035,6 +1085,12 @@ function mapCheckoutError(code?: string): string {
       return "Kein Mollie-Terminal für den Kiosk konfiguriert.";
     case "mollie_pos_not_enabled":
       return "Mollie POS/Terminal ist noch nicht freigeschaltet.";
+    case "item_sold_out":
+      return "Ein Gericht ist ausverkauft — bitte Warenkorb anpassen.";
+    case "item_channel_unavailable":
+      return "Ein Gericht ist für diesen Kanal nicht verfügbar.";
+    case "insufficient_stock":
+      return "Nicht genug Bestand für diese Bestellung.";
     default:
       return code ? `Fehler: ${code}` : "Checkout fehlgeschlagen.";
   }

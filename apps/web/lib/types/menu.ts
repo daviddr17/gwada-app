@@ -30,6 +30,10 @@ export interface MenuCategoryDefinition {
   mainCategoryId?: MenuMainCategoryId;
   /** false = in der Karte ausgeblendet (Redaktion). Standard: aktiv. */
   active?: boolean;
+  /** Online-Gastkanal (/order). Standard: true. */
+  availableOnline?: boolean;
+  /** Kiosk-/Tisch-Kanal. Standard: true. */
+  availableKiosk?: boolean;
 }
 
 export type MenuRecipeLine = {
@@ -88,6 +92,15 @@ export interface MenuItem {
   availableFrom?: string | null;
   /** Optional: Anzeige bis (YYYY-MM-DD, inklusive). */
   availableTo?: string | null;
+  /** Online-Gastkanal (/order). Standard: true. */
+  availableOnline?: boolean;
+  /** Kiosk-/Tisch-Kanal. Standard: true. */
+  availableKiosk?: boolean;
+  /**
+   * Manuell ausverkauft (86) — unabhängig von „Gericht aktiv“.
+   * Gast: je nach Restaurant-Policy ausgegraut oder ausgeblendet.
+   */
+  soldOut?: boolean;
 }
 
 export type NewMenuItem = Omit<MenuItem, "id">;

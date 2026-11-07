@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { GuestOrderingApp } from "@/components/ordering/guest-ordering-app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  getOrCreateGuestKioskInstallationId,
+  saveGuestKioskDeviceCredential,
+} from "@/lib/ordering/guest-kiosk-device-storage";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -14,7 +18,7 @@ type Props = {
   accentHex?: string;
 };
 
-type Phase = "attract" | "ordering" | "thanks" | "staff";
+type Phase = "attract" | "ordering" | "thanks" | "staff" | "pairing";
 
 /**
  * Locked guest kiosk shell for:
@@ -39,8 +43,73 @@ export function KioskLockedShell({
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinBusy, setPinBusy] = useState(false);
   const [unlockedHint, setUnlockedHint] = useState(false);
+  const [pairStatus, setPairStatus] = useState<string | null>(null);
   const logoTaps = useRef(0);
   const logoTimer = useRef<number | null>(null);
+  const pairAttempted = useRef(false);
+
+  // Pair this tablet when opened with ?pair=CODE (Display-style enroll).
+  useEffect(() => {
+    if (pairAttempted.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const code = (params.get("pair") ?? params.get("code") ?? "")
+      .trim()
+      .toUpperCase();
+    if (!code || code.length !== 8) return;
+    pairAttempted.current = true;
+    setPhase("pairing");
+    setPairStatus("Gerät wird gekoppelt …");
+    void (async () => {
+      try {
+        const installationId = getOrCreateGuestKioskInstallationId();
+        const res = await fetch("/api/public/ordering/kiosk-pair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, installation_id: installationId }),
+        });
+        const json = (await res.json()) as {
+          error?: string;
+          device_id?: string;
+          device_token?: string;
+          installation_id?: string;
+          device_name?: string;
+          mollie_terminal_id?: string | null;
+          restaurant?: { slug?: string };
+        };
+        if (!res.ok || !json.device_id || !json.device_token) {
+          setPairStatus(
+            json.error === "code_expired"
+              ? "Code abgelaufen — bitte neu koppeln."
+              : "Kopplung fehlgeschlagen.",
+          );
+          return;
+        }
+        saveGuestKioskDeviceCredential({
+          deviceId: json.device_id,
+          token: json.device_token,
+          installationId: json.installation_id ?? installationId,
+          restaurantSlug: json.restaurant?.slug ?? slug,
+          deviceName: json.device_name,
+          mollieTerminalId: json.mollie_terminal_id ?? null,
+        });
+        const url = new URL(window.location.href);
+        url.searchParams.delete("pair");
+        url.searchParams.delete("code");
+        window.history.replaceState({ kiosk: true }, "", url.pathname + url.search);
+        setPairStatus(
+          json.device_name
+            ? `Gekoppelt: ${json.device_name}`
+            : "Gerät erfolgreich gekoppelt.",
+        );
+        window.setTimeout(() => {
+          setPhase("attract");
+          setPairStatus(null);
+        }, 1200);
+      } catch {
+        setPairStatus("Netzwerkfehler bei der Kopplung.");
+      }
+    })();
+  }, [slug]);
 
   // History trap — keep guests inside the kiosk shell
   useEffect(() => {
@@ -120,6 +189,21 @@ export function KioskLockedShell({
         } as React.CSSProperties
       }
     >
+      {phase === "pairing" ? (
+        <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
+          <p className="text-2xl font-semibold">Kiosk koppeln</p>
+          <p className="text-muted-foreground">{pairStatus}</p>
+          {pairStatus &&
+          (pairStatus.includes("fehlgeschlagen") ||
+            pairStatus.includes("abgelaufen") ||
+            pairStatus.includes("Netzwerk")) ? (
+            <Button type="button" onClick={() => setPhase("attract")}>
+              Zurück
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       {phase === "attract" ? (
         <div className="relative flex h-full w-full flex-col items-center justify-center gap-8 px-8 text-center">
           <button

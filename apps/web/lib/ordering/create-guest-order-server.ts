@@ -6,7 +6,17 @@ import type {
   PosOrderChannel,
 } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isMenuItemPubliclyAvailable } from "@/lib/menu/item-utils";
+import {
+  isMenuItemAvailableForChannel,
+  isMenuItemPubliclyAvailable,
+  isMenuItemSoldOut,
+  type GuestMenuChannel,
+} from "@/lib/menu/item-utils";
+import {
+  assertGuestKioskDeviceFromRequest,
+  normalizeMollieTerminalId,
+} from "@/lib/ordering/guest-kiosk-device-server";
+import { assertGuestCartHasStock } from "@/lib/ordering/guest-live-stock-server";
 import type { GuestCheckoutInput } from "@/lib/ordering/online-ordering-types";
 import {
   loadOnlineOrderingSettings,
@@ -61,6 +71,7 @@ export async function createGuestOrderCheckout(params: {
   input: GuestCheckoutInput;
   /** Absolute or path redirect after Mollie; token placeholder `{token}`. */
   redirectPathTemplate?: string;
+  request?: Request;
 }): Promise<
   | {
       ok: true;
@@ -96,6 +107,19 @@ export async function createGuestOrderCheckout(params: {
   }
   if ((channel === "kiosk" || channel === "table") && !settings.kioskEnabled) {
     return { ok: false, error: "kiosk_disabled", status: 403 };
+  }
+
+  let pairedDeviceTerminal: string | null = null;
+  if (params.request && (channel === "kiosk" || channel === "table")) {
+    const deviceAuth = await assertGuestKioskDeviceFromRequest(params.request);
+    if (deviceAuth.ok) {
+      if (deviceAuth.device.restaurant_id !== restaurant.restaurantId) {
+        return { ok: false, error: "device_restaurant_mismatch", status: 403 };
+      }
+      pairedDeviceTerminal = normalizeMollieTerminalId(
+        deviceAuth.device.mollie_terminal_id,
+      );
+    }
   }
 
   const fulfillment = params.input.fulfillmentType;
@@ -137,9 +161,19 @@ export async function createGuestOrderCheckout(params: {
   const priced = await priceGuestLines({
     supabase: admin,
     restaurantId: restaurant.restaurantId,
+    channel,
     items,
   });
   if (!priced.ok) return priced;
+
+  if (settings.guestLiveStockCheckEnabled) {
+    const stock = await assertGuestCartHasStock({
+      supabase: admin,
+      restaurantId: restaurant.restaurantId,
+      items,
+    });
+    if (!stock.ok) return stock;
+  }
 
   if (priced.subtotalCents < minOrder) {
     return { ok: false, error: "below_min_order", status: 400 };
@@ -174,7 +208,8 @@ export async function createGuestOrderCheckout(params: {
     channel === "kiosk" &&
     params.input.payWithTerminal !== false;
   const terminalId =
-    params.input.mollieTerminalId?.trim() ||
+    pairedDeviceTerminal ||
+    normalizeMollieTerminalId(params.input.mollieTerminalId) ||
     settings.kioskMollieTerminalId ||
     "";
 
@@ -339,6 +374,7 @@ export async function createGuestOrderCheckout(params: {
 async function priceGuestLines(params: {
   supabase: SupabaseClient;
   restaurantId: string;
+  channel: GuestMenuChannel;
   items: GuestCheckoutInput["items"];
 }): Promise<
   | {
@@ -352,13 +388,41 @@ async function priceGuestLines(params: {
   const { data: menuItems, error: menuError } = await params.supabase
     .from("menu_items")
     .select(
-      "id, name, price, vat_rate, is_active, restaurant_id, available_from, available_to",
+      "id, name, price, vat_rate, is_active, restaurant_id, available_from, available_to, available_online, available_kiosk, sold_out, category_id",
     )
     .in("id", menuItemIds)
     .eq("restaurant_id", params.restaurantId);
 
   if (menuError || !menuItems?.length) {
     return { ok: false, error: "menu_items_not_found", status: 400 };
+  }
+
+  const categoryIds = [
+    ...new Set(
+      menuItems
+        .map((m) => m.category_id as string | null)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const categoryChannelOk = new Map<string, boolean>();
+  if (categoryIds.length) {
+    const { data: cats } = await params.supabase
+      .from("menu_categories")
+      .select("id, available_online, available_kiosk, is_active")
+      .in("id", categoryIds)
+      .eq("restaurant_id", params.restaurantId);
+    for (const cat of cats ?? []) {
+      if (cat.is_active === false) {
+        categoryChannelOk.set(cat.id as string, false);
+        continue;
+      }
+      const online = cat.available_online !== false;
+      const kiosk = cat.available_kiosk !== false;
+      categoryChannelOk.set(
+        cat.id as string,
+        params.channel === "online" ? online : kiosk,
+      );
+    }
   }
 
   const menuById = new Map(menuItems.map((m) => [m.id as string, m]));
@@ -373,26 +437,38 @@ async function priceGuestLines(params: {
   for (let i = 0; i < params.items.length; i++) {
     const input = params.items[i]!;
     const menuItem = menuById.get(input.menuItemId);
-    if (
-      !menuItem ||
-      !isMenuItemPubliclyAvailable(
-        {
+    const asMenu = menuItem
+      ? {
           id: menuItem.id as string,
           name: menuItem.name as string,
           description: "",
           price: Number(menuItem.price),
-          category: "",
+          category: (menuItem.category_id as string) ?? "",
           imageUrl: "",
           tags: [],
           active: Boolean(menuItem.is_active),
           availableFrom: (menuItem.available_from as string | null) ?? null,
           availableTo: (menuItem.available_to as string | null) ?? null,
-        },
-        new Date(),
-        restaurantTimeZone,
-      )
+          availableOnline: menuItem.available_online !== false,
+          availableKiosk: menuItem.available_kiosk !== false,
+          soldOut: menuItem.sold_out === true,
+        }
+      : null;
+    if (
+      !asMenu ||
+      !isMenuItemPubliclyAvailable(asMenu, new Date(), restaurantTimeZone)
     ) {
       return { ok: false, error: "invalid_menu_item", status: 400 };
+    }
+    if (!isMenuItemAvailableForChannel(asMenu, params.channel)) {
+      return { ok: false, error: "item_channel_unavailable", status: 400 };
+    }
+    const catId = asMenu.category;
+    if (catId && categoryChannelOk.get(catId) === false) {
+      return { ok: false, error: "item_channel_unavailable", status: 400 };
+    }
+    if (isMenuItemSoldOut(asMenu)) {
+      return { ok: false, error: "item_sold_out", status: 409 };
     }
 
     const qty = input.quantity;

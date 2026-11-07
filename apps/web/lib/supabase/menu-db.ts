@@ -29,6 +29,9 @@ type MenuItemRow = {
   category_id: string;
   available_from: string | null;
   available_to: string | null;
+  available_online?: boolean | null;
+  available_kiosk?: boolean | null;
+  sold_out?: boolean | null;
   marking_codes: string[] | null;
   menu_item_tags: { tag_id: string }[] | null;
   menu_item_allergens: { allergen_id: string }[] | null;
@@ -80,6 +83,9 @@ function rowToMenuItem(row: MenuItemRow): MenuItem {
     markingCodes: parseMenuMarkingCodes(row.marking_codes),
     availableFrom: normalizeMenuAvailabilityYmd(row.available_from),
     availableTo: normalizeMenuAvailabilityYmd(row.available_to),
+    availableOnline: row.available_online !== false,
+    availableKiosk: row.available_kiosk !== false,
+    soldOut: row.sold_out === true,
   };
 }
 
@@ -198,7 +204,9 @@ export async function loadMenuCategoriesRelational(
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("menu_categories")
-    .select("id,name,is_active,sort_order,main_category_id")
+    .select(
+      "id,name,is_active,sort_order,main_category_id,available_online,available_kiosk",
+    )
     .eq("restaurant_id", rid)
     .order("sort_order", { ascending: true });
   if (error) {
@@ -211,6 +219,8 @@ export async function loadMenuCategoriesRelational(
     name: r.name as string,
     active: r.is_active as boolean,
     mainCategoryId: r.main_category_id as string,
+    availableOnline: (r as { available_online?: boolean }).available_online !== false,
+    availableKiosk: (r as { available_kiosk?: boolean }).available_kiosk !== false,
   }));
 }
 
@@ -219,6 +229,7 @@ export async function insertMenuCategory(
   name: string,
   active: boolean,
   mainCategoryId: string,
+  channel?: { availableOnline?: boolean; availableKiosk?: boolean },
 ): Promise<{ id: string } | null> {
   const supabase = createSupabaseBrowserClient();
   const { data: last } = await supabase
@@ -237,6 +248,8 @@ export async function insertMenuCategory(
       is_active: active,
       sort_order: sortOrder,
       main_category_id: mainCategoryId,
+      available_online: channel?.availableOnline !== false,
+      available_kiosk: channel?.availableKiosk !== false,
     })
     .select("id")
     .single();
@@ -249,7 +262,13 @@ export async function insertMenuCategory(
 
 export async function updateMenuCategoryRow(
   id: string,
-  updates: { name?: string; active?: boolean; mainCategoryId?: string },
+  updates: {
+    name?: string;
+    active?: boolean;
+    mainCategoryId?: string;
+    availableOnline?: boolean;
+    availableKiosk?: boolean;
+  },
 ): Promise<boolean> {
   const supabase = createSupabaseBrowserClient();
   const patch: Record<string, unknown> = {};
@@ -257,6 +276,12 @@ export async function updateMenuCategoryRow(
   if (updates.active !== undefined) patch.is_active = updates.active;
   if (updates.mainCategoryId !== undefined) {
     patch.main_category_id = updates.mainCategoryId;
+  }
+  if (updates.availableOnline !== undefined) {
+    patch.available_online = updates.availableOnline;
+  }
+  if (updates.availableKiosk !== undefined) {
+    patch.available_kiosk = updates.availableKiosk;
   }
   if (Object.keys(patch).length === 0) return true;
   const { error } = await supabase.from("menu_categories").update(patch).eq("id", id);
@@ -545,7 +570,7 @@ export async function loadMenuItemsRelational(
     .select(
       `
       id, name, description, price, image_url, is_active, list_number, category_id,
-      available_from, available_to, marking_codes,
+      available_from, available_to, available_online, available_kiosk, sold_out, marking_codes,
       menu_item_tags(tag_id),
       menu_item_allergens(allergen_id),
       menu_item_recipe_lines(ingredient_id, amount),
@@ -579,6 +604,9 @@ export async function insertMenuItemRelational(item: MenuItem): Promise<boolean>
     list_number: item.listNumber ?? null,
     available_from: normalizeMenuAvailabilityYmd(item.availableFrom),
     available_to: normalizeMenuAvailabilityYmd(item.availableTo),
+    available_online: item.availableOnline !== false,
+    available_kiosk: item.availableKiosk !== false,
+    sold_out: item.soldOut === true,
     marking_codes: item.markingCodes ?? [],
   });
   if (error) {
@@ -609,6 +637,9 @@ export async function updateMenuItemRelational(item: MenuItem): Promise<boolean>
       list_number: item.listNumber ?? null,
       available_from: normalizeMenuAvailabilityYmd(item.availableFrom),
       available_to: normalizeMenuAvailabilityYmd(item.availableTo),
+      available_online: item.availableOnline !== false,
+      available_kiosk: item.availableKiosk !== false,
+      sold_out: item.soldOut === true,
       marking_codes: item.markingCodes ?? [],
     })
     .eq("id", item.id);
@@ -617,6 +648,26 @@ export async function updateMenuItemRelational(item: MenuItem): Promise<boolean>
     return false;
   }
   return replaceMenuItemRelations(rid, item.id, item);
+}
+
+/** Fast 86 toggle — does not rewrite relations. */
+export async function updateMenuItemSoldOutRelational(
+  id: string,
+  soldOut: boolean,
+): Promise<boolean> {
+  const rid = await getWorkspaceRestaurantId();
+  if (!rid) return false;
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("menu_items")
+    .update({ sold_out: soldOut })
+    .eq("id", id)
+    .eq("restaurant_id", rid);
+  if (error) {
+    console.warn("[gwada] update menu_items.sold_out", error.message);
+    return false;
+  }
+  return true;
 }
 
 export async function deleteMenuItemRelational(id: string): Promise<boolean> {

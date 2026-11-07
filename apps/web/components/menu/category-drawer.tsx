@@ -29,8 +29,22 @@ import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import type { MenuCategoryDefinition, MenuMainCategoryDefinition } from "@/lib/types/menu";
 
 type CategorySavePayload =
-  | { id?: undefined; name: string; active?: boolean; mainCategoryId?: string }
-  | { id: string; name: string; active: boolean; mainCategoryId?: string };
+  | {
+      id?: undefined;
+      name: string;
+      active?: boolean;
+      mainCategoryId?: string;
+      availableOnline?: boolean;
+      availableKiosk?: boolean;
+    }
+  | {
+      id: string;
+      name: string;
+      active: boolean;
+      mainCategoryId?: string;
+      availableOnline?: boolean;
+      availableKiosk?: boolean;
+    };
 
 export type CategoryDrawerLabels = {
   titleCreate: string;
@@ -91,6 +105,8 @@ export function CategoryDrawer({
   const [iosTouch, setIosTouch] = useState(false);
   const [name, setName] = useState("");
   const [active, setActive] = useState(true);
+  const [availableOnline, setAvailableOnline] = useState(true);
+  const [availableKiosk, setAvailableKiosk] = useState(true);
   const [mainCategoryId, setMainCategoryId] = useState("");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -110,11 +126,15 @@ export function CategoryDrawer({
     if (mode === "edit" && initial) {
       setName(initial.name);
       setActive(initial.active !== false);
+      setAvailableOnline(initial.availableOnline !== false);
+      setAvailableKiosk(initial.availableKiosk !== false);
       setMainCategoryId(initial.mainCategoryId || fallbackMainId);
       return;
     }
     setName("");
     setActive(true);
+    setAvailableOnline(true);
+    setAvailableKiosk(true);
     setMainCategoryId(fallbackMainId);
   });
 
@@ -123,6 +143,7 @@ export function CategoryDrawer({
     label: m.name,
   }));
   const showMainCategoryField = mainCategories.length > 0;
+  const showGuestChannels = showMainCategoryField;
 
   const canDelete = mode === "edit" && initial && onDelete;
 
@@ -145,12 +166,18 @@ export function CategoryDrawer({
           name: trimmed,
           active,
           ...(showMainCategoryField ? { mainCategoryId } : {}),
+          ...(showGuestChannels
+            ? { availableOnline, availableKiosk }
+            : {}),
         });
       } else {
         await onSave({
           name: trimmed,
           active,
           ...(showMainCategoryField ? { mainCategoryId } : {}),
+          ...(showGuestChannels
+            ? { availableOnline, availableKiosk }
+            : {}),
         });
       }
       onOpenChange(false);
@@ -263,6 +290,46 @@ export function CategoryDrawer({
                     onCheckedChange={(v) => setActive(v === true)}
                   />
                 </div>
+                {showGuestChannels ? (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border/50 px-3 py-2.5">
+                      <div className="space-y-0.5">
+                        <Label
+                          htmlFor="category-available-online"
+                          className="text-sm font-medium"
+                        >
+                          Online
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Auf /order sichtbar
+                        </p>
+                      </div>
+                      <Switch
+                        id="category-available-online"
+                        checked={availableOnline}
+                        onCheckedChange={(v) => setAvailableOnline(v === true)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border/50 px-3 py-2.5">
+                      <div className="space-y-0.5">
+                        <Label
+                          htmlFor="category-available-kiosk"
+                          className="text-sm font-medium"
+                        >
+                          Kiosk / Tisch
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Auf /kiosk sichtbar
+                        </p>
+                      </div>
+                      <Switch
+                        id="category-available-kiosk"
+                        checked={availableKiosk}
+                        onCheckedChange={(v) => setAvailableKiosk(v === true)}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </DrawerFormSection>
             </div>
 

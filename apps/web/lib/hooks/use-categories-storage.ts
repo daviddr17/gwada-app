@@ -40,6 +40,8 @@ function normalizeCategory(c: MenuCategoryDefinition): MenuCategoryDefinition {
     active: c.active !== false,
     mainCategoryId:
       c.mainCategoryId ?? DEFAULT_CATEGORIES[0]?.mainCategoryId ?? "",
+    availableOnline: c.availableOnline !== false,
+    availableKiosk: c.availableKiosk !== false,
   };
 }
 
@@ -161,6 +163,7 @@ export function useCategoriesStorage() {
       name: string,
       active = true,
       mainCategoryId?: string,
+      channel?: { availableOnline?: boolean; availableKiosk?: boolean },
     ): Promise<{ id: string; name: string } | null> => {
       const trimmed = name.trim();
       if (!trimmed) return null;
@@ -182,6 +185,7 @@ export function useCategoriesStorage() {
           trimmed,
           active,
           resolvedMainId,
+          channel,
         );
         if (!ins) {
           failSave();
@@ -192,6 +196,8 @@ export function useCategoriesStorage() {
           name: trimmed,
           active: active !== false,
           mainCategoryId: resolvedMainId,
+          availableOnline: channel?.availableOnline !== false,
+          availableKiosk: channel?.availableKiosk !== false,
         };
         patchCategoriesCache((prev) => [...prev, normalizeCategory(row)]);
         afterCategoryMutation();
@@ -209,7 +215,14 @@ export function useCategoriesStorage() {
             crypto.randomUUID();
           const next = [
             ...prev,
-            { id, name: trimmed, active, mainCategoryId: resolvedMainId },
+            {
+              id,
+              name: trimmed,
+              active,
+              mainCategoryId: resolvedMainId,
+              availableOnline: channel?.availableOnline !== false,
+              availableKiosk: channel?.availableKiosk !== false,
+            },
           ];
           const cleaned = next.map(normalizeCategory);
           const ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, cleaned);
@@ -235,6 +248,8 @@ export function useCategoriesStorage() {
         name?: string;
         active?: boolean;
         mainCategoryId?: string;
+        availableOnline?: boolean;
+        availableKiosk?: boolean;
       },
     ) => {
       if (useDbMenu) {
@@ -256,6 +271,8 @@ export function useCategoriesStorage() {
           name: updates.name,
           active: updates.active,
           mainCategoryId: updates.mainCategoryId,
+          availableOnline: updates.availableOnline,
+          availableKiosk: updates.availableKiosk,
         })
           .then((ok) => {
             if (!ok && before) {

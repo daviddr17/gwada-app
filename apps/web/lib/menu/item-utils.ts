@@ -49,6 +49,30 @@ export function isMenuItemActive(item: MenuItem): boolean {
   return item.active !== false;
 }
 
+export function isMenuItemSoldOut(
+  item: Pick<MenuItem, "soldOut">,
+): boolean {
+  return item.soldOut === true;
+}
+
+export type GuestMenuChannel = "online" | "kiosk" | "table";
+
+export function isMenuItemAvailableForChannel(
+  item: Pick<MenuItem, "availableOnline" | "availableKiosk">,
+  channel: GuestMenuChannel,
+): boolean {
+  if (channel === "online") return item.availableOnline !== false;
+  return item.availableKiosk !== false;
+}
+
+export function isCategoryAvailableForChannel(
+  cat: Pick<MenuCategoryDefinition, "availableOnline" | "availableKiosk">,
+  channel: GuestMenuChannel,
+): boolean {
+  if (channel === "online") return cat.availableOnline !== false;
+  return cat.availableKiosk !== false;
+}
+
 /** Aktiv-Schalter + optionaler Anzeigezeitraum (für Gäste/POS). */
 export function isMenuItemPubliclyAvailable(
   item: MenuItem,
@@ -58,6 +82,23 @@ export function isMenuItemPubliclyAvailable(
   return (
     isMenuItemActive(item) &&
     isMenuItemWithinAvailabilityWindow(item, onDate, timeZone)
+  );
+}
+
+/**
+ * Guest ordering gate: active + date window + channel + not sold-out.
+ * Sold-out may still appear in the menu when restaurant policy is `grey`.
+ */
+export function isMenuItemOrderableForGuest(
+  item: MenuItem,
+  channel: GuestMenuChannel,
+  onDate: Date = new Date(),
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): boolean {
+  return (
+    isMenuItemPubliclyAvailable(item, onDate, timeZone) &&
+    isMenuItemAvailableForChannel(item, channel) &&
+    !isMenuItemSoldOut(item)
   );
 }
 
@@ -178,5 +219,8 @@ export function normalizeMenuItem(
     markingCodes,
     availableFrom: normalizeMenuAvailabilityYmd(raw.availableFrom),
     availableTo: normalizeMenuAvailabilityYmd(raw.availableTo),
+    availableOnline: raw.availableOnline === false ? false : true,
+    availableKiosk: raw.availableKiosk === false ? false : true,
+    soldOut: raw.soldOut === true,
   };
 }

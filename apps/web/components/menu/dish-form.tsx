@@ -47,6 +47,9 @@ type FormState = {
   optionGroupIds: string[];
   markingCodes: string[];
   active: boolean;
+  availableOnline: boolean;
+  availableKiosk: boolean;
+  soldOut: boolean;
   listNumber: string;
   availableFrom: string;
   availableTo: string;
@@ -63,6 +66,9 @@ const emptyForm: FormState = {
   optionGroupIds: [],
   markingCodes: [],
   active: true,
+  availableOnline: true,
+  availableKiosk: true,
+  soldOut: false,
   listNumber: "",
   availableFrom: "",
   availableTo: "",
@@ -98,6 +104,9 @@ function itemToFormState(item: MenuItem): FormState {
     optionGroupIds: item.optionGroupIds ?? [],
     markingCodes: item.markingCodes ?? [],
     active: item.active !== false,
+    availableOnline: item.availableOnline !== false,
+    availableKiosk: item.availableKiosk !== false,
+    soldOut: item.soldOut === true,
     listNumber:
       item.listNumber != null && !Number.isNaN(item.listNumber)
         ? String(item.listNumber)
@@ -295,6 +304,9 @@ export function DishForm({
       optionGroupIds: form.optionGroupIds,
       markingCodes: form.markingCodes,
       active: form.active,
+      availableOnline: form.availableOnline,
+      availableKiosk: form.availableKiosk,
+      soldOut: form.soldOut,
       listNumber,
       availableFrom: form.availableFrom.trim() || null,
       availableTo: form.availableTo.trim() || null,
@@ -421,6 +433,70 @@ export function DishForm({
               checked={form.active}
               onCheckedChange={(v) =>
                 setForm((p) => ({ ...p, active: v === true }))
+              }
+              className="shrink-0"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2.5">
+            <div className="min-w-0">
+              <Label htmlFor="dish-sold-out" className="text-sm font-medium">
+                Ausverkauft
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Schnell 86 — bleibt in der Speisekarte, Gast sieht grau oder
+                ausgeblendet (POS → Online &amp; Kiosk).
+              </p>
+            </div>
+            <Switch
+              id="dish-sold-out"
+              checked={form.soldOut}
+              onCheckedChange={(v) =>
+                setForm((p) => ({ ...p, soldOut: v === true }))
+              }
+              className="shrink-0"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2.5">
+            <div className="min-w-0">
+              <Label
+                htmlFor="dish-available-online"
+                className="text-sm font-medium"
+              >
+                Online
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Auf /order bestellbar
+              </p>
+            </div>
+            <Switch
+              id="dish-available-online"
+              checked={form.availableOnline}
+              onCheckedChange={(v) =>
+                setForm((p) => ({ ...p, availableOnline: v === true }))
+              }
+              className="shrink-0"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2.5">
+            <div className="min-w-0">
+              <Label
+                htmlFor="dish-available-kiosk"
+                className="text-sm font-medium"
+              >
+                Kiosk / Tisch
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Auf /kiosk bestellbar
+              </p>
+            </div>
+            <Switch
+              id="dish-available-kiosk"
+              checked={form.availableKiosk}
+              onCheckedChange={(v) =>
+                setForm((p) => ({ ...p, availableKiosk: v === true }))
               }
               className="shrink-0"
             />

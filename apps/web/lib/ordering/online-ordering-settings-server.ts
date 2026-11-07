@@ -7,7 +7,12 @@ import {
   type DeliveryZone,
   type OnlineOrderingSettings,
   type OnlineOrderingSettingsPatch,
+  type SoldOutGuestDisplay,
 } from "@/lib/ordering/online-ordering-types";
+
+function parseSoldOutGuestDisplay(raw: unknown): SoldOutGuestDisplay {
+  return raw === "grey" ? "grey" : "hide";
+}
 
 function parseZones(raw: unknown): DeliveryZone[] {
   if (!Array.isArray(raw)) return [];
@@ -95,6 +100,8 @@ function rowToSettings(
       row.kiosk_mollie_terminal_id.startsWith("term_")
         ? row.kiosk_mollie_terminal_id
         : null,
+    soldOutGuestDisplay: parseSoldOutGuestDisplay(row.sold_out_guest_display),
+    guestLiveStockCheckEnabled: Boolean(row.guest_live_stock_check_enabled),
   };
 }
 
@@ -157,6 +164,9 @@ export async function upsertOnlineOrderingSettings(
     slot_capacity: next.slotCapacity,
     slot_horizon_hours: next.slotHorizonHours,
     kiosk_mollie_terminal_id: next.kioskMollieTerminalId,
+    sold_out_guest_display:
+      next.soldOutGuestDisplay === "grey" ? "grey" : "hide",
+    guest_live_stock_check_enabled: Boolean(next.guestLiveStockCheckEnabled),
     updated_at: new Date().toISOString(),
   };
 
@@ -172,7 +182,10 @@ export async function upsertOnlineOrderingSettings(
   return { ok: true, settings: next };
 }
 
-export function publicOrderingSettingsView(settings: OnlineOrderingSettings) {
+export function publicOrderingSettingsView(
+  settings: OnlineOrderingSettings,
+  extras?: { hasKioskTerminal?: boolean },
+) {
   return {
     onlineEnabled: settings.onlineEnabled,
     kioskEnabled: settings.kioskEnabled,
@@ -190,7 +203,10 @@ export function publicOrderingSettingsView(settings: OnlineOrderingSettings) {
     deliveryLeadMinutes: settings.deliveryLeadMinutes,
     kioskIdleSeconds: settings.kioskIdleSeconds,
     guestStatusMessage: settings.guestStatusMessage,
-    hasKioskTerminal: Boolean(settings.kioskMollieTerminalId),
+    hasKioskTerminal:
+      extras?.hasKioskTerminal ?? Boolean(settings.kioskMollieTerminalId),
+    soldOutGuestDisplay: settings.soldOutGuestDisplay,
+    guestLiveStockCheckEnabled: settings.guestLiveStockCheckEnabled,
   };
 }
 

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
-import { isMenuItemActive } from "@/lib/menu/item-utils";
+import { isMenuItemActive, isMenuItemSoldOut } from "@/lib/menu/item-utils";
 import { MenuItemAvailabilityBadge } from "@/components/menu/menu-item-availability-badge";
 import {
   Card,
@@ -32,6 +32,7 @@ export function MenuItemCard({
   onSelect,
 }: MenuItemCardProps) {
   const live = isMenuItemActive(item);
+  const soldOut = isMenuItemSoldOut(item);
   return (
     <Card
       role={onSelect ? "button" : undefined}
@@ -49,7 +50,7 @@ export function MenuItemCard({
         "hover:shadow-elevated hover:ring-accent/25",
         "active:shadow-card",
         onSelect && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring",
-        !live && "opacity-[0.88]",
+        (!live || soldOut) && "opacity-[0.88]",
       )}
     >
       <div className="relative aspect-[5/4] overflow-hidden bg-muted">
@@ -74,6 +75,14 @@ export function MenuItemCard({
           {!live && (
             <Badge variant="secondary" className="h-5 text-[0.65rem] font-medium">
               Inaktiv
+            </Badge>
+          )}
+          {soldOut && (
+            <Badge
+              variant="secondary"
+              className="h-5 text-[0.65rem] font-medium"
+            >
+              Ausverkauft
             </Badge>
           )}
           <MenuItemAvailabilityBadge item={item} />

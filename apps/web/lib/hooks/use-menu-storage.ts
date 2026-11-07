@@ -26,6 +26,7 @@ import {
   menuRelationalPersistenceEnabled,
   reorderMenuItemsInCategoryRelational,
   updateMenuItemRelational,
+  updateMenuItemSoldOutRelational,
 } from "@/lib/supabase/menu-db";
 import {
   loadWorkspaceJsonLocal,
@@ -354,6 +355,66 @@ export function useMenuStorage() {
     [afterMenuMutation, dbFetchReady, failSave, items, patchItemsCache, useDbMenu],
   );
 
+  const setSoldOut = useCallback(
+    (id: string, soldOut: boolean) => {
+      if (useDbMenu) {
+        if (!dbFetchReady) {
+          toast.error("Speisekarte wird noch geladen — bitte kurz warten.");
+          return;
+        }
+        const before = items.find((i) => i.id === id);
+        if (!before) return;
+        patchItemsCache((prev) =>
+          prev.map((existing) =>
+            existing.id === id ? { ...existing, soldOut } : existing,
+          ),
+        );
+        afterMenuMutation();
+        void updateMenuItemSoldOutRelational(id, soldOut)
+          .then((ok) => {
+            if (!ok) {
+              patchItemsCache((prev) =>
+                prev.map((existing) =>
+                  existing.id === id ? before : existing,
+                ),
+              );
+              failSave();
+            }
+          })
+          .catch(() => {
+            patchItemsCache((prev) =>
+              prev.map((existing) =>
+                existing.id === id ? before : existing,
+              ),
+            );
+            failSave();
+          });
+        return;
+      }
+      setLocalItems((prev) => {
+        const rollback = prev;
+        const next = prev.map((existing) =>
+          existing.id === id ? { ...existing, soldOut } : existing,
+        );
+        const ok = mirrorWorkspaceJsonLocal(STORAGE_KEY, next);
+        if (!ok) {
+          setLocalItems(rollback);
+          failSave();
+          return rollback;
+        }
+        return next;
+      });
+    },
+    [
+      afterMenuMutation,
+      dbFetchReady,
+      failSave,
+      items,
+      patchItemsCache,
+      useDbMenu,
+    ],
+  );
+
   return {
     items,
     addItem,
@@ -361,6 +422,7 @@ export function useMenuStorage() {
     deleteItem,
     getItemById,
     reorderItemsInCategory,
+    setSoldOut,
     isHydrated,
   };
 }

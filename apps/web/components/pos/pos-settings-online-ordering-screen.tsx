@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { GuestKioskDevicesPanel } from "@/components/pos/guest-kiosk-devices-panel";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -23,6 +24,14 @@ import type {
   OnlineOrderingSettings,
 } from "@/lib/ordering/online-ordering-types";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 
 function eurosFromCents(cents: number): string {
   return (cents / 100).toFixed(2).replace(".", ",");
@@ -285,9 +294,53 @@ export function PosSettingsOnlineOrderingScreen() {
 
           <Card className="border-border/50 shadow-card">
             <CardContent className="space-y-4 pt-6">
-              <p className="font-medium">Kiosk-Terminal (Mollie POS)</p>
+              <p className="font-medium">Ausverkauf &amp; Bestand</p>
               <div className="space-y-1.5">
-                <Label>Terminal-ID (term_…)</Label>
+                <Label>Ausverkaufte Gerichte für Gäste</Label>
+                <Select
+                  value={draft.soldOutGuestDisplay ?? "hide"}
+                  onValueChange={(v) =>
+                    setDraft({
+                      ...draft,
+                      soldOutGuestDisplay: v === "grey" ? "grey" : "hide",
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    className={appSelectTriggerAccentCn("h-10 w-full")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hide">Ausblenden</SelectItem>
+                    <SelectItem value="grey">
+                      Ausgegraut anzeigen (nicht bestellbar)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Schnell 86 in der Speisekarte (Spalte „86“). „Gericht aktiv“
+                  bleibt für dauerhaftes Abschalten.
+                </p>
+              </div>
+              <ToggleRow
+                label="Live-Bestand prüfen (Gast)"
+                description="Optional: Menü/Checkout prüft current_stock über Rezepte. Standard AUS — getrennt von POS-Bestandsbuchung."
+                checked={Boolean(draft.guestLiveStockCheckEnabled)}
+                onCheckedChange={(v) =>
+                  setDraft({ ...draft, guestLiveStockCheckEnabled: v })
+                }
+              />
+            </CardContent>
+          </Card>
+
+          <GuestKioskDevicesPanel restaurantId={restaurantId} />
+
+          <Card className="border-border/50 shadow-card">
+            <CardContent className="space-y-4 pt-6">
+              <p className="font-medium">Kiosk-Terminal Fallback (Mollie POS)</p>
+              <div className="space-y-1.5">
+                <Label>Restaurant-Terminal-ID (term_…)</Label>
                 <Input
                   value={draft.kioskMollieTerminalId ?? ""}
                   onChange={(e) =>
@@ -299,10 +352,8 @@ export function PosSettingsOnlineOrderingScreen() {
                   placeholder="term_…"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Counter-Kiosk zahlt per Mollie{" "}
-                  <code>pointofsale</code>. Liste unter POS-Geräte / Mollie
-                  Terminals. Ohne ID: Fallback auf Hosted Checkout (Fehler am
-                  Counter).
+                  Fallback, wenn das gekoppelte Gerät kein eigenes Terminal hat.
+                  Counter zahlt per Mollie <code>pointofsale</code>.
                 </p>
               </div>
             </CardContent>

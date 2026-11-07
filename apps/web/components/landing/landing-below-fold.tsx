@@ -1,5 +1,6 @@
 "use client";
 
+import { LandingFaq } from "@/components/landing/landing-faq";
 import { LandingIntegrationsScrollStory } from "@/components/landing/landing-integrations-scroll-story";
 import { LandingPricing } from "@/components/landing/landing-pricing";
 import { LandingScrollStory } from "@/components/landing/landing-scroll-story";
@@ -11,6 +12,7 @@ export function LandingBelowFold() {
       <LandingScrollStory />
       <LandingIntegrationsScrollStory />
       <LandingPricing />
+      <LandingFaq />
     </>
   );
 }

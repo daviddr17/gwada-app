@@ -262,6 +262,102 @@ function ReservierungenVisual({ icon, active }: SceneProps) {
   );
 }
 
+function AssistantVisual({ icon, active }: SceneProps) {
+  const prompts = ["Tisch für 4 um 19?", "Tageskarte aktualisieren", "Offene Bestellungen"];
+  return (
+    <SceneStage active={active}>
+      <GlowOrb active={active} className="left-1/4 top-1/4 size-40 bg-fuchsia-500/25" />
+      <GlowOrb active={active} className="right-1/5 bottom-1/4 size-32 bg-violet-500/20" />
+      <motion.div
+        className="absolute left-4 top-12 z-20 w-44"
+        animate={active ? { y: [0, -6, 0] } : {}}
+        transition={scrollSceneLoop(active, { duration: 4.2, ease: "easeInOut" })}
+      >
+        <GlassPanel active={active} className="space-y-2 p-3">
+          <p className="text-[10px] font-semibold text-muted-foreground">Assistent</p>
+          {prompts.map((text, i) => (
+            <motion.div
+              key={text}
+              className={cn(
+                "rounded-xl px-2.5 py-1.5 text-[10px] leading-snug",
+                i === 1
+                  ? "bg-primary/15 text-foreground"
+                  : "bg-muted/80 text-muted-foreground",
+              )}
+              animate={active ? { opacity: [0.55, 1, 0.55] } : {}}
+              transition={scrollSceneLoop(active, {
+                duration: 2.6,
+                delay: i * 0.12,
+                ease: "easeInOut",
+              })}
+            >
+              {text}
+            </motion.div>
+          ))}
+        </GlassPanel>
+      </motion.div>
+      <motion.span
+        className="absolute bottom-16 right-6 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold text-primary ring-1 ring-primary/20"
+        animate={active ? { opacity: [0.55, 1, 0.55] } : {}}
+        transition={scrollSceneLoop(active, { duration: 2.2, ease: "easeInOut" })}
+      >
+        Im Dashboard
+      </motion.span>
+      <HeroMonolith
+        icon={icon}
+        active={active}
+        className="absolute left-1/2 top-[48%] -translate-x-1/2 -translate-y-1/2"
+      />
+    </SceneStage>
+  );
+}
+
+function ApiVisual({ icon, active }: SceneProps) {
+  const lines = [
+    { method: "GET", path: "/api/v1/menu" },
+    { method: "POST", path: "/api/v1/mcp" },
+    { method: "GET", path: "/api/v1/reservations" },
+  ];
+  return (
+    <SceneStage active={active}>
+      <GlowOrb active={active} className="left-1/3 top-1/5 size-40 bg-sky-500/20" />
+      <motion.div
+        className="absolute right-3 top-12 z-20 w-[13rem]"
+        animate={active ? { y: [0, -5, 0], rotate: [2, 0, 2] } : {}}
+        transition={scrollSceneLoop(active, { duration: 4.4, ease: "easeInOut" })}
+      >
+        <GlassPanel active={active} className="space-y-2 p-3 font-mono">
+          <p className="text-[10px] font-semibold tracking-wide text-muted-foreground">
+            API · MCP
+          </p>
+          {lines.map((line, i) => (
+            <motion.div
+              key={line.path}
+              className="flex items-center gap-2 text-[10px]"
+              animate={active ? { x: [4, 0, 4], opacity: [0.6, 1, 0.6] } : {}}
+              transition={scrollSceneLoop(active, {
+                duration: 2.8,
+                delay: i * 0.1,
+                ease: "easeInOut",
+              })}
+            >
+              <span className="rounded bg-primary/15 px-1.5 py-0.5 font-semibold text-primary">
+                {line.method}
+              </span>
+              <span className="truncate text-foreground/85">{line.path}</span>
+            </motion.div>
+          ))}
+        </GlassPanel>
+      </motion.div>
+      <HeroMonolith
+        icon={icon}
+        active={active}
+        className="absolute left-1/2 top-[48%] -translate-x-1/2 -translate-y-1/2"
+      />
+    </SceneStage>
+  );
+}
+
 const VISUALS: Record<LandingFeatureVisualKey, ComponentType<SceneProps>> = {
   menu: MenuVisual,
   inventory: InventoryVisual,
@@ -277,7 +373,9 @@ const VISUALS: Record<LandingFeatureVisualKey, ComponentType<SceneProps>> = {
   dokumente: DocumentsVisual,
   checklisten: ChecklistsVisual,
   mitarbeiter: StaffVisual,
-}
+  assistant: AssistantVisual,
+  api: ApiVisual,
+};
 
 export function LandingFeatureVisual({ visual, icon, active, className }: Props) {
   const Visual = VISUALS[visual];

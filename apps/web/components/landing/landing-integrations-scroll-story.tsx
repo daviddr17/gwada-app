@@ -9,12 +9,14 @@ import {
   type MotionValue,
 } from "framer-motion";
 import { Plug } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { LandingIntegrationVisual } from "@/components/landing/landing-integration-visual";
 import { LANDING_INTEGRATION_ITEMS } from "@/components/landing/landing-integration-items";
+import { LandingScrollStorySkipNav } from "@/components/landing/landing-scroll-story-skip-nav";
 import {
   SCROLL_STORY_VH_PER_ITEM,
   scrollStoryItemRange,
+  scrollToStoryItem,
 } from "@/lib/landing/scroll-story-range";
 import { cn } from "@/lib/utils";
 
@@ -83,9 +85,10 @@ function IntegrationSlide({ index, scrollYProgress }: IntegrationSlideProps) {
 
 type StoryCopyProps = {
   scrollYProgress: MotionValue<number>;
+  onSelectIndex: (index: number) => void;
 };
 
-function IntegrationStoryCopy({ scrollYProgress }: StoryCopyProps) {
+function IntegrationStoryCopy({ scrollYProgress, onSelectIndex }: StoryCopyProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useMotionValueEvent(scrollYProgress, "change", (v) => {
@@ -124,9 +127,6 @@ function IntegrationStoryCopy({ scrollYProgress }: StoryCopyProps) {
             gradId={item.id === "instagram" ? instagramGradId : undefined}
           />
         </span>
-        <span className="text-sm font-medium text-muted-foreground">
-          {activeIndex + 1} / {ITEM_COUNT}
-        </span>
       </motion.div>
       <motion.h2
         key={item.title}
@@ -146,23 +146,12 @@ function IntegrationStoryCopy({ scrollYProgress }: StoryCopyProps) {
       >
         {item.description}
       </motion.p>
-      <p className="mt-6 text-sm text-muted-foreground/80">
-        Weitere Anbindungen — z. B. E-Mail — folgen schrittweise.
-      </p>
-      <div className="mt-8 flex gap-2">
-        {LANDING_INTEGRATION_ITEMS.map((entry, i) => (
-          <div
-            key={entry.id}
-            className={cn(
-              "h-1.5 rounded-full transition-all duration-300",
-              i === activeIndex
-                ? "w-8 bg-primary"
-                : "w-1.5 bg-muted-foreground/30",
-            )}
-            aria-hidden
-          />
-        ))}
-      </div>
+      <LandingScrollStorySkipNav
+        items={LANDING_INTEGRATION_ITEMS}
+        activeIndex={activeIndex}
+        onSelect={onSelectIndex}
+        itemNoun="Integration"
+      />
     </div>
   );
 }
@@ -177,6 +166,10 @@ export function LandingIntegrationsScrollStory() {
     target: ref,
     offset: ["start end", "end start"],
   });
+
+  const selectIndex = useCallback((index: number) => {
+    scrollToStoryItem(ref.current, index, ITEM_COUNT);
+  }, []);
 
   return (
     <section
@@ -211,16 +204,16 @@ export function LandingIntegrationsScrollStory() {
               );
             })}
           </ul>
-          <p className="text-center text-sm text-muted-foreground">
-            Weitere Anbindungen folgen.
-          </p>
         </div>
       ) : (
         <div className="sticky top-0 flex h-dvh items-center justify-center overflow-hidden px-6">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,var(--background)_68%)]" />
 
           <div className="relative mx-auto grid w-full max-w-6xl gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
-            <IntegrationStoryCopy scrollYProgress={scrollYProgress} />
+            <IntegrationStoryCopy
+              scrollYProgress={scrollYProgress}
+              onSelectIndex={selectIndex}
+            />
 
             <div className="relative aspect-square max-h-[min(72vw,460px)] w-full max-w-md justify-self-center lg:max-h-[min(48vw,480px)]">
               {LANDING_INTEGRATION_ITEMS.map((entry, index) => (

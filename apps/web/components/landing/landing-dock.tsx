@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  CircleHelp,
   CreditCard,
   Home,
   LayoutGrid,
@@ -25,13 +26,14 @@ const dockScrollItems = [
     shortLabel: "Module",
     icon: LayoutGrid,
   },
-  { id: "pricing" as const, label: "Preise", shortLabel: "Preise", icon: CreditCard },
   {
     id: "integrations" as const,
     label: "Integrationen",
     shortLabel: "Kanäle",
     icon: Plug,
   },
+  { id: "pricing" as const, label: "Preise", shortLabel: "Preise", icon: CreditCard },
+  { id: "faq" as const, label: "FAQ", shortLabel: "FAQ", icon: CircleHelp },
 ] as const;
 
 const dockLinkItems = [

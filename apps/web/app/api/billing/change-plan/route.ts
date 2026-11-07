@@ -1,3 +1,4 @@
+import { publicBillingError } from "@/lib/billing/billing-security";
 import { updateRestaurantBillingPlan } from "@/lib/billing/manage-subscription";
 import {
   isBillingInterval,
@@ -44,7 +45,10 @@ export async function POST(req: Request) {
       interval: interval as BillingInterval,
     });
     if (!result.ok) {
-      return Response.json({ error: result.error }, { status: result.status });
+      return Response.json(
+        { error: publicBillingError(result.error, "plan_change_failed") },
+        { status: result.status },
+      );
     }
     return Response.json({
       ok: true,

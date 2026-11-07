@@ -7,6 +7,7 @@ import {
   type BillingInterval,
   type BillingPlanId,
 } from "@/lib/billing/plan-catalog";
+import { BILLING_MANDATE_UPDATE_EUROS } from "@/lib/billing/billing-security";
 import { isGratisBillingSource } from "@/lib/billing/gratis-billing";
 import {
   billingSubscriptionDescription,
@@ -122,9 +123,14 @@ export async function createBillingCheckoutSession(
       metadata: { restaurant_id: input.restaurantId },
     });
     if (!customer.ok) {
+      console.warn(
+        "mollie customer create",
+        customer.error,
+        customer.status,
+      );
       return {
         ok: false,
-        error: customer.detail || "customer_create_failed",
+        error: "customer_create_failed",
         status: 502,
       };
     }
@@ -178,9 +184,10 @@ export async function createBillingCheckoutSession(
   });
 
   if (!payment.ok) {
+    console.warn("mollie checkout payment", payment.error, payment.status);
     return {
       ok: false,
-      error: payment.detail || "payment_create_failed",
+      error: "payment_create_failed",
       status: 502,
     };
   }
@@ -250,7 +257,7 @@ export async function createBillingPaymentMethodUpdateSession(input: {
 
   const payment = await mollieCreatePayment(client.auth, {
     // Small verification charge creates a new mandate; subscription mandate is swapped on webhook.
-    amount: mollieAmountEur(0.01),
+    amount: mollieAmountEur(BILLING_MANDATE_UPDATE_EUROS),
     customerId: entitlements.mollieCustomerId,
     sequenceType: "first",
     description: `Gwada — Zahlungsmittel aktualisieren${
@@ -273,9 +280,14 @@ export async function createBillingPaymentMethodUpdateSession(input: {
   });
 
   if (!payment.ok) {
+    console.warn(
+      "mollie mandate update payment",
+      payment.error,
+      payment.status,
+    );
     return {
       ok: false,
-      error: payment.detail || "payment_create_failed",
+      error: "payment_create_failed",
       status: 502,
     };
   }

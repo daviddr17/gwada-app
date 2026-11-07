@@ -1,4 +1,8 @@
 import { createBillingPortalSession } from "@/lib/billing/checkout";
+import {
+  publicBillingError,
+  sanitizeBillingReturnUrl,
+} from "@/lib/billing/billing-security";
 import { authorizeRestaurantModule } from "@/lib/permissions/authorize-restaurant-module";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -21,8 +25,11 @@ export async function POST(req: Request) {
   }
 
   const origin = new URL(req.url).origin;
-  const returnUrl =
-    body.returnUrl?.trim() || `${origin}/dashboard/settings/billing`;
+  const returnUrl = sanitizeBillingReturnUrl(
+    body.returnUrl,
+    origin,
+    "/dashboard/settings/billing",
+  );
 
   const result = await createBillingPortalSession({
     restaurantId,
@@ -30,7 +37,10 @@ export async function POST(req: Request) {
   });
 
   if (!result.ok) {
-    return Response.json({ error: result.error }, { status: result.status });
+    return Response.json(
+      { error: publicBillingError(result.error, "portal_failed") },
+      { status: result.status },
+    );
   }
   return Response.json({ url: result.url });
 }

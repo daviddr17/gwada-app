@@ -105,9 +105,10 @@ async function recreateMollieSubscription(input: {
   );
 
   if (!created.ok) {
+    console.warn("mollie subscription recreate", created.error, created.status);
     return {
       ok: false,
-      error: created.detail || "subscription_recreate_failed",
+      error: "subscription_recreate_failed",
       status: 502,
     };
   }
@@ -258,9 +259,10 @@ export async function updateRestaurantBillingPlan(input: {
       });
 
       if (!charged.ok) {
+        console.warn("mollie proration charge", charged.error, charged.status);
         return {
           ok: false,
-          error: charged.detail || "proration_charge_failed",
+          error: "proration_charge_failed",
           status: 502,
         };
       }
@@ -293,9 +295,10 @@ export async function updateRestaurantBillingPlan(input: {
   );
 
   if (!updated.ok) {
+    console.warn("mollie plan update", updated.error, updated.status);
     return {
       ok: false,
-      error: updated.detail || "plan_update_failed",
+      error: "plan_update_failed",
       status: 502,
     };
   }
@@ -333,9 +336,10 @@ export async function cancelRestaurantBillingSubscription(input: {
     entitlements.mollieSubscriptionId,
   );
   if (!canceled.ok) {
+    console.warn("mollie immediate cancel", canceled.error, canceled.status);
     return {
       ok: false,
-      error: canceled.detail || "cancel_failed",
+      error: "cancel_failed",
       status: 502,
     };
   }
@@ -424,18 +428,20 @@ export async function setRestaurantBillingCancelAtPeriodEnd(input: {
         entitlements.mollieSubscriptionId,
       );
       if (!canceled.ok) {
+        console.warn("mollie period-end cancel", canceled.error, canceled.status);
         return {
           ok: false,
-          error: canceled.detail || "cancel_failed",
+          error: "cancel_failed",
           status: 502,
         };
       }
       mandateId = canceled.data.mandateId ?? mandateId;
     }
   } else if (current.status !== 404) {
+    console.warn("mollie cancel get subscription", current.error, current.status);
     return {
       ok: false,
-      error: current.detail || "cancel_failed",
+      error: "cancel_failed",
       status: 502,
     };
   }

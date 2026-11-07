@@ -256,7 +256,7 @@ export function KioskLockedShell({
           onIdleReset={resetToAttract}
           onOrderPlaced={({ statusToken, orderNumber, checkoutUrl }) => {
             if (checkoutUrl) {
-              // Mollie redirect — device lock should allow return URL
+              // PayPal provider approval only — device lock should allow return URL
               return;
             }
             setThanks({ statusToken, orderNumber });

@@ -27,6 +27,11 @@ export type CreateGuestPaymentInput = {
   cancelUrl?: string;
   /** Prefer Payment Links API when true. */
   asPaymentLink?: boolean;
+  /**
+   * Pin a Mollie method (e.g. `paypal`) so Gwada owns method selection.
+   * Never omit this for guest Online/Kiosk — avoids Mollie Hosted method picker.
+   */
+  method?: string;
   metadata?: Record<string, string>;
 };
 
@@ -119,6 +124,7 @@ export async function createRestaurantGuestPayment(
       ...(input.cancelUrl ? { cancelUrl: input.cancelUrl } : {}),
       webhookUrl: guestWebhookUrl(),
       ...(access.profileId ? { profileId: access.profileId } : {}),
+      ...(input.method ? { method: input.method } : {}),
       metadata,
       ...(fee ?? {}),
     });

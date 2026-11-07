@@ -2,6 +2,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  DEFAULT_GUEST_PAY_KIOSK,
+  DEFAULT_GUEST_PAY_ONLINE,
+  normalizeGuestPaymentMethods,
+  type GuestPaymentMethodsConfig,
+} from "@/lib/ordering/guest-payment-methods";
+import {
   DEFAULT_NOTIFY_STATUSES,
   DEFAULT_ONLINE_ORDERING_SETTINGS,
   type DeliveryZone,
@@ -9,6 +15,23 @@ import {
   type OnlineOrderingSettingsPatch,
   type SoldOutGuestDisplay,
 } from "@/lib/ordering/online-ordering-types";
+
+function parseGuestPayMethods(
+  row: Record<string, unknown>,
+  prefix: "online" | "kiosk",
+  fallback: GuestPaymentMethodsConfig,
+): GuestPaymentMethodsConfig {
+  const cashKey = `guest_pay_${prefix}_cash`;
+  if (!(cashKey in row)) {
+    return { ...fallback };
+  }
+  return {
+    cardTerminal: Boolean(row[`guest_pay_${prefix}_card_terminal`]),
+    cash: Boolean(row[cashKey]),
+    paypal: Boolean(row[`guest_pay_${prefix}_paypal`]),
+    softpos: Boolean(row[`guest_pay_${prefix}_softpos`]),
+  };
+}
 
 function parseSoldOutGuestDisplay(raw: unknown): SoldOutGuestDisplay {
   return raw === "grey" ? "grey" : "hide";
@@ -102,6 +125,8 @@ function rowToSettings(
         : null,
     soldOutGuestDisplay: parseSoldOutGuestDisplay(row.sold_out_guest_display),
     guestLiveStockCheckEnabled: Boolean(row.guest_live_stock_check_enabled),
+    guestPayOnline: parseGuestPayMethods(row, "online", DEFAULT_GUEST_PAY_ONLINE),
+    guestPayKiosk: parseGuestPayMethods(row, "kiosk", DEFAULT_GUEST_PAY_KIOSK),
   };
 }
 
@@ -136,6 +161,14 @@ export async function upsertOnlineOrderingSettings(
     restaurantId,
     deliveryZones: patch.deliveryZones ?? current.deliveryZones,
     notifyStatuses: patch.notifyStatuses ?? current.notifyStatuses,
+    guestPayOnline: normalizeGuestPaymentMethods(
+      patch.guestPayOnline ?? current.guestPayOnline,
+      DEFAULT_GUEST_PAY_ONLINE,
+    ),
+    guestPayKiosk: normalizeGuestPaymentMethods(
+      patch.guestPayKiosk ?? current.guestPayKiosk,
+      DEFAULT_GUEST_PAY_KIOSK,
+    ),
   };
 
   if (next.kioskIdleSeconds < 30) {
@@ -167,6 +200,14 @@ export async function upsertOnlineOrderingSettings(
     sold_out_guest_display:
       next.soldOutGuestDisplay === "grey" ? "grey" : "hide",
     guest_live_stock_check_enabled: Boolean(next.guestLiveStockCheckEnabled),
+    guest_pay_online_card_terminal: next.guestPayOnline.cardTerminal,
+    guest_pay_online_cash: next.guestPayOnline.cash,
+    guest_pay_online_paypal: next.guestPayOnline.paypal,
+    guest_pay_online_softpos: next.guestPayOnline.softpos,
+    guest_pay_kiosk_card_terminal: next.guestPayKiosk.cardTerminal,
+    guest_pay_kiosk_cash: next.guestPayKiosk.cash,
+    guest_pay_kiosk_paypal: next.guestPayKiosk.paypal,
+    guest_pay_kiosk_softpos: next.guestPayKiosk.softpos,
     updated_at: new Date().toISOString(),
   };
 
@@ -184,8 +225,14 @@ export async function upsertOnlineOrderingSettings(
 
 export function publicOrderingSettingsView(
   settings: OnlineOrderingSettings,
-  extras?: { hasKioskTerminal?: boolean },
+  extras?: {
+    hasKioskTerminal?: boolean;
+    channel?: "online" | "kiosk" | "table";
+  },
 ) {
+  const channel = extras?.channel ?? "online";
+  const methods =
+    channel === "online" ? settings.guestPayOnline : settings.guestPayKiosk;
   return {
     onlineEnabled: settings.onlineEnabled,
     kioskEnabled: settings.kioskEnabled,
@@ -207,6 +254,12 @@ export function publicOrderingSettingsView(
       extras?.hasKioskTerminal ?? Boolean(settings.kioskMollieTerminalId),
     soldOutGuestDisplay: settings.soldOutGuestDisplay,
     guestLiveStockCheckEnabled: settings.guestLiveStockCheckEnabled,
+    paymentMethods: {
+      cardTerminal: methods.cardTerminal,
+      cash: methods.cash,
+      paypal: methods.paypal,
+      softpos: methods.softpos,
+    },
   };
 }
 

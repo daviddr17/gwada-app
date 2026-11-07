@@ -1,10 +1,20 @@
 import type { PosFulfillmentType, PosOrderChannel } from "@gwada/pos-domain";
+import type {
+  GuestPaymentMethodId,
+  GuestPaymentMethodsConfig,
+} from "@/lib/ordering/guest-payment-methods";
+import {
+  DEFAULT_GUEST_PAY_KIOSK,
+  DEFAULT_GUEST_PAY_ONLINE,
+} from "@/lib/ordering/guest-payment-methods";
 
 export type DeliveryZone = {
   postalCode: string;
   feeCents?: number;
   minOrderCents?: number;
 };
+
+export type { GuestPaymentMethodId, GuestPaymentMethodsConfig };
 
 export const DEFAULT_NOTIFY_STATUSES = [
   "received",
@@ -50,6 +60,10 @@ export type OnlineOrderingSettings = {
    * Default OFF — separate from POS inventory_booking_enabled.
    */
   guestLiveStockCheckEnabled: boolean;
+  /** Online guest checkout methods (Gwada-owned selection). */
+  guestPayOnline: GuestPaymentMethodsConfig;
+  /** Kiosk / table guest checkout methods. */
+  guestPayKiosk: GuestPaymentMethodsConfig;
 };
 
 export type OnlineOrderingSettingsPatch = Partial<
@@ -97,8 +111,16 @@ export type GuestCheckoutInput = {
   slotStartAt?: string;
   /** Mollie terminal for counter kiosk pointofsale */
   mollieTerminalId?: string;
-  /** Prefer terminal payment (kiosk); default true for channel=kiosk */
+  /**
+   * @deprecated Prefer `paymentMethod`. Kept for older clients.
+   * Prefer terminal payment (kiosk); default true for channel=kiosk
+   */
   payWithTerminal?: boolean;
+  /**
+   * Gwada checkout method. Required for new clients.
+   * Server rejects methods that are disabled in restaurant settings.
+   */
+  paymentMethod?: GuestPaymentMethodId;
   items: GuestOrderLineInput[];
   notes?: string;
 };
@@ -137,4 +159,6 @@ export const DEFAULT_ONLINE_ORDERING_SETTINGS: Omit<
   kioskMollieTerminalId: null,
   soldOutGuestDisplay: "hide",
   guestLiveStockCheckEnabled: false,
+  guestPayOnline: { ...DEFAULT_GUEST_PAY_ONLINE },
+  guestPayKiosk: { ...DEFAULT_GUEST_PAY_KIOSK },
 };

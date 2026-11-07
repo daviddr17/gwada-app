@@ -38,6 +38,7 @@ export async function POST(
     guestPaymentId: result.guestPaymentId,
     molliePaymentId: result.molliePaymentId,
     paymentMode: result.paymentMode,
+    paymentMethod: result.paymentMethod,
     totalCents: result.totalCents,
     statusUrl: `/order/${slug}/status/${result.statusToken}`,
   });

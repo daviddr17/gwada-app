@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ShoppingBag, Trash2 } from "lucide-react";
 import { GuestOrderConfigureSheet } from "@/components/ordering/guest-order-configure-sheet";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
 import type { PublicOrderingRecipeIngredient } from "@/lib/ordering/online-ordering-types";
 import { isMenuItemSoldOut } from "@/lib/menu/item-utils";
 import type { MenuItem, MenuOptionGroup } from "@/lib/types/menu";
+import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 type PublicSettings = {
@@ -121,6 +122,8 @@ export function GuestOrderingApp({
   const [submitting, setSubmitting] = useState(false);
   const [kioskDevice, setKioskDevice] =
     useState<StoredGuestKioskDeviceCredential | null>(null);
+  const [cartBump, setCartBump] = useState(false);
+  const cartBumpTimerRef = useRef<number | null>(null);
 
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -131,6 +134,14 @@ export function GuestOrderingApp({
     }
     setKioskDevice(readGuestKioskDeviceCredential());
   }, [mode]);
+
+  useEffect(() => {
+    return () => {
+      if (cartBumpTimerRef.current != null) {
+        window.clearTimeout(cartBumpTimerRef.current);
+      }
+    };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -212,7 +223,10 @@ export function GuestOrderingApp({
     return (data?.menu.items ?? []).filter((item) => {
       if (!item.active) return false;
       if (hideSoldOut && isMenuItemSoldOut(item)) return false;
-      if (categoryId !== "all" && item.category !== categoryId) return false;
+      // Search is menu-wide; category chips only apply when the query is empty.
+      if (!q && categoryId !== "all" && item.category !== categoryId) {
+        return false;
+      }
       if (!q) return true;
       return (
         item.name.toLowerCase().includes(q) ||
@@ -224,6 +238,14 @@ export function GuestOrderingApp({
   function addLine(line: Omit<GuestCartLine, "key">) {
     const key = `${line.menuItemId}-${JSON.stringify(line.modifiers)}-${Date.now()}`;
     setCart((prev) => [...prev, { ...line, key }]);
+    setCartBump(true);
+    if (cartBumpTimerRef.current != null) {
+      window.clearTimeout(cartBumpTimerRef.current);
+    }
+    cartBumpTimerRef.current = window.setTimeout(() => {
+      setCartBump(false);
+      cartBumpTimerRef.current = null;
+    }, 450);
   }
 
   async function submitCheckout() {
@@ -406,11 +428,19 @@ export function GuestOrderingApp({
     );
   }
 
+  const cartQty = cart.reduce((s, l) => s + l.quantity, 0);
+  const showCartFooter =
+    (step === "menu" && cart.length > 0) || step === "cart";
+
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       {step === "menu" || step === "cart" ? (
         <>
-          <header className="shrink-0 border-b border-border/50 px-4 py-3">
+          <header
+            className={cn(
+              "sticky top-0 z-20 shrink-0 border-b border-border/50 bg-background/95 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-md supports-backdrop-filter:bg-background/85",
+            )}
+          >
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p
@@ -435,16 +465,26 @@ export function GuestOrderingApp({
                 className={cn(
                   "relative rounded-full",
                   largeTouch && "h-14 min-w-14",
+                  cartBump && "guest-cart-bump",
                 )}
+                aria-label={
+                  cartQty > 0
+                    ? `Warenkorb, ${cartQty} Artikel`
+                    : "Warenkorb"
+                }
                 onClick={() => setStep(cart.length ? "cart" : "menu")}
               >
                 <ShoppingBag className={largeTouch ? "size-6" : "size-4"} />
                 {cart.length > 0 ? (
                   <span
-                    className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                    key={`cart-qty-${cartQty}`}
+                    className={cn(
+                      "absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white",
+                      cartBump && "guest-cart-badge-pop",
+                    )}
                     style={{ backgroundColor: accent }}
                   >
-                    {cart.reduce((s, l) => s + l.quantity, 0)}
+                    {cartQty}
                   </span>
                 ) : null}
               </Button>
@@ -483,7 +523,7 @@ export function GuestOrderingApp({
           </header>
 
           {step === "menu" ? (
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4">
               <div
                 className={cn(
                   "grid gap-3",
@@ -547,7 +587,7 @@ export function GuestOrderingApp({
               ) : null}
             </div>
           ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4">
               <ul className="space-y-3">
                 {cart.map((line) => (
                   <li
@@ -585,52 +625,88 @@ export function GuestOrderingApp({
                 <p className="py-10 text-center text-muted-foreground">
                   Warenkorb ist leer.
                 </p>
-              ) : null}
+              ) : (
+                <div
+                  className={cn(
+                    "mt-4 flex items-baseline justify-between gap-3 rounded-2xl border border-border/50 px-4 py-3",
+                    largeTouch && "px-5 py-4",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "font-medium text-muted-foreground",
+                      largeTouch && "text-lg",
+                    )}
+                  >
+                    Summe
+                  </span>
+                  <span
+                    className={cn(
+                      "font-semibold tabular-nums",
+                      largeTouch ? "text-2xl" : "text-lg",
+                    )}
+                    style={{ color: accent }}
+                  >
+                    {formatEuroFromCents(subtotal)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
-          <footer className="shrink-0 border-t border-border/50 p-4">
-            {step === "menu" && cart.length > 0 ? (
-              <Button
-                type="button"
-                size="lg"
-                className={cn(
-                  "w-full rounded-xl text-white",
-                  largeTouch && "h-16 text-lg",
-                )}
-                style={{ backgroundColor: accent }}
-                onClick={() => setStep("cart")}
-              >
-                Warenkorb · {formatEuroFromCents(subtotal)}
-              </Button>
-            ) : null}
-            {step === "cart" ? (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className={cn("rounded-xl", largeTouch && "h-16 flex-1 text-lg")}
-                  onClick={() => setStep("menu")}
-                >
-                  Weiter bestellen
-                </Button>
+          {showCartFooter ? (
+            <footer
+              className={cn(
+                "sticky bottom-0 z-20 shrink-0 border-t border-border/50 bg-background/95 px-4 pt-4 backdrop-blur-md supports-backdrop-filter:bg-background/85",
+                appMobileBottomSafePbMdClassName,
+              )}
+            >
+              {step === "menu" && cart.length > 0 ? (
                 <Button
                   type="button"
                   size="lg"
                   className={cn(
-                    "rounded-xl text-white",
-                    largeTouch ? "h-16 flex-[2] text-lg" : "flex-1",
+                    "w-full rounded-xl text-white",
+                    largeTouch && "h-16 text-lg",
+                    cartBump && "guest-cart-bump",
                   )}
                   style={{ backgroundColor: accent }}
-                  disabled={!cart.length}
-                  onClick={() => setStep("checkout")}
+                  onClick={() => setStep("cart")}
                 >
-                  Zur Kasse
+                  Warenkorb · {formatEuroFromCents(subtotal)}
                 </Button>
-              </div>
-            ) : null}
-          </footer>
+              ) : null}
+              {step === "cart" ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className={cn(
+                      "rounded-xl",
+                      largeTouch && "h-16 flex-1 text-lg",
+                    )}
+                    onClick={() => setStep("menu")}
+                  >
+                    Weiter bestellen
+                  </Button>
+                  <Button
+                    type="button"
+                    size="lg"
+                    className={cn(
+                      "rounded-xl text-white",
+                      largeTouch ? "h-16 flex-[2] text-lg" : "flex-1",
+                    )}
+                    style={{ backgroundColor: accent }}
+                    disabled={!cart.length}
+                    onClick={() => setStep("checkout")}
+                  >
+                    Zur Kasse · {formatEuroFromCents(subtotal)}
+                  </Button>
+                </div>
+              ) : null}
+            </footer>
+          ) : null}
         </>
       ) : null}
 

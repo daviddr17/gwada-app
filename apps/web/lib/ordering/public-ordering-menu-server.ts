@@ -22,7 +22,10 @@ export type FetchPublicOrderingMenuOptions = {
   guestLiveStockCheckEnabled?: boolean;
 };
 
-/** Public menu plus recipe ingredients for guest „ohne“ selection. */
+/**
+ * Public menu plus recipe ingredients for guest „ohne“ selection.
+ * Ingredient ids are plain text (inventory_ingredients) — no PostgREST FK embed.
+ */
 export async function fetchPublicOrderingMenu(
   slug: string,
   options: FetchPublicOrderingMenuOptions = {},
@@ -95,25 +98,34 @@ export async function fetchPublicOrderingMenu(
     };
   }
 
-  const { data: lines } = await admin
-    .from("menu_item_recipe_lines")
-    .select("menu_item_id, ingredient_id, amount, sort_order, ingredients(id, name)")
-    .in("menu_item_id", itemIds);
+  const [{ data: lines }, { data: ingredientRows }] = await Promise.all([
+    admin
+      .from("menu_item_recipe_lines")
+      .select("menu_item_id, ingredient_id, amount, sort_order")
+      .in("menu_item_id", itemIds)
+      .order("sort_order", { ascending: true }),
+    admin
+      .from("inventory_ingredients")
+      .select("id, name")
+      .eq("restaurant_id", menuResult.data.restaurantId)
+      .eq("is_active", true),
+  ]);
+
+  const ingredientNameById = new Map(
+    (ingredientRows ?? []).map((r) => [
+      r.id as string,
+      String(r.name ?? "").trim(),
+    ]),
+  );
 
   const recipeByItemId: Record<string, PublicOrderingRecipeIngredient[]> = {};
   for (const row of lines ?? []) {
     const itemId = row.menu_item_id as string;
-    const ing = row.ingredients as
-      | { id: string; name: string }
-      | { id: string; name: string }[]
-      | null;
-    const ingredient = Array.isArray(ing) ? ing[0] : ing;
-    if (!ingredient?.id || !ingredient.name) continue;
+    const ingredientId = String(row.ingredient_id ?? "");
+    const name = ingredientNameById.get(ingredientId);
+    if (!itemId || !ingredientId || !name) continue;
     const list = recipeByItemId[itemId] ?? [];
-    list.push({
-      ingredientId: ingredient.id,
-      name: ingredient.name,
-    });
+    list.push({ ingredientId, name });
     recipeByItemId[itemId] = list;
   }
 

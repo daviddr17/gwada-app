@@ -68,6 +68,7 @@ export async function GET(
 
   const publicSettings = publicOrderingSettingsView(settings, {
     hasKioskTerminal,
+    channel: channel ?? "online",
   });
   const orderingOpen =
     publicSettings.onlineEnabled || publicSettings.kioskEnabled;

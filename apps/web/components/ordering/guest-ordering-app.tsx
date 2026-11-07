@@ -23,6 +23,13 @@ import {
   readGuestKioskDeviceCredential,
   type StoredGuestKioskDeviceCredential,
 } from "@/lib/ordering/guest-kiosk-device-storage";
+import {
+  enabledGuestPaymentMethodIds,
+  guestPaymentMethodLabelDe,
+  guestPaymentMethodNeedsTerminal,
+  type GuestPaymentMethodId,
+  type GuestPaymentMethodsConfig,
+} from "@/lib/ordering/guest-payment-methods";
 import type { PublicOrderingRecipeIngredient } from "@/lib/ordering/online-ordering-types";
 import { isMenuItemSoldOut } from "@/lib/menu/item-utils";
 import type { MenuItem, MenuOptionGroup } from "@/lib/types/menu";
@@ -49,6 +56,7 @@ type PublicSettings = {
   hasKioskTerminal?: boolean;
   soldOutGuestDisplay?: "hide" | "grey";
   guestLiveStockCheckEnabled?: boolean;
+  paymentMethods?: GuestPaymentMethodsConfig;
 };
 
 type OrderingPayload = {
@@ -120,6 +128,8 @@ export function GuestOrderingApp({
   const [terminalWaiting, setTerminalWaiting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [paymentMethod, setPaymentMethod] =
+    useState<GuestPaymentMethodId | null>(null);
   const [kioskDevice, setKioskDevice] =
     useState<StoredGuestKioskDeviceCredential | null>(null);
   const [cartBump, setCartBump] = useState(false);
@@ -166,6 +176,22 @@ export function GuestOrderingApp({
         setFulfillment("dine_in");
       } else if (json.settings.pickupEnabled) {
         setFulfillment("pickup");
+      }
+      const methods = json.settings.paymentMethods;
+      if (methods) {
+        const ids = enabledGuestPaymentMethodIds(methods);
+        const hasTerm = Boolean(
+          json.settings.hasKioskTerminal ||
+            (mode !== "online" &&
+              readGuestKioskDeviceCredential()?.mollieTerminalId),
+        );
+        const preferred =
+          ids.find(
+            (id) => !guestPaymentMethodNeedsTerminal(id) || hasTerm,
+          ) ??
+          ids[0] ??
+          null;
+        setPaymentMethod(preferred);
       }
     } catch {
       setLoadError("Netzwerkfehler");
@@ -249,7 +275,7 @@ export function GuestOrderingApp({
   }
 
   async function submitCheckout() {
-    if (!data) return;
+    if (!data || !paymentMethod) return;
     setCheckoutError(null);
     setSubmitting(true);
     setStep("busy");
@@ -264,13 +290,6 @@ export function GuestOrderingApp({
         mode === "online"
           ? null
           : kioskDevice ?? readGuestKioskDeviceCredential();
-      const useTerminal =
-        mode === "kiosk" &&
-        Boolean(
-          data.settings.hasKioskTerminal ||
-            deviceCred?.mollieTerminalId ||
-            deviceCred,
-        );
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -297,7 +316,7 @@ export function GuestOrderingApp({
               mode === "online" && timingMode === "scheduled" && scheduledLocal
                 ? new Date(scheduledLocal).toISOString()
                 : undefined,
-            payWithTerminal: useTerminal,
+            paymentMethod,
             mollieTerminalId: deviceCred?.mollieTerminalId || undefined,
             items: cart.map((l) => ({
               menuItemId: l.menuItemId,
@@ -316,7 +335,7 @@ export function GuestOrderingApp({
         orderNumber?: number;
         checkoutUrl?: string | null;
         molliePaymentId?: string | null;
-        paymentMode?: "hosted" | "terminal";
+        paymentMode?: "terminal" | "softpos" | "cash" | "paypal";
       };
       if (!res.ok || !json.statusToken) {
         setCheckoutError(mapCheckoutError(json.error));
@@ -324,7 +343,10 @@ export function GuestOrderingApp({
         return;
       }
 
-      if (json.paymentMode === "terminal" && json.molliePaymentId) {
+      if (
+        (json.paymentMode === "terminal" || json.paymentMode === "softpos") &&
+        json.molliePaymentId
+      ) {
         setTerminalWaiting(true);
         const paid = await pollTerminalPayment(
           json.statusToken,
@@ -333,7 +355,9 @@ export function GuestOrderingApp({
         setTerminalWaiting(false);
         if (!paid) {
           setCheckoutError(
-            "Zahlung am Terminal nicht bestätigt. Bitte erneut versuchen oder Staff rufen.",
+            json.paymentMode === "softpos"
+              ? "Tippen / SoftPOS nicht bestätigt. Bitte erneut versuchen oder Staff rufen."
+              : "Zahlung am Terminal nicht bestätigt. Bitte erneut versuchen oder Staff rufen.",
           );
           setStep("checkout");
           return;
@@ -347,15 +371,24 @@ export function GuestOrderingApp({
         return;
       }
 
-      onOrderPlaced?.({
-        statusToken: json.statusToken,
-        orderNumber: json.orderNumber ?? 0,
-        checkoutUrl: json.checkoutUrl ?? null,
-      });
-      if (json.checkoutUrl) {
+      // PayPal: provider approval page only (method already chosen in Gwada).
+      // Never Mollie Hosted Checkout / method picker.
+      if (json.paymentMode === "paypal" && json.checkoutUrl) {
+        onOrderPlaced?.({
+          statusToken: json.statusToken,
+          orderNumber: json.orderNumber ?? 0,
+          checkoutUrl: json.checkoutUrl,
+        });
         window.location.assign(json.checkoutUrl);
         return;
       }
+
+      onOrderPlaced?.({
+        statusToken: json.statusToken,
+        orderNumber: json.orderNumber ?? 0,
+        checkoutUrl: null,
+      });
+      setCart([]);
       if (mode === "online") {
         window.location.assign(
           `/order/${data.restaurant.slug}/status/${json.statusToken}`,
@@ -878,6 +911,69 @@ export function GuestOrderingApp({
             />
           </div>
 
+          {(() => {
+            const methods = data.settings.paymentMethods;
+            const ids = methods ? enabledGuestPaymentMethodIds(methods) : [];
+            const hasTerm = Boolean(
+              data.settings.hasKioskTerminal ||
+                kioskDevice?.mollieTerminalId,
+            );
+            if (!ids.length) {
+              return (
+                <p className="mt-4 text-sm text-destructive" role="alert">
+                  Keine Zahlungsmethode freigeschaltet. Bitte das Restaurant
+                  kontaktieren.
+                </p>
+              );
+            }
+            return (
+              <div className="mt-6 space-y-2">
+                <Label>Zahlung</Label>
+                <div className="flex flex-wrap gap-2">
+                  {ids.map((id) => {
+                    const needsTerm = guestPaymentMethodNeedsTerminal(id);
+                    const unavailable = needsTerm && !hasTerm;
+                    return (
+                      <Chip
+                        key={id}
+                        active={paymentMethod === id}
+                        accent={accent}
+                        large={largeTouch}
+                        onClick={() => {
+                          if (unavailable) return;
+                          setPaymentMethod(id);
+                        }}
+                      >
+                        {guestPaymentMethodLabelDe(id)}
+                        {unavailable ? " (nicht verfügbar)" : ""}
+                      </Chip>
+                    );
+                  })}
+                </div>
+                {paymentMethod === "cash" ? (
+                  <p className="text-xs text-muted-foreground">
+                    {fulfillment === "delivery"
+                      ? "Barzahlung bei Lieferung."
+                      : "Barzahlung bei Abholung / an der Theke."}
+                  </p>
+                ) : null}
+                {paymentMethod === "paypal" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Du bleibst in Gwada — PayPal öffnet nur zur Bestätigung.
+                  </p>
+                ) : null}
+                {paymentMethod === "card_terminal" ||
+                paymentMethod === "softpos" ? (
+                  <p className="text-xs text-muted-foreground">
+                    {paymentMethod === "softpos"
+                      ? "Bitte Karte oder Handy an das SoftPOS-Gerät halten."
+                      : "Bitte am Kartenterminal zahlen."}
+                  </p>
+                ) : null}
+              </div>
+            );
+          })()}
+
           {checkoutError ? (
             <p className="mt-3 text-sm text-destructive" role="alert">
               {checkoutError}
@@ -895,6 +991,7 @@ export function GuestOrderingApp({
             disabled={
               submitting ||
               !cart.length ||
+              !paymentMethod ||
               (mode === "online" &&
                 timingMode === "scheduled" &&
                 !scheduledLocal)
@@ -902,17 +999,23 @@ export function GuestOrderingApp({
             onClick={() => void submitCheckout()}
           >
             {terminalWaiting
-              ? "Bitte am Terminal zahlen …"
+              ? paymentMethod === "softpos"
+                ? "Bitte tippen / SoftPOS …"
+                : "Bitte am Terminal zahlen …"
               : submitting
                 ? "Wird vorbereitet …"
-                : mode === "kiosk" && data.settings.hasKioskTerminal
-                  ? "Am Terminal bezahlen"
-                  : "Jetzt bezahlen"}
+                : paymentMethod === "cash"
+                  ? "Bestellung absenden"
+                  : paymentMethod === "paypal"
+                    ? "Mit PayPal bezahlen"
+                    : paymentMethod === "softpos"
+                      ? "Mit Tippen / SoftPOS bezahlen"
+                      : paymentMethod === "card_terminal"
+                        ? "Am Terminal bezahlen"
+                        : "Jetzt bezahlen"}
           </Button>
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            {mode === "kiosk" && data.settings.hasKioskTerminal
-              ? "Zahlung über Mollie-Terminal am Kiosk."
-              : "Sichere Zahlung über Mollie. Nach der Zahlung siehst du den Live-Status."}
+            Sichere Zahlung im Gwada-Checkout.
           </p>
         </div>
       ) : null}
@@ -1082,9 +1185,17 @@ function mapCheckoutError(code?: string): string {
     case "scheduled_too_far":
       return "Die Wunschzeit liegt zu weit in der Zukunft.";
     case "terminal_required":
-      return "Kein Mollie-Terminal für den Kiosk konfiguriert.";
+      return "Kein Kartenterminal konfiguriert.";
+    case "softpos_terminal_required":
+      return "Kein SoftPOS-/Tap-Gerät konfiguriert.";
     case "mollie_pos_not_enabled":
-      return "Mollie POS/Terminal ist noch nicht freigeschaltet.";
+      return "Kartenterminal / SoftPOS ist noch nicht freigeschaltet.";
+    case "payment_method_required":
+      return "Bitte eine Zahlungsmethode wählen.";
+    case "payment_method_disabled":
+      return "Diese Zahlungsmethode ist nicht freigeschaltet.";
+    case "payment_method_unsupported":
+      return "Zahlungsmethode wird nicht unterstützt.";
     case "item_sold_out":
       return "Ein Gericht ist ausverkauft — bitte Warenkorb anpassen.";
     case "item_channel_unavailable":

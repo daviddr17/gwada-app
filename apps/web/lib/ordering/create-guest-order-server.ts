@@ -17,6 +17,13 @@ import {
   normalizeMollieTerminalId,
 } from "@/lib/ordering/guest-kiosk-device-server";
 import { assertGuestCartHasStock } from "@/lib/ordering/guest-live-stock-server";
+import {
+  guestPaymentMethodNeedsTerminal,
+  guestPaymentMethodsForChannel,
+  isGuestPaymentMethodEnabled,
+  isGuestPaymentMethodId,
+  type GuestPaymentMethodId,
+} from "@/lib/ordering/guest-payment-methods";
 import type { GuestCheckoutInput } from "@/lib/ordering/online-ordering-types";
 import {
   loadOnlineOrderingSettings,
@@ -27,6 +34,28 @@ import { getPublicSiteUrl } from "@/lib/public-env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
+
+export type GuestCheckoutPaymentMode =
+  | "terminal"
+  | "softpos"
+  | "cash"
+  | "paypal";
+
+function resolveGuestPaymentMethod(
+  input: GuestCheckoutInput,
+): GuestPaymentMethodId | null {
+  if (isGuestPaymentMethodId(input.paymentMethod)) {
+    return input.paymentMethod;
+  }
+  // Legacy clients: kiosk defaulted to terminal when payWithTerminal !== false
+  if (input.channel === "kiosk" && input.payWithTerminal !== false) {
+    return "card_terminal";
+  }
+  if (input.payWithTerminal === true) {
+    return "card_terminal";
+  }
+  return null;
+}
 
 function newStatusToken(): string {
   return randomBytes(24).toString("base64url");
@@ -69,7 +98,10 @@ export async function resolveRestaurantBySlug(
 export async function createGuestOrderCheckout(params: {
   slug: string;
   input: GuestCheckoutInput;
-  /** Absolute or path redirect after Mollie; token placeholder `{token}`. */
+  /**
+   * Return path after PayPal (provider redirect). Token placeholder `{token}`.
+   * Never used for Mollie Hosted Checkout.
+   */
   redirectPathTemplate?: string;
   request?: Request;
 }): Promise<
@@ -78,10 +110,12 @@ export async function createGuestOrderCheckout(params: {
       orderId: string;
       orderNumber: number;
       statusToken: string;
+      /** PayPal provider URL only — never Mollie Hosted Checkout. */
       checkoutUrl: string | null;
       guestPaymentId: string | null;
       molliePaymentId: string | null;
-      paymentMode: "hosted" | "terminal";
+      paymentMode: GuestCheckoutPaymentMode;
+      paymentMethod: GuestPaymentMethodId;
       totalCents: number;
     }
   | { ok: false; error: string; status: number }
@@ -204,9 +238,20 @@ export async function createGuestOrderCheckout(params: {
   const slotEndAt = timing.slotEndAt;
   const fulfillmentAsap = timing.fulfillmentAsap;
 
-  const wantTerminal =
-    channel === "kiosk" &&
-    params.input.payWithTerminal !== false;
+  const paymentMethod = resolveGuestPaymentMethod(params.input);
+  if (!paymentMethod) {
+    return { ok: false, error: "payment_method_required", status: 400 };
+  }
+
+  const channelMethods = guestPaymentMethodsForChannel(
+    channel,
+    settings.guestPayOnline,
+    settings.guestPayKiosk,
+  );
+  if (!isGuestPaymentMethodEnabled(channelMethods, paymentMethod)) {
+    return { ok: false, error: "payment_method_disabled", status: 400 };
+  }
+
   const terminalId =
     pairedDeviceTerminal ||
     normalizeMollieTerminalId(params.input.mollieTerminalId) ||
@@ -267,11 +312,18 @@ export async function createGuestOrderCheckout(params: {
     return { ok: false, error: "create_order_lines_failed", status: 500 };
   }
 
-  // Counter kiosk: Mollie pointofsale terminal
-  if (wantTerminal) {
+  // Card / SoftPOS: Mollie pointofsale + terminal (never Hosted Checkout)
+  if (guestPaymentMethodNeedsTerminal(paymentMethod)) {
     if (!terminalId.startsWith("term_")) {
       await admin.from("pos_orders").delete().eq("id", order.id);
-      return { ok: false, error: "terminal_required", status: 400 };
+      return {
+        ok: false,
+        error:
+          paymentMethod === "softpos"
+            ? "softpos_terminal_required"
+            : "terminal_required",
+        status: 400,
+      };
     }
     const { createMolliePosPayment } = await import(
       "@/lib/pos/mollie-pos-payment"
@@ -279,7 +331,7 @@ export async function createGuestOrderCheckout(params: {
     const terminalPay = await createMolliePosPayment({
       restaurantId: restaurant.restaurantId,
       amountEuros: totalCents / 100,
-      description: `Kiosk #${order.order_number} · ${restaurant.name}`,
+      description: `${paymentMethod === "softpos" ? "SoftPOS" : "Terminal"} #${order.order_number} · ${restaurant.name}`,
       terminalId,
       posOrderId: order.id as string,
     });
@@ -308,67 +360,102 @@ export async function createGuestOrderCheckout(params: {
       checkoutUrl: null,
       guestPaymentId: null,
       molliePaymentId: terminalPay.molliePaymentId,
-      paymentMode: "terminal",
+      paymentMode: paymentMethod === "softpos" ? "softpos" : "terminal",
+      paymentMethod,
       totalCents,
     };
   }
 
-  const redirectTemplate =
-    params.redirectPathTemplate ??
-    `/order/${restaurant.slug}/status/{token}?paid=1`;
-  const redirectUrl = `${siteBase()}${redirectTemplate.replace(
-    "{token}",
-    statusToken,
-  )}`;
-  const cancelUrl = `${siteBase()}/order/${restaurant.slug}/status/${statusToken}`;
-
-  const payment = await createRestaurantGuestPayment({
-    restaurantId: restaurant.restaurantId,
-    amountEuros: totalCents / 100,
-    description: `Bestellung #${order.order_number} · ${restaurant.name}`,
-    purpose: "order",
-    redirectUrl,
-    cancelUrl,
-    metadata: {
-      order_id: order.id as string,
-      status_token: statusToken,
-      channel,
-    },
-  });
-
-  if (!payment.ok) {
-    await admin
-      .from("pos_orders")
-      .update({ status: "cancelled", completed_at: new Date().toISOString() })
-      .eq("id", order.id);
+  // Cash: Gwada-only — accept order; collect at counter / pickup
+  if (paymentMethod === "cash") {
+    await admin.from("pos_payments").insert({
+      restaurant_id: restaurant.restaurantId,
+      order_id: order.id,
+      method: "cash",
+      amount_cents: totalCents,
+      status: "open",
+    });
+    await markGuestOrderPaidByOrderId(order.id as string);
     return {
-      ok: false,
-      error: payment.error,
-      status: payment.status,
+      ok: true,
+      orderId: order.id as string,
+      orderNumber: order.order_number as number,
+      statusToken,
+      checkoutUrl: null,
+      guestPaymentId: null,
+      molliePaymentId: null,
+      paymentMode: "cash",
+      paymentMethod,
+      totalCents,
     };
   }
 
-  await admin
-    .from("pos_orders")
-    .update({ guest_payment_id: payment.id })
-    .eq("id", order.id);
+  // PayPal: Mollie Payments API with method pinned (Gwada owns selection).
+  // Provider may still open PayPal — never Mollie Hosted method picker.
+  if (paymentMethod === "paypal") {
+    const redirectTemplate =
+      params.redirectPathTemplate ??
+      `/order/${restaurant.slug}/status/{token}?paid=1`;
+    const redirectUrl = `${siteBase()}${redirectTemplate.replace(
+      "{token}",
+      statusToken,
+    )}`;
+    const cancelUrl = `${siteBase()}/order/${restaurant.slug}/status/${statusToken}`;
 
-  await admin
-    .from("restaurant_guest_payments")
-    .update({ pos_order_id: order.id })
-    .eq("id", payment.id);
+    const payment = await createRestaurantGuestPayment({
+      restaurantId: restaurant.restaurantId,
+      amountEuros: totalCents / 100,
+      description: `Bestellung #${order.order_number} · ${restaurant.name}`,
+      purpose: "order",
+      method: "paypal",
+      redirectUrl,
+      cancelUrl,
+      metadata: {
+        order_id: order.id as string,
+        status_token: statusToken,
+        channel,
+        payment_method: "paypal",
+      },
+    });
 
-  return {
-    ok: true,
-    orderId: order.id as string,
-    orderNumber: order.order_number as number,
-    statusToken,
-    checkoutUrl: payment.checkoutUrl,
-    guestPaymentId: payment.id,
-    molliePaymentId: payment.molliePaymentId,
-    paymentMode: "hosted",
-    totalCents,
-  };
+    if (!payment.ok) {
+      await admin
+        .from("pos_orders")
+        .update({ status: "cancelled", completed_at: new Date().toISOString() })
+        .eq("id", order.id);
+      return {
+        ok: false,
+        error: payment.error,
+        status: payment.status,
+      };
+    }
+
+    await admin
+      .from("pos_orders")
+      .update({ guest_payment_id: payment.id })
+      .eq("id", order.id);
+
+    await admin
+      .from("restaurant_guest_payments")
+      .update({ pos_order_id: order.id })
+      .eq("id", payment.id);
+
+    return {
+      ok: true,
+      orderId: order.id as string,
+      orderNumber: order.order_number as number,
+      statusToken,
+      checkoutUrl: payment.checkoutUrl,
+      guestPaymentId: payment.id,
+      molliePaymentId: payment.molliePaymentId,
+      paymentMode: "paypal",
+      paymentMethod,
+      totalCents,
+    };
+  }
+
+  await admin.from("pos_orders").delete().eq("id", order.id);
+  return { ok: false, error: "payment_method_unsupported", status: 400 };
 }
 
 async function priceGuestLines(params: {

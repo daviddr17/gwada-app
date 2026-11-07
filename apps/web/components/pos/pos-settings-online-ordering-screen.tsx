@@ -21,6 +21,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type {
   DeliveryZone,
+  GuestPaymentMethodsConfig,
   OnlineOrderingSettings,
 } from "@/lib/ordering/online-ordering-types";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -334,11 +335,39 @@ export function PosSettingsOnlineOrderingScreen() {
             </CardContent>
           </Card>
 
+          <Card className="border-border/50 shadow-card">
+            <CardContent className="space-y-5 pt-6">
+              <div>
+                <p className="font-medium">Gast-Zahlungsmethoden</p>
+                <p className="text-sm text-muted-foreground">
+                  Gwada-Checkout wählt die Methode — Mollie nur Backend
+                  (Terminal / SoftPOS / API), nie Hosted-Checkout-Weiterleitung.
+                </p>
+              </div>
+              <GuestPayMethodsBlock
+                title="Online (/order)"
+                value={draft.guestPayOnline}
+                onChange={(guestPayOnline) =>
+                  setDraft({ ...draft, guestPayOnline })
+                }
+              />
+              <GuestPayMethodsBlock
+                title="Kiosk / Tisch (/kiosk)"
+                value={draft.guestPayKiosk}
+                onChange={(guestPayKiosk) =>
+                  setDraft({ ...draft, guestPayKiosk })
+                }
+              />
+            </CardContent>
+          </Card>
+
           <GuestKioskDevicesPanel restaurantId={restaurantId} />
 
           <Card className="border-border/50 shadow-card">
             <CardContent className="space-y-4 pt-6">
-              <p className="font-medium">Kiosk-Terminal Fallback (Mollie POS)</p>
+              <p className="font-medium">
+                Terminal / SoftPOS Fallback (Mollie pointofsale)
+              </p>
               <div className="space-y-1.5">
                 <Label>Restaurant-Terminal-ID (term_…)</Label>
                 <Input
@@ -352,8 +381,9 @@ export function PosSettingsOnlineOrderingScreen() {
                   placeholder="term_…"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Fallback, wenn das gekoppelte Gerät kein eigenes Terminal hat.
-                  Counter zahlt per Mollie <code>pointofsale</code>.
+                  Fallback, wenn das gekoppelte Gerät kein eigenes Terminal /
+                  SoftPOS hat. Karte und Tippen laufen über Mollie{" "}
+                  <code>pointofsale</code> — ohne Hosted Checkout.
                 </p>
               </div>
             </CardContent>
@@ -443,6 +473,46 @@ function ToggleRow({
         ) : null}
       </div>
       <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
+function GuestPayMethodsBlock({
+  title,
+  value,
+  onChange,
+}: {
+  title: string;
+  value: GuestPaymentMethodsConfig;
+  onChange: (next: GuestPaymentMethodsConfig) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-xl border border-border/50 p-4">
+      <p className="text-sm font-medium">{title}</p>
+      <ToggleRow
+        label="Karte / Terminal"
+        description="Mollie pointofsale + term_… (Backend)."
+        checked={value.cardTerminal}
+        onCheckedChange={(v) => onChange({ ...value, cardTerminal: v })}
+      />
+      <ToggleRow
+        label="Bar"
+        description="Zahlung an der Theke / bei Abholung — ohne Mollie."
+        checked={value.cash}
+        onCheckedChange={(v) => onChange({ ...value, cash: v })}
+      />
+      <ToggleRow
+        label="PayPal"
+        description="Mollie Payments API (method=paypal). Auswahl bleibt in Gwada."
+        checked={value.paypal}
+        onCheckedChange={(v) => onChange({ ...value, paypal: v })}
+      />
+      <ToggleRow
+        label="Tippen / SoftPOS"
+        description="Wo verfügbar: Mollie SoftPOS / Tap als term_… pointofsale."
+        checked={value.softpos}
+        onCheckedChange={(v) => onChange({ ...value, softpos: v })}
+      />
     </div>
   );
 }

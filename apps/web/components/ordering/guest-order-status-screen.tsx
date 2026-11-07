@@ -161,7 +161,7 @@ export function GuestOrderStatusScreen({ token }: { token: string }) {
           href={order.checkoutUrl}
           className="mt-4 flex h-12 items-center justify-center rounded-xl bg-foreground text-background"
         >
-          Zahlung fortsetzen
+          PayPal fortsetzen
         </a>
       ) : null}
 

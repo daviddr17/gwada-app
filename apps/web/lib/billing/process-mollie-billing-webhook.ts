@@ -9,8 +9,12 @@ import {
 import { syncMolliePaymentInvoiceToDb } from "@/lib/billing/sync-mollie-invoice";
 import { syncMollieSubscriptionToDb } from "@/lib/billing/sync-mollie-subscription";
 import {
+  claimBillingFirstSubscriptionCreate,
   findRestaurantIdByMollieCustomer,
+  isRealMollieSubscriptionId,
   loadRestaurantEntitlements,
+  loadRestaurantPeriodEndCancelState,
+  releaseBillingFirstSubscriptionClaim,
   stampRestaurantPastDueSince,
   upsertRestaurantSubscriptionAdmin,
 } from "@/lib/billing/subscription-db";
@@ -24,7 +28,9 @@ import {
   mollieCreateSubscription,
   mollieGetPayment,
   mollieGetSubscription,
+  mollieListCustomerSubscriptions,
   mollieUpdateSubscription,
+  type MollieSubscription,
 } from "@/lib/mollie/mollie-payments";
 import { getPublicSiteUrl } from "@/lib/public-env";
 
@@ -33,6 +39,50 @@ function addIntervalDate(interval: BillingInterval, from = new Date()): string {
   if (interval === "year") d.setUTCFullYear(d.getUTCFullYear() + 1);
   else d.setUTCMonth(d.getUTCMonth() + 1);
   return d.toISOString().slice(0, 10);
+}
+
+function findExistingBillingSubscription(
+  subscriptions: MollieSubscription[],
+  restaurantId: string,
+): MollieSubscription | null {
+  const open = subscriptions.filter(
+    (s) => s.status === "active" || s.status === "pending" || s.status === "suspended",
+  );
+  const forRestaurant = open.find(
+    (s) => s.metadata?.restaurant_id === restaurantId,
+  );
+  return forRestaurant ?? open[0] ?? null;
+}
+
+async function activateExistingMollieSubscription(input: {
+  sub: MollieSubscription;
+  restaurantId: string;
+  customerId: string;
+  mandateId?: string | null;
+  planId: Exclude<BillingPlanId, "free">;
+  interval: BillingInterval;
+  includePos: boolean;
+}): Promise<void> {
+  await syncMollieSubscriptionToDb(
+    {
+      ...input.sub,
+      status:
+        input.sub.status === "pending" || input.sub.status === "active"
+          ? "active"
+          : input.sub.status,
+      customerId: input.customerId,
+      mandateId: input.mandateId ?? input.sub.mandateId,
+      metadata: {
+        restaurant_id: input.restaurantId,
+        plan_id: input.planId,
+        interval: input.interval,
+        include_pos: input.includePos ? "1" : "0",
+        ...(input.sub.metadata ?? {}),
+      },
+    },
+    input.restaurantId,
+    { clearPastDue: true },
+  );
 }
 
 export async function processMollieBillingPaymentId(
@@ -71,6 +121,76 @@ export async function processMollieBillingPaymentId(
       ? intervalRaw
       : "month";
     const includePos = metadata.include_pos === "1";
+
+    const existingState = await loadRestaurantPeriodEndCancelState(restaurantId);
+    if (
+      isRealMollieSubscriptionId(existingState?.mollieSubscriptionId) &&
+      existingState &&
+      existingState.status !== "canceled" &&
+      existingState.planId !== "free"
+    ) {
+      const existingSub = await mollieGetSubscription(
+        client.auth,
+        payment.customerId,
+        existingState.mollieSubscriptionId!,
+      );
+      if (
+        existingSub.ok &&
+        (existingSub.data.status === "active" ||
+          existingSub.data.status === "pending" ||
+          existingSub.data.status === "suspended")
+      ) {
+        await activateExistingMollieSubscription({
+          sub: existingSub.data,
+          restaurantId,
+          customerId: payment.customerId,
+          mandateId: payment.mandateId,
+          planId,
+          interval,
+          includePos,
+        });
+        await syncMolliePaymentInvoiceToDb(payment, restaurantId);
+        return { processed: true, reason: "already_subscribed" };
+      }
+      // Canceled/completed on Mollie → fall through and create a new subscription.
+    }
+
+    const listed = await mollieListCustomerSubscriptions(
+      client.auth,
+      payment.customerId,
+    );
+    if (listed.ok) {
+      const existing = findExistingBillingSubscription(
+        listed.data._embedded?.subscriptions ?? [],
+        restaurantId,
+      );
+      if (existing) {
+        await activateExistingMollieSubscription({
+          sub: existing,
+          restaurantId,
+          customerId: payment.customerId,
+          mandateId: payment.mandateId,
+          planId,
+          interval,
+          includePos,
+        });
+        await syncMolliePaymentInvoiceToDb(payment, restaurantId);
+        return { processed: true, reason: "reused_existing_subscription" };
+      }
+    }
+
+    const claim = await claimBillingFirstSubscriptionCreate(
+      restaurantId,
+      payment.id,
+    );
+    if (claim === "already_subscribed") {
+      await syncMolliePaymentInvoiceToDb(payment, restaurantId);
+      return { processed: true, reason: "already_subscribed" };
+    }
+    if (claim === "lost_race") {
+      await syncMolliePaymentInvoiceToDb(payment, restaurantId);
+      return { processed: true, reason: "create_claimed_elsewhere" };
+    }
 
     const amount = mollieBillingAmount(planId, interval, includePos);
     const description = billingSubscriptionDescription({
@@ -113,9 +233,11 @@ export async function processMollieBillingPaymentId(
           },
         },
         restaurantId,
+        { clearPastDue: true },
       );
     } else {
       console.warn("billing_first subscription create", created.detail);
+      await releaseBillingFirstSubscriptionClaim(restaurantId, payment.id);
     }
 
     await syncMolliePaymentInvoiceToDb(payment, restaurantId);
@@ -174,16 +296,42 @@ export async function processMollieBillingPaymentId(
   }
 
   if (payment.subscriptionId && payment.customerId) {
+    const failed =
+      payment.status === "failed" || payment.status === "expired";
+    const paid = payment.status === "paid";
+
+    // Stamp before sync so preservePastDue can see the existing clock.
+    if (failed) {
+      await stampRestaurantPastDueSince(restaurantId);
+    }
+
     const sub = await mollieGetSubscription(
       client.auth,
       payment.customerId,
       payment.subscriptionId,
     );
     if (sub.ok) {
-      await syncMollieSubscriptionToDb(sub.data, restaurantId);
-    }
-    if (payment.status === "failed" || payment.status === "expired") {
-      await stampRestaurantPastDueSince(restaurantId);
+      await syncMollieSubscriptionToDb(sub.data, restaurantId, {
+        preservePastDue: failed,
+        clearPastDue: paid,
+      });
+    } else if (failed) {
+      const state = await loadRestaurantPeriodEndCancelState(restaurantId);
+      if (state) {
+        await upsertRestaurantSubscriptionAdmin({
+          restaurantId,
+          planId: state.planId === "free" ? "basic" : state.planId,
+          interval: state.interval,
+          status: "past_due",
+          source: "mollie",
+          mollieCustomerId: state.mollieCustomerId,
+          mollieSubscriptionId: state.mollieSubscriptionId,
+          mollieMandateId: state.mollieMandateId,
+          currentPeriodStart: state.currentPeriodStart,
+          currentPeriodEnd: state.currentPeriodEnd,
+          cancelAtPeriodEnd: state.cancelAtPeriodEnd,
+        });
+      }
     }
   }
 

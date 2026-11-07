@@ -43,9 +43,11 @@ export async function cancelMollieSubscriptionsPastDueGraceExpired(): Promise<{
         continue;
       }
       if (current.data.status === "active") {
+        // Mollie recovered (retry paid) after grace window — clear local dunning.
         const synced = await syncMollieSubscriptionToDb(
           current.data,
           row.restaurantId,
+          { clearPastDue: true },
         );
         if (!synced.ok) failed += 1;
         else recovered += 1;

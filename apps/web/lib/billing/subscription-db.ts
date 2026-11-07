@@ -162,10 +162,41 @@ export async function loadRestaurantEntitlements(
       new Date().toISOString();
   }
 
+  const cancelAtPeriodEnd = Boolean(row?.cancel_at_period_end);
+  const currentPeriodEnd = row?.current_period_end ?? null;
+  const periodEndExpired =
+    cancelAtPeriodEnd &&
+    currentPeriodEnd != null &&
+    Number.isFinite(Date.parse(currentPeriodEnd)) &&
+    Date.parse(currentPeriodEnd) <= Date.now();
+
+  // Soft-cancel past period end: demote features immediately (do not wait on cron).
+  if (
+    periodEndExpired &&
+    row &&
+    row.status !== "canceled" &&
+    (row.source === "mollie" || row.source === "stripe")
+  ) {
+    void finalizeRestaurantPeriodEndCancel({
+      restaurantId,
+      interval: asInterval(row.interval ?? "month"),
+      mollieCustomerId: row.mollie_customer_id,
+      mollieSubscriptionId: row.mollie_subscription_id,
+    }).catch((err) => {
+      console.warn(
+        "loadRestaurantEntitlements lazy period-end finalize",
+        restaurantId,
+        err instanceof Error ? err.message : err,
+      );
+    });
+  }
+
   const grantPaid = shouldGrantPaidPlanFeatures({
     source: row?.source ?? "manual",
-    status: row?.status ?? "active",
+    status: periodEndExpired ? "canceled" : (row?.status ?? "active"),
     pastDueSince,
+    cancelAtPeriodEnd,
+    currentPeriodEnd,
   });
   const graceExpired = isPastDueAccessLocked({
     source: row?.source ?? "manual",
@@ -184,15 +215,15 @@ export async function loadRestaurantEntitlements(
     row?.status !== "legacy";
 
   return {
-    planId,
+    planId: periodEndExpired ? "free" : planId,
     interval: asInterval(row?.interval ?? "month"),
-    status: row?.status ?? "active",
+    status: periodEndExpired ? "canceled" : (row?.status ?? "active"),
     source: row?.source ?? "manual",
     enforcing: effectiveEnforcing,
     addons: addonIds,
     features: featuresForPlanAndAddons(featurePlanId, addonIds),
-    cancelAtPeriodEnd: Boolean(row?.cancel_at_period_end),
-    currentPeriodEnd: row?.current_period_end ?? null,
+    cancelAtPeriodEnd: periodEndExpired ? false : cancelAtPeriodEnd,
+    currentPeriodEnd,
     stripeCustomerId: row?.stripe_customer_id ?? null,
     stripeSubscriptionId: row?.stripe_subscription_id ?? null,
     mollieCustomerId: row?.mollie_customer_id ?? null,
@@ -450,6 +481,127 @@ export type PeriodEndCancelState = {
   mollieCustomerId: string | null;
   mollieSubscriptionId: string | null;
 };
+
+/** Sentinel prefix while billing_first claims exclusive create rights. */
+export const BILLING_FIRST_CLAIM_PREFIX = "claim:";
+
+export function billingFirstClaimId(paymentId: string): string {
+  return `${BILLING_FIRST_CLAIM_PREFIX}${paymentId}`;
+}
+
+export function isRealMollieSubscriptionId(
+  id: string | null | undefined,
+): boolean {
+  return typeof id === "string" && id.startsWith("sub_");
+}
+
+function isOpenManagedSubscriptionRow(row: {
+  status?: string | null;
+  plan_id?: string | null;
+}): boolean {
+  const status = row.status ?? "";
+  const planId = row.plan_id ?? "free";
+  if (status === "canceled" || planId === "free") return false;
+  return ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(
+    status,
+  );
+}
+
+/**
+ * Atomic claim so concurrent/replayed billing_first webhooks do not create
+ * duplicate Mollie subscriptions. Returns:
+ * - claimed: this payment owns create rights (or already claimed this payment)
+ * - already_subscribed: an open managed Mollie sub id is already stored
+ * - lost_race: another payment/worker holds the claim
+ */
+export async function claimBillingFirstSubscriptionCreate(
+  restaurantId: string,
+  paymentId: string,
+): Promise<"claimed" | "already_subscribed" | "lost_race"> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return "lost_race";
+
+  const claimId = billingFirstClaimId(paymentId);
+  const { data: row } = await admin
+    .from("restaurant_subscriptions")
+    .select("mollie_subscription_id, status, plan_id")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+
+  const existingId =
+    (row?.mollie_subscription_id as string | null | undefined) ?? null;
+  if (
+    isRealMollieSubscriptionId(existingId) &&
+    row &&
+    isOpenManagedSubscriptionRow(row)
+  ) {
+    return "already_subscribed";
+  }
+  if (existingId === claimId) {
+    return "claimed";
+  }
+  if (
+    typeof existingId === "string" &&
+    existingId.startsWith(BILLING_FIRST_CLAIM_PREFIX)
+  ) {
+    return "lost_race";
+  }
+
+  const now = new Date().toISOString();
+  // Null id, or leftover canceled sub id after period-end finalize.
+  let query = admin
+    .from("restaurant_subscriptions")
+    .update({
+      mollie_subscription_id: claimId,
+      updated_at: now,
+    })
+    .eq("restaurant_id", restaurantId);
+
+  if (existingId == null) {
+    query = query.is("mollie_subscription_id", null);
+  } else {
+    query = query.eq("mollie_subscription_id", existingId);
+  }
+
+  const { data: updated, error } = await query.select("restaurant_id");
+
+  if (!error && updated && updated.length > 0) {
+    return "claimed";
+  }
+
+  const { data: again } = await admin
+    .from("restaurant_subscriptions")
+    .select("mollie_subscription_id, status, plan_id")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const againId =
+    (again?.mollie_subscription_id as string | null | undefined) ?? null;
+  if (againId === claimId) return "claimed";
+  if (
+    isRealMollieSubscriptionId(againId) &&
+    again &&
+    isOpenManagedSubscriptionRow(again)
+  ) {
+    return "already_subscribed";
+  }
+  return "lost_race";
+}
+
+export async function releaseBillingFirstSubscriptionClaim(
+  restaurantId: string,
+  paymentId: string,
+): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
+  await admin
+    .from("restaurant_subscriptions")
+    .update({
+      mollie_subscription_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("restaurant_id", restaurantId)
+    .eq("mollie_subscription_id", billingFirstClaimId(paymentId));
+}
 
 export async function loadRestaurantPeriodEndCancelState(
   restaurantId: string,

@@ -37,6 +37,13 @@ export type SyncMollieSubscriptionOptions = {
   cancelAtPeriodEnd?: boolean;
   /** Skip soft period-end hold — mark canceled/free immediately. */
   forceImmediateCancel?: boolean;
+  /**
+   * Failed renewal while Mollie still reports active/pending:
+   * keep past_due stamp + local past_due status so the 7-day grace is not wiped.
+   */
+  preservePastDue?: boolean;
+  /** Successful paid renewal — clear any local past_due cycle. */
+  clearPastDue?: boolean;
 };
 
 function periodEndStillActive(periodEndIso: string | null, now = new Date()): boolean {
@@ -117,10 +124,28 @@ export async function syncMollieSubscriptionToDb(
   }
 
   const existingPastDue = await loadRestaurantPastDueSince(restaurantId);
-  const pastDueSince = nextPastDueSince({
-    existing: existingPastDue,
-    status,
-  });
+
+  // Failed charge while Mollie still says active: keep dunning locally.
+  if (
+    options?.preservePastDue &&
+    existingPastDue &&
+    (status === "active" || status === "incomplete")
+  ) {
+    status = "past_due";
+  }
+
+  let pastDueSince: string | null;
+  if (options?.clearPastDue) {
+    pastDueSince = null;
+  } else {
+    pastDueSince = nextPastDueSince({
+      existing: existingPastDue,
+      status,
+      latestInvoiceOpen: Boolean(
+        options?.preservePastDue && existingPastDue,
+      ),
+    });
+  }
 
   if (pastDueSince && !existingPastDue) {
     await stampRestaurantPastDueSince(restaurantId);

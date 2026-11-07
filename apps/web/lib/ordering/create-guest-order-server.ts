@@ -437,27 +437,25 @@ async function priceGuestLines(params: {
   for (let i = 0; i < params.items.length; i++) {
     const input = params.items[i]!;
     const menuItem = menuById.get(input.menuItemId);
-    const asMenu = menuItem
-      ? {
-          id: menuItem.id as string,
-          name: menuItem.name as string,
-          description: "",
-          price: Number(menuItem.price),
-          category: (menuItem.category_id as string) ?? "",
-          imageUrl: "",
-          tags: [],
-          active: Boolean(menuItem.is_active),
-          availableFrom: (menuItem.available_from as string | null) ?? null,
-          availableTo: (menuItem.available_to as string | null) ?? null,
-          availableOnline: menuItem.available_online !== false,
-          availableKiosk: menuItem.available_kiosk !== false,
-          soldOut: menuItem.sold_out === true,
-        }
-      : null;
-    if (
-      !asMenu ||
-      !isMenuItemPubliclyAvailable(asMenu, new Date(), restaurantTimeZone)
-    ) {
+    if (!menuItem) {
+      return { ok: false, error: "invalid_menu_item", status: 400 };
+    }
+    const asMenu = {
+      id: menuItem.id as string,
+      name: menuItem.name as string,
+      description: "",
+      price: Number(menuItem.price),
+      category: (menuItem.category_id as string) ?? "",
+      imageUrl: "",
+      tags: [],
+      active: Boolean(menuItem.is_active),
+      availableFrom: (menuItem.available_from as string | null) ?? null,
+      availableTo: (menuItem.available_to as string | null) ?? null,
+      availableOnline: menuItem.available_online !== false,
+      availableKiosk: menuItem.available_kiosk !== false,
+      soldOut: menuItem.sold_out === true,
+    };
+    if (!isMenuItemPubliclyAvailable(asMenu, new Date(), restaurantTimeZone)) {
       return { ok: false, error: "invalid_menu_item", status: 400 };
     }
     if (!isMenuItemAvailableForChannel(asMenu, params.channel)) {

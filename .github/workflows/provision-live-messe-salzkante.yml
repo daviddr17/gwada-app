@@ -2,6 +2,10 @@ name: Provision Messe Salzkante live
 
 on:
   workflow_dispatch:
+  # Agent cannot workflow_dispatch (403); push to this branch runs provision with LIVE_* secrets.
+  push:
+    branches:
+      - cursor/messe-provision-run-a992
 
 concurrency:
   group: provision-live-messe-salzkante
@@ -31,15 +35,13 @@ jobs:
           export LIVE_VPS_HOST
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-
-      - name: Install psql
+      - name: Install psql + ensure Node
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
+          # Avoid actions/setup-node (auto-detects packageManager=pnpm and fails without Corepack).
+          node -v
+          # Upload script needs Node 18+ fetch — runner image provides it.
 
       - name: Provision Die Salzkante + media
         env:

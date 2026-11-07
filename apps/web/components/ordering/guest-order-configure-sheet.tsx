@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,8 +53,17 @@ export function GuestOrderConfigureSheet({
   const groupsForItem = useMemo(() => {
     if (!item) return [];
     const ids = new Set(item.optionGroupIds ?? []);
-    return optionGroups.filter((g) => ids.has(g.id) && g.active);
+    return optionGroups.filter((g) => ids.has(g.id) && g.active !== false);
   }, [item, optionGroups]);
+
+  useEffect(() => {
+    if (!open) return;
+    setQty(1);
+    setNotes("");
+    setSelectedChoices({});
+    setOhneIds([]);
+    setError(null);
+  }, [open, item?.id]);
 
   const baseCents = item ? Math.round(Number(item.price) * 100) : 0;
 
@@ -161,6 +170,16 @@ export function GuestOrderConfigureSheet({
         </DrawerHeader>
 
         <div className="space-y-5 overflow-y-auto px-4 pb-2">
+          {groupsForItem.length > 0 || recipe.length > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {groupsForItem.length > 0 && recipe.length > 0
+                ? "Extras wählen und Zutaten weglassen, falls gewünscht."
+                : groupsForItem.length > 0
+                  ? "Optionen und Extras für dieses Gericht."
+                  : "Zutaten weglassen, falls gewünscht."}
+            </p>
+          ) : null}
+
           {groupsForItem.map((group) => (
             <div key={group.id} className="space-y-2">
               <p className={cn("font-medium", largeTouch && "text-lg")}>
@@ -170,11 +189,13 @@ export function GuestOrderConfigureSheet({
                     (mind. {group.minSelect}
                     {group.maxSelect ? `, max. ${group.maxSelect}` : ""})
                   </span>
-                ) : null}
+                ) : (
+                  <span className="ml-1 text-muted-foreground">(optional)</span>
+                )}
               </p>
               <div className="flex flex-wrap gap-2">
                 {group.choices
-                  .filter((c) => c.active)
+                  .filter((c) => c.active !== false)
                   .map((choice) => {
                     const active = (selectedChoices[group.id] ?? []).includes(
                       choice.id,
@@ -213,6 +234,9 @@ export function GuestOrderConfigureSheet({
             <div className="space-y-2">
               <p className={cn("font-medium", largeTouch && "text-lg")}>
                 Ohne …
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Tippen, um Zutaten wegzulassen.
               </p>
               <div className="flex flex-wrap gap-2">
                 {recipe.map((ing) => {

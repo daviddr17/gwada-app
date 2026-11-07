@@ -7,8 +7,8 @@ export default async function OnlineOrderPage({
 }) {
   const { slug } = await params;
   return (
-    <div className="mx-auto flex min-h-dvh max-w-3xl flex-col">
-      <GuestOrderingApp slug={slug} mode="online" />
+    <div className="mx-auto flex h-dvh max-w-3xl flex-col overflow-hidden">
+      <GuestOrderingApp slug={slug} mode="online" className="h-full min-h-0" />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   isBillingDunningStatus,
   isBillingPastDueSweepDue,
   isPastDueAccessLocked,
+  isPeriodEndCancelAccessExpired,
   isStripeSubscriptionInvoice,
   mapStripeSubscriptionStatus,
   nextPastDueSince,
@@ -215,5 +216,50 @@ test("Nur Abo-Rechnungen mit Betrag starten die Uhr", () => {
   assert.equal(
     isStripeSubscriptionInvoice({ subscriptionId: null, amountDue: 4900 }),
     false,
+  );
+});
+
+test("Soft-cancel past period end denys paid features immediately", () => {
+  const now = new Date("2026-11-07T12:00:00.000Z");
+  assert.equal(
+    isPeriodEndCancelAccessExpired({
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: "2026-11-07T00:00:00.000Z",
+      now,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldGrantPaidPlanFeatures({
+      source: "mollie",
+      status: "active",
+      pastDueSince: null,
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: "2026-11-07T00:00:00.000Z",
+      now,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldGrantPaidPlanFeatures({
+      source: "mollie",
+      status: "active",
+      pastDueSince: null,
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: "2026-11-08T00:00:00.000Z",
+      now,
+    }),
+    true,
+  );
+});
+
+test("Uhr: failed renewal with open invoice keeps past_due while Mollie active", () => {
+  assert.equal(
+    nextPastDueSince({
+      existing: T0,
+      status: "active",
+      latestInvoiceOpen: true,
+    }),
+    T0,
   );
 });

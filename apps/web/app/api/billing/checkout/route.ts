@@ -2,6 +2,10 @@ import {
   createBillingCheckoutSession,
 } from "@/lib/billing/checkout";
 import {
+  publicBillingError,
+  sanitizeBillingReturnUrl,
+} from "@/lib/billing/billing-security";
+import {
   isBillingInterval,
   isBillingPlanId,
   type BillingInterval,
@@ -39,12 +43,16 @@ export async function POST(req: Request) {
   }
 
   const origin = new URL(req.url).origin;
-  const successUrl =
-    body.successUrl?.trim() ||
-    `${origin}/dashboard/settings/billing?checkout=success`;
-  const cancelUrl =
-    body.cancelUrl?.trim() ||
-    `${origin}/dashboard/settings/billing?checkout=cancel`;
+  const successUrl = sanitizeBillingReturnUrl(
+    body.successUrl,
+    origin,
+    "/dashboard/settings/billing?checkout=success",
+  );
+  const cancelUrl = sanitizeBillingReturnUrl(
+    body.cancelUrl,
+    origin,
+    "/dashboard/settings/billing?checkout=cancel",
+  );
 
   const {
     data: { user },
@@ -61,7 +69,10 @@ export async function POST(req: Request) {
   });
 
   if (!result.ok) {
-    return Response.json({ error: result.error }, { status: result.status });
+    return Response.json(
+      { error: publicBillingError(result.error, "checkout_failed") },
+      { status: result.status },
+    );
   }
   return Response.json({ url: result.url });
 }

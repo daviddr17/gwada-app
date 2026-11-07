@@ -1,3 +1,4 @@
+import { publicBillingError } from "@/lib/billing/billing-security";
 import { setRestaurantBillingCancelAtPeriodEnd } from "@/lib/billing/manage-subscription";
 import { authorizeRestaurantModule } from "@/lib/permissions/authorize-restaurant-module";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -26,7 +27,10 @@ export async function POST(req: Request) {
       cancel: body.cancel !== false,
     });
     if (!result.ok) {
-      return Response.json({ error: result.error }, { status: result.status });
+      return Response.json(
+        { error: publicBillingError(result.error, "cancel_failed") },
+        { status: result.status },
+      );
     }
     return Response.json({ ok: true });
   } catch (err) {

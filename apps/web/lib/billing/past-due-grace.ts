@@ -86,9 +86,22 @@ export function nextPastDueSince(input: {
   return input.existing;
 }
 
+/** Soft-cancel after period end — paid access must drop even before cron finalize. */
+export function isPeriodEndCancelAccessExpired(input: {
+  cancelAtPeriodEnd?: boolean;
+  currentPeriodEnd?: string | null;
+  now?: Date;
+}): boolean {
+  if (!input.cancelAtPeriodEnd || !input.currentPeriodEnd) return false;
+  const endMs = Date.parse(input.currentPeriodEnd);
+  if (!Number.isFinite(endMs)) return false;
+  return (input.now ?? new Date()).getTime() >= endMs;
+}
+
 /**
  * Paid-Plan-Features (Basic/Pro/Add-ons).
  * - Legacy/Kulanz: immer ja (Plan steht in der Zeile).
+ * - Soft-cancel past period end: nein (auch vor Cron-Finalize).
  * - Mollie active/trialing: ja.
  * - Mollie past_due/unpaid: ja bis 7 Tage nach erster Failed-Charge.
  * - incomplete / canceled: nein (nie bezahlt bzw. beendet).
@@ -98,8 +111,19 @@ export function shouldGrantPaidPlanFeatures(input: {
   status: string;
   pastDueSince: string | null;
   now?: Date;
+  cancelAtPeriodEnd?: boolean;
+  currentPeriodEnd?: string | null;
 }): boolean {
   if (!isManagedBillingSource(input.source)) return true;
+  if (
+    isPeriodEndCancelAccessExpired({
+      cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+      currentPeriodEnd: input.currentPeriodEnd,
+      now: input.now,
+    })
+  ) {
+    return false;
+  }
   if (isBillingHealthyStatus(input.status)) return true;
   if (input.status === "paused") return true;
   if (isBillingDunningStatus(input.status)) {

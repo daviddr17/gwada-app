@@ -7,6 +7,7 @@ import {
   type BillingInterval,
   type BillingPlanId,
 } from "@/lib/billing/plan-catalog";
+import { BILLING_MANDATE_UPDATE_EUROS } from "@/lib/billing/billing-security";
 import { isGratisBillingSource } from "@/lib/billing/gratis-billing";
 import {
   billingSubscriptionDescription,
@@ -21,6 +22,7 @@ import {
   upsertRestaurantSubscriptionAdmin,
 } from "@/lib/billing/subscription-db";
 import { getPublicSiteUrl } from "@/lib/public-env";
+import { mollieAmountEur } from "@/lib/mollie/mollie-amount";
 import {
   mollieCancelSubscription,
   mollieCreateCustomer,
@@ -121,9 +123,14 @@ export async function createBillingCheckoutSession(
       metadata: { restaurant_id: input.restaurantId },
     });
     if (!customer.ok) {
+      console.warn(
+        "mollie customer create",
+        customer.error,
+        customer.status,
+      );
       return {
         ok: false,
-        error: customer.detail || "customer_create_failed",
+        error: "customer_create_failed",
         status: 502,
       };
     }
@@ -177,9 +184,10 @@ export async function createBillingCheckoutSession(
   });
 
   if (!payment.ok) {
+    console.warn("mollie checkout payment", payment.error, payment.status);
     return {
       ok: false,
-      error: payment.detail || "payment_create_failed",
+      error: "payment_create_failed",
       status: 502,
     };
   }
@@ -202,16 +210,93 @@ export async function createBillingCheckoutSession(
 }
 
 /**
- * Mollie has no Stripe Customer Portal. In-app cancel / plan change only.
+ * In-app payment-method update via Mollie Hosted Checkout (new first payment → new mandate).
+ * Not a Mollie “customer portal”.
  */
-export async function createBillingPortalSession(_input: {
+export async function createBillingPortalSession(input: {
   restaurantId: string;
   returnUrl: string;
 }): Promise<
   | { ok: true; url: string }
   | { ok: false; error: string; status: number }
 > {
-  return { ok: false, error: "mollie_no_portal", status: 501 };
+  return createBillingPaymentMethodUpdateSession(input);
+}
+
+export async function createBillingPaymentMethodUpdateSession(input: {
+  restaurantId: string;
+  returnUrl: string;
+}): Promise<
+  | { ok: true; url: string }
+  | { ok: false; error: string; status: number }
+> {
+  const client = await getMollieBillingAuth();
+  if (!client) {
+    return { ok: false, error: "mollie_not_configured", status: 503 };
+  }
+
+  const entitlements = await loadRestaurantEntitlements(input.restaurantId);
+  if (
+    !entitlements.mollieCustomerId ||
+    entitlements.source !== "mollie" ||
+    entitlements.planId === "free"
+  ) {
+    return { ok: false, error: "no_managed_subscription", status: 409 };
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data: restaurant } = admin
+    ? await admin
+        .from("restaurants")
+        .select("name")
+        .eq("id", input.restaurantId)
+        .maybeSingle()
+    : { data: null };
+  const restaurantName =
+    typeof restaurant?.name === "string" ? restaurant.name : null;
+
+  const payment = await mollieCreatePayment(client.auth, {
+    // Small verification charge creates a new mandate; subscription mandate is swapped on webhook.
+    amount: mollieAmountEur(BILLING_MANDATE_UPDATE_EUROS),
+    customerId: entitlements.mollieCustomerId,
+    sequenceType: "first",
+    description: `Gwada — Zahlungsmittel aktualisieren${
+      restaurantName ? ` (${restaurantName})` : ""
+    }`,
+    redirectUrl: input.returnUrl,
+    cancelUrl: input.returnUrl,
+    webhookUrl: billingWebhookUrl(),
+    ...(client.config.profile_id
+      ? { profileId: client.config.profile_id }
+      : {}),
+    metadata: {
+      restaurant_id: input.restaurantId,
+      purpose: "billing_update_mandate",
+      plan_id: entitlements.planId,
+      interval: entitlements.interval,
+      include_pos: entitlements.addons.includes("pos") ? "1" : "0",
+      restaurant_name: restaurantName ?? "",
+    },
+  });
+
+  if (!payment.ok) {
+    console.warn(
+      "mollie mandate update payment",
+      payment.error,
+      payment.status,
+    );
+    return {
+      ok: false,
+      error: "payment_create_failed",
+      status: 502,
+    };
+  }
+
+  const checkoutUrl = payment.data._links?.checkout?.href;
+  if (!checkoutUrl) {
+    return { ok: false, error: "checkout_url_missing", status: 500 };
+  }
+  return { ok: true, url: checkoutUrl };
 }
 
 export { billingSubscriptionInterval };

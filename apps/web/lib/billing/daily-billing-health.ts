@@ -1,9 +1,11 @@
 import "server-only";
 
 import { cancelMollieSubscriptionsPastDueGraceExpired } from "@/lib/billing/cancel-past-due-grace";
+import { finalizeMolliePeriodEndCancellations } from "@/lib/billing/finalize-period-end-cancels";
 import { getMollieBillingAuth } from "@/lib/billing/mollie-server";
 import { syncMollieSubscriptionToDb } from "@/lib/billing/sync-mollie-subscription";
 import {
+  loadRestaurantPeriodEndCancelState,
   listMollieLinkedSubscriptions,
   upsertRestaurantSubscriptionAdmin,
 } from "@/lib/billing/subscription-db";
@@ -18,6 +20,18 @@ async function markMollieSubscriptionMissing(input: {
 }): Promise<boolean> {
   const interval: BillingInterval =
     input.interval === "year" ? "year" : "month";
+  const existing = await loadRestaurantPeriodEndCancelState(input.restaurantId);
+  const periodEndMs = existing?.currentPeriodEnd
+    ? Date.parse(existing.currentPeriodEnd)
+    : NaN;
+  if (
+    existing?.cancelAtPeriodEnd &&
+    Number.isFinite(periodEndMs) &&
+    periodEndMs > Date.now()
+  ) {
+    // Period-end cancel already removed the Mollie sub — keep paid access.
+    return true;
+  }
   const result = await upsertRestaurantSubscriptionAdmin({
     restaurantId: input.restaurantId,
     planId: "free" as BillingPlanId,
@@ -52,6 +66,11 @@ export type DailyBillingHealthStats = {
     recovered: number;
     failed: number;
   };
+  periodEnd: {
+    scanned: number;
+    finalized: number;
+    failed: number;
+  };
 };
 
 /** Einmal täglich: Mollie ↔ DB abgleichen, dann 7-Tage-Cutoff. */
@@ -67,6 +86,7 @@ export async function runDailyBillingHealthCheck(): Promise<DailyBillingHealthSt
 
   if (!client) {
     console.warn("billing health: mollie_not_configured");
+    const periodEnd = await finalizeMolliePeriodEndCancellations();
     return {
       mollieListed: 0,
       dbLinked: dbRows.length,
@@ -74,6 +94,7 @@ export async function runDailyBillingHealthCheck(): Promise<DailyBillingHealthSt
       missing: 0,
       failed: dbRows.length,
       cutoff: cutoffEmpty,
+      periodEnd,
     };
   }
 
@@ -122,6 +143,7 @@ export async function runDailyBillingHealthCheck(): Promise<DailyBillingHealthSt
   }
 
   const cutoff = await cancelMollieSubscriptionsPastDueGraceExpired();
+  const periodEnd = await finalizeMolliePeriodEndCancellations();
   const stats: DailyBillingHealthStats = {
     mollieListed: dbRows.length,
     dbLinked: dbRows.length,
@@ -129,6 +151,7 @@ export async function runDailyBillingHealthCheck(): Promise<DailyBillingHealthSt
     missing,
     failed,
     cutoff,
+    periodEnd,
   };
   console.info("billing health", stats);
   return stats;

@@ -159,6 +159,19 @@ export async function mollieCancelSubscription(
   });
 }
 
+export async function mollieListCustomerSubscriptions(
+  auth: MollieAuth,
+  customerId: string,
+) {
+  return mollieFetchJson<{
+    _embedded?: { subscriptions?: MollieSubscription[] };
+  }>({
+    auth,
+    method: "GET",
+    path: `/customers/${encodeURIComponent(customerId)}/subscriptions?limit=250`,
+  });
+}
+
 export async function mollieListTerminals(auth: MollieAuth) {
   return mollieFetchJson<{
     _embedded?: { terminals?: MollieTerminal[] };

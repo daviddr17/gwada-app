@@ -1,0 +1,93 @@
+# Tägliche Contabo-Snapshots (API) — Fallback, weil Contabo kein Snapshot-Schedule hat.
+# Native täglich = Auto Backup Add-on (kostenpflichtig): workflow_dispatch mode=enable-auto-backup.
+name: Contabo daily snapshots
+
+on:
+  schedule:
+    # 03:15 UTC ≈ nachts EU — Snapshot create + prune
+    - cron: "15 3 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: status | snapshot | enable-auto-backup (kostenpflichtig)
+        required: true
+        type: choice
+        default: snapshot
+        options:
+          - snapshot
+          - status
+          - enable-auto-backup
+      confirm_paid_backup:
+        description: Nur für enable-auto-backup — auf "confirm" setzen
+        required: false
+        default: ""
+
+concurrency:
+  group: contabo-daily-snapshots
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Contabo snapshot / auto-backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "mode=snapshot" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Guard paid Auto Backup
+        if: steps.mode.outputs.mode == 'enable-auto-backup'
+        run: |
+          if [ "${{ inputs.confirm_paid_backup }}" != "confirm" ]; then
+            echo "::error::enable-auto-backup ist kostenpflichtig. confirm_paid_backup=confirm setzen."
+            exit 1
+          fi
+          echo "GWADA_CONFIRM_CONTABO_BACKUP=1" >> "$GITHUB_ENV"
+
+      - name: Check Contabo secrets present
+        env:
+          CONTABO_CLIENT_ID: ${{ secrets.CONTABO_CLIENT_ID }}
+          CONTABO_CLIENT_SECRET: ${{ secrets.CONTABO_CLIENT_SECRET }}
+          CONTABO_API_USER: ${{ secrets.CONTABO_API_USER }}
+          CONTABO_API_PASSWORD: ${{ secrets.CONTABO_API_PASSWORD }}
+        run: |
+          missing=()
+          [ -n "${CONTABO_CLIENT_ID}" ] || missing+=(CONTABO_CLIENT_ID)
+          [ -n "${CONTABO_CLIENT_SECRET}" ] || missing+=(CONTABO_CLIENT_SECRET)
+          [ -n "${CONTABO_API_USER}" ] || missing+=(CONTABO_API_USER)
+          [ -n "${CONTABO_API_PASSWORD}" ] || missing+=(CONTABO_API_PASSWORD)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Fehlende GitHub Secrets: ${missing[*]}"
+            echo "Contabo Customer Control Panel → API → Client ID/Secret + API User/Password."
+            echo "Optional: CONTABO_INSTANCE_ID (sonst Lookup IP 95.111.229.250)."
+            exit 1
+          fi
+          echo "Contabo secrets: vorhanden (Werte nicht geloggt)."
+
+      - name: Run Contabo script
+        env:
+          CONTABO_CLIENT_ID: ${{ secrets.CONTABO_CLIENT_ID }}
+          CONTABO_CLIENT_SECRET: ${{ secrets.CONTABO_CLIENT_SECRET }}
+          CONTABO_API_USER: ${{ secrets.CONTABO_API_USER }}
+          CONTABO_API_PASSWORD: ${{ secrets.CONTABO_API_PASSWORD }}
+          CONTABO_INSTANCE_ID: ${{ secrets.CONTABO_INSTANCE_ID }}
+          CONTABO_VPS_IP: ${{ secrets.CONTABO_VPS_IP }}
+          CONTABO_SNAPSHOT_RETAIN: ${{ vars.CONTABO_SNAPSHOT_RETAIN }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/contabo-daily-snapshots.sh
+          # Leere optional Secrets → unset, damit Lookup greift
+          [ -n "${CONTABO_INSTANCE_ID:-}" ] || unset CONTABO_INSTANCE_ID
+          [ -n "${CONTABO_VPS_IP:-}" ] || unset CONTABO_VPS_IP
+          # Retain default 3 wenn Repo-Variable fehlt
+          export CONTABO_SNAPSHOT_RETAIN="${CONTABO_SNAPSHOT_RETAIN:-3}"
+          bash scripts/contabo-daily-snapshots.sh "${{ steps.mode.outputs.mode }}"

@@ -519,8 +519,8 @@ export function RestaurantBillingPanel() {
         <div className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm">
             {entitlements?.pastDueGraceExpired
-              ? "Zahlung seit 7 Tagen ausstehend — Paid-Module sind auf Free. Zahlungsmittel aktualisieren (offene Rechnung) oder den Plan erneut wählen."
-              : `Zahlung ausstehend — Paid-Module bleiben bis ${formatBillingDate(entitlements?.pastDueAccessEndsAt)} aktiv (maximal 7 Tage). Danach Free.`}
+              ? "Zahlung seit 7 Tagen ausstehend — Paid-Module sind auf Free. Zahlung erneut starten oder den Plan neu wählen."
+              : `Zahlung ausstehend — Paid-Module bleiben bis ${formatBillingDate(entitlements?.pastDueAccessEndsAt)} aktiv (maximal 7 Tage). Danach Free. Zahlung erneut starten, sobald das Mandat wieder greift.`}
           </p>
           {managedMollie ? (
             <Button
@@ -735,7 +735,7 @@ export function RestaurantBillingPanel() {
       <section id="abo-rechnungen" className="scroll-mt-24">
         <RestaurantBillingInvoices
           restaurantId={restaurantId}
-          hasStripeCustomer={Boolean(entitlements?.mollieCustomerId)}
+          hasMollieCustomer={Boolean(entitlements?.mollieCustomerId)}
           reloadToken={invoiceReload}
         />
       </section>

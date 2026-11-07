@@ -41,11 +41,11 @@ function invoiceStatusClass(status: string): string {
 
 export function RestaurantBillingInvoices({
   restaurantId,
-  hasStripeCustomer,
+  hasMollieCustomer,
   reloadToken,
 }: {
   restaurantId: string;
-  hasStripeCustomer: boolean;
+  hasMollieCustomer: boolean;
   reloadToken: number;
 }) {
   const [invoices, setInvoices] = useState<RestaurantBillingInvoiceDto[]>([]);
@@ -101,7 +101,7 @@ export function RestaurantBillingInvoices({
         <Skeleton className="h-40 rounded-xl" />
       ) : invoices.length === 0 ? (
         <p className="rounded-xl border border-border/50 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
-          {hasStripeCustomer
+          {hasMollieCustomer
             ? "Noch keine Rechnungen. Sobald Mollie abbucht, erscheinen Belege hier."
             : "Nach dem ersten bezahlten Abo liegen Rechnungen hier bereit."}
         </p>
@@ -131,7 +131,14 @@ export function RestaurantBillingInvoices({
               </tr>
             </thead>
             <tbody>
-              {paged.items.map((row) => (
+              {paged.items.map((row) => {
+                const pdfUrl = row.invoicePdf?.trim() || null;
+                const hostedUrl = row.hostedInvoiceUrl?.trim() || null;
+                const sameUrl =
+                  Boolean(pdfUrl && hostedUrl) && pdfUrl === hostedUrl;
+                const showPdf = Boolean(pdfUrl);
+                const showHosted = Boolean(hostedUrl) && !sameUrl;
+                return (
                 <tr key={row.id} className="border-b border-border/40 last:border-0">
                   <td className="px-4 py-3 font-medium tabular-nums">
                     {row.number ?? "—"}
@@ -163,7 +170,7 @@ export function RestaurantBillingInvoices({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      {row.invoicePdf ? (
+                      {showPdf ? (
                         <Button
                           type="button"
                           variant="ghost"
@@ -171,7 +178,7 @@ export function RestaurantBillingInvoices({
                           title="PDF herunterladen"
                           render={
                             <a
-                              href={row.invoicePdf}
+                              href={pdfUrl!}
                               target="_blank"
                               rel="noreferrer"
                             />
@@ -180,7 +187,7 @@ export function RestaurantBillingInvoices({
                           <Download className="size-3.5" />
                         </Button>
                       ) : null}
-                      {row.hostedInvoiceUrl ? (
+                      {showHosted ? (
                         <Button
                           type="button"
                           variant="ghost"
@@ -188,7 +195,7 @@ export function RestaurantBillingInvoices({
                           title="Beleg öffnen"
                           render={
                             <a
-                              href={row.hostedInvoiceUrl}
+                              href={hostedUrl!}
                               target="_blank"
                               rel="noreferrer"
                             />
@@ -200,7 +207,8 @@ export function RestaurantBillingInvoices({
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </ModulePaginatedDataTable>
